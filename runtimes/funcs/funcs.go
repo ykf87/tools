@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 	// "syscall"
 	// "github.com/lxn/win"
@@ -199,7 +200,10 @@ func GetLocalIP() (string, error) {
 
 		// 只要 IPv4，并且不是回环地址
 		if ipNet.IP.To4() != nil && !ipNet.IP.IsLoopback() {
-			return ipNet.IP.String(), nil
+			ip := ipNet.IP.String()
+			if strings.Contains(ip, "192.168") {
+				return ip, nil
+			}
 		}
 	}
 	return "", fmt.Errorf("未找到局域网 IP")

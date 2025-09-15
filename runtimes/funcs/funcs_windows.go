@@ -1,5 +1,10 @@
 package funcs
 
+import (
+	"os"
+	"syscall"
+)
+
 func Hide(path string) error {
 	_, err := os.Stat(path)
 	if err == nil {

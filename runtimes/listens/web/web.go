@@ -94,6 +94,10 @@ func webUrl(NetIp string, port int) {
 	webFullPath := config.FullPath(config.WEBROOT)
 	assetsFullPath := filepath.Join(webFullPath, "assets")
 
+	if _, err := os.Stat(assetsFullPath); err != nil {
+		fmt.Println("Downloading web files...")
+	}
+
 	var jsFiles []string
 	filepath.WalkDir(assetsFullPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
