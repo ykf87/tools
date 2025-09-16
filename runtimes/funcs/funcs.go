@@ -15,9 +15,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
+
 	// "syscall"
 	// "github.com/lxn/win"
 	// "github.com/kbinani/screenshot"
+	"github.com/google/uuid"
 )
 
 // 获取运行的根路径
@@ -207,4 +211,28 @@ func GetLocalIP() (string, error) {
 		}
 	}
 	return "", fmt.Errorf("未找到局域网 IP")
+}
+
+// 获取当前uuid
+func Uuid() string {
+	uid, err := uuid.NewUUID()
+	if err != nil {
+		return ""
+		// panic(err)
+	}
+	return uid.String()
+}
+
+// 生成密码
+func GenPassword(password string, cost int) (string, error) {
+	if cost == 0 {
+		cost = bcrypt.DefaultCost
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), cost)
+	return string(hash), err
+}
+
+// 验证密码
+func VerifyPassword(hash, password string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 }

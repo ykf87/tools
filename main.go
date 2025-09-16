@@ -27,19 +27,12 @@ import (
 	"syscall"
 	"tools/runtimes/funcs"
 
-	"github.com/google/uuid"
-
 	_ "tools/runtimes"
 	_ "tools/runtimes/db"
 	"tools/runtimes/listens/web"
 )
 
 func main() {
-	uid, err := uuid.NewUUID()
-	if err != nil {
-		panic(err)
-	}
-	uid.String()
 	// checkNode()
 	port, err := funcs.FreePort()
 	if err != nil {

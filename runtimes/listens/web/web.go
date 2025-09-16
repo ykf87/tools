@@ -99,6 +99,8 @@ func webUrl(NetIp string, port int) {
 	}
 
 	var jsFiles []string
+	finder := regexp.MustCompile(`VITE_SERVICE_BASE_URL:"([^"]+)"`)
+	replaceTo := fmt.Sprintf(`VITE_SERVICE_BASE_URL:"http://%s:%d"`, NetIp, port)
 	filepath.WalkDir(assetsFullPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -108,7 +110,7 @@ func webUrl(NetIp string, port int) {
 		if !d.IsDir() && filepath.Ext(path) == ".js" {
 			jsFiles = append(jsFiles, path)
 
-			if err := replaceFileContent(path, fmt.Sprintf(`apiBaseUrl:"http://%s:%d"`, NetIp, port), regexp.MustCompile(`apiBaseUrl:"([^"]+)"`)); err != nil {
+			if err := replaceFileContent(path, replaceTo, finder); err != nil {
 				logs.Error(err.Error())
 				panic(err)
 			}
