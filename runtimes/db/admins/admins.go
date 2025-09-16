@@ -14,16 +14,30 @@ type Admin struct {
 	Id       int64  `json:"id" gorm:"primaryKey;autoIncrement"`
 	Account  string `json:"account" gorm:"uniqueIndex;not null"`
 	Name     string `json:"name" gorm:"index"`
-	Password string `json:"password" gorm:"default:null"`
+	Password string `json:"password" gorm:"default:null" parse:"-"`
 	CreateAt string `json:"create_at" gorm:"index"`
 	UpdateAt string `json:"update_at" gorm:"index"`
 	Status   int    `json:"status" gorm:"type:tinyint(1);"`
-	Timer    int64  `json:"timer" gorm:"type:int(64)"`
-	Jwt      string `json:"-" gorm:"-"`
+	Timer    int64  `json:"timer" gorm:"type:int(64)" parse:"-"`
+	Main     int    `json:"main" gorm:"type:tinyint(1);index"`
+	Jwt      string `json:"-" gorm:"-" parse:"-"`
 }
 
 func init() {
 	db.DB.AutoMigrate(&Admin{})
+
+	var reslen int64
+	db.DB.Model(&Admin{}).Count(&reslen)
+	if reslen < 1 {
+		adm := &Admin{
+			Account:  "admin",
+			Name:     "Super",
+			Password: "",
+			Status:   1,
+			Main:     1,
+		}
+		adm.Save(nil)
+	}
 }
 
 // 登录
@@ -48,8 +62,12 @@ func Login(account, password string) (*Admin, error) {
 		return nil, fmt.Errorf(i18n.T("Account %s status error", account))
 	}
 
-	if err := funcs.VerifyPassword(adm.Password, password); err != nil {
-		return nil, err
+	if adm.Password != "" {
+		if err := funcs.VerifyPassword(adm.Password, password); err != nil {
+			return nil, fmt.Errorf(i18n.T("Password error"))
+		}
+	} else if password != "" {
+		adm.Password, _ = funcs.GenPassword(password, 0)
 	}
 
 	adm.Timer = adm.Timer + 1
@@ -64,6 +82,7 @@ func Login(account, password string) (*Admin, error) {
 	return adm, nil
 }
 
+// 保存
 func (this *Admin) Save(tx *gorm.DB) error {
 	if tx == nil {
 		tx = db.DB
@@ -79,6 +98,45 @@ func (this *Admin) Save(tx *gorm.DB) error {
 			}).Error
 	} else {
 		this.CreateAt = time.Now().Format("2006-01-02 15:04:05")
+		this.UpdateAt = this.CreateAt
 		return tx.Create(this).Error
 	}
+}
+
+// 获取用户列表
+func AdminList(page, limit int, q, bykey, by string) ([]*Admin, int64) {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+	var adms []*Admin
+	model := db.DB.Model(&Admin{})
+	if q != "" {
+		qs := fmt.Sprintf(`"%s%"`, q)
+		model.Where(func(dbs *gorm.DB) *gorm.DB {
+			return dbs.Where("account like ?", qs).Or("name like ?", qs)
+		})
+	}
+	if bykey == "" {
+		bykey = "id"
+	}
+	switch by {
+	case "asc":
+		by = "ASC"
+	default:
+		by = "DESC"
+	}
+
+	var totals int64
+	model.Count(&totals)
+
+	model.Order(fmt.Sprintf("%s %s", bykey, by)).Offset((page - 1) * limit).Limit(limit).Find(&adms)
+	return adms, totals
+}
+
+// 添加用户
+func AddAdmin() {
+
 }

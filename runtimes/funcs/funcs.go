@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"os"
 	"os/exec"
@@ -235,4 +236,10 @@ func GenPassword(password string, cost int) (string, error) {
 // 验证密码
 func VerifyPassword(hash, password string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+}
+
+// 截断保留decimals位小数
+func TruncateFloat64(f float64, decimals int) float64 {
+	factor := math.Pow(10, float64(decimals))
+	return math.Trunc(f*factor) / factor
 }

@@ -4,13 +4,17 @@ import (
 	"context"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"time"
 	"tools/runtimes/config"
+	"tools/runtimes/db/admins"
 	"tools/runtimes/funcs"
+	"tools/runtimes/i18n"
 	"tools/runtimes/logs"
+	"tools/runtimes/response"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
@@ -55,12 +59,15 @@ func Start(port int) {
 	}
 
 	go func() {
-		webUrl(NetIp, WebPort)
+		webUrl(NetIp, RunPort, WebPort)
 	}()
 
 	WebUrl = fmt.Sprintf("http://%s:%d", NetIp, WebPort)
 	DataPath = config.FullPath(config.DATAROOT)
 	fmt.Println("服务已启动:", WebUrl)
+	config.WebUrl = WebUrl
+	config.MediaUrl = fmt.Sprintf("http://%s:%d/%s", NetIp, RunPort, config.DATAROOT)
+	config.ApiUrl = fmt.Sprintf("http://%s:%d", NetIp, RunPort)
 
 	for {
 		select {
@@ -75,11 +82,20 @@ func Start(port int) {
 // 允许跨域中间件
 func Corss() gin.HandlerFunc {
 	return cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:19998"},                                      // 允许所有来源
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},                     // 允许所有方法
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Requested-With"}, // 允许所有请求头
-		AllowCredentials: true,                                                                    // 不使用凭证
-		MaxAge:           12 * time.Hour,                                                          // 预检请求的缓存时间
+		AllowOrigins: []string{"*"},                                       // 允许所有来源
+		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}, // 允许所有方法
+		AllowHeaders: []string{
+			"*",
+			// "Origin",
+			// "Content-Type",
+			// "Authorization",
+			// "X-Requested-With",
+			// "Apifoxtoken",
+			// "X-Request-Id",
+			// "User-Agent",
+		}, // 允许所有请求头
+		AllowCredentials: false,          // 不使用凭证
+		MaxAge:           12 * time.Hour, // 预检请求的缓存时间
 	})
 }
 
@@ -90,7 +106,7 @@ func WriteLogs(c *gin.Context) {
 }
 
 // 给web单独开一个端口
-func webUrl(NetIp string, port int) {
+func webUrl(NetIp string, port, WebPort int) {
 	webFullPath := config.FullPath(config.WEBROOT)
 	assetsFullPath := filepath.Join(webFullPath, "assets")
 
@@ -128,7 +144,7 @@ func webUrl(NetIp string, port int) {
 		c.File(config.FullPath(config.WEBROOT, "index.html"))
 	})
 
-	r.Run(fmt.Sprintf(":%d", port))
+	r.Run(fmt.Sprintf(":%d", WebPort))
 }
 
 // 替换文件内容
@@ -146,4 +162,35 @@ func replaceFileContent(file, newcont string, re *regexp.Regexp) error {
 		return err
 	}
 	return nil
+}
+
+// 用户鉴权
+func AuthMiddleware(c *gin.Context) {
+	token := c.GetHeader("Authorization")
+	if token == "" {
+		response.Error(c, http.StatusUnauthorized, i18n.T("Please Login first"), nil)
+		c.Abort()
+		return
+	}
+
+	adm, err := admins.GetAdminFromJwt(token)
+	if err != nil {
+		response.Error(c, http.StatusUnauthorized, err.Error(), nil)
+		c.Abort()
+		return
+	}
+
+	c.Set("_user", adm)
+	// if _, ok := c.Get("user"); !ok {
+	// 	msg := "Please log in first"
+	// 	if ue, ok := c.Get("user_error"); ok {
+	// 		uerr := ue.(error)
+	// 		msg = uerr.Error()
+	// 	}
+	// 	resp.Error(c, msg, nil, http.StatusUnauthorized)
+	// 	c.Abort()
+	// 	return
+	// }
+
+	c.Next()
 }

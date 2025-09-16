@@ -1,8 +1,12 @@
 package admins
 
 import (
+	"fmt"
+	"strings"
 	"time"
+	"tools/runtimes/db"
 	"tools/runtimes/funcs"
+	"tools/runtimes/i18n"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -38,4 +42,34 @@ func (this *Admin) GenJwt() (string, error) {
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(jwtKey)
+}
+
+// 通过jwt获取管理员
+func GetAdminFromJwt(tokenStr string) (*Admin, error) {
+	tokenStr = strings.ReplaceAll(tokenStr, "Bearer ", "")
+	claims := &Claims{}
+	// 解析并验证
+	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	if !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	adm := new(Admin)
+	if err := db.DB.Model(&Admin{}).Where("id = ?", claims.Id).First(adm).Error; err != nil {
+		return nil, err
+	}
+	if adm.Id < 1 {
+		return nil, fmt.Errorf(i18n.T("Account not found"))
+	}
+
+	if adm.Timer != claims.Timer {
+		return nil, fmt.Errorf(i18n.T("Account logged in elsewhere"))
+	}
+	return adm, nil
 }

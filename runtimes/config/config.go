@@ -21,6 +21,19 @@ type mkdirStruct struct {
 }
 
 var WebFilesDownUrl = "https://127.0.0.1" // 网页下载地址
+
+var Lang = "zh-cn"
+var Timezone = "PRC"
+var Currency = "CNY"
+var CurrRate = 1.0
+var Country = "cn"
+var TimeFormat = "15:04:05"
+var DateFormat = "2006-01-02"
+var DateTimeFormat = "2006-01-02 15:04:05"
+var ApiUrl = ""
+var WebUrl = ""
+var MediaUrl = ""
+
 var RuningRoot string
 var Mkdirs = map[string]*mkdirStruct{
 	"log": &mkdirStruct{

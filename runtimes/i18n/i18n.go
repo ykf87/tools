@@ -2,8 +2,8 @@ package i18n
 
 import (
 	"fmt"
-	"strings"
 	"sync"
+	"tools/runtimes/config"
 )
 
 var i18nMap sync.Map
@@ -12,10 +12,8 @@ func init() {
 	fmt.Println("---- i18n 需要同步多语言信息,todo.......")
 }
 
-func T(key, lang string) string {
-	lang = strings.ToLower(lang)
-
-	v, ok := i18nMap.Load(lang)
+func T(key string, args ...any) string {
+	v, ok := i18nMap.Load(config.Lang)
 	if !ok {
 		return key
 	}
@@ -25,5 +23,5 @@ func T(key, lang string) string {
 		return str
 	}
 
-	return key
+	return fmt.Sprintf(key, args...)
 }
