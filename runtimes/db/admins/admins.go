@@ -89,12 +89,12 @@ func (this *Admin) Save(tx *gorm.DB) error {
 	}
 	if this.Id > 0 {
 		return tx.Model(&Admin{}).Where("id = ?", this.Id).
-			Updates(Admin{
-				Name:     this.Name,
-				Password: this.Password,
-				UpdateAt: time.Now().Format("2006-01-02 15:04:05"),
-				Timer:    this.Timer,
-				Status:   this.Status,
+			Updates(map[string]interface{}{
+				"name":      this.Name,
+				"password":  this.Password,
+				"update_at": time.Now().Format("2006-01-02 15:04:05"),
+				"timer":     this.Timer,
+				"status":    this.Status,
 			}).Error
 	} else {
 		this.CreateAt = time.Now().Format("2006-01-02 15:04:05")
@@ -114,10 +114,8 @@ func AdminList(page, limit int, q, bykey, by string) ([]*Admin, int64) {
 	var adms []*Admin
 	model := db.DB.Model(&Admin{})
 	if q != "" {
-		qs := fmt.Sprintf(`"%s%"`, q)
-		model.Where(func(dbs *gorm.DB) *gorm.DB {
-			return dbs.Where("account like ?", qs).Or("name like ?", qs)
-		})
+		qs := fmt.Sprintf("%%%s%%", q)
+		model = model.Where("account LIKE ? OR name LIKE ?", qs, qs)
 	}
 	if bykey == "" {
 		bykey = "id"
@@ -136,7 +134,23 @@ func AdminList(page, limit int, q, bykey, by string) ([]*Admin, int64) {
 	return adms, totals
 }
 
-// 添加用户
-func AddAdmin() {
+// 使用id获取用户
+func GetAdminFromId(id any) *Admin {
+	adm := new(Admin)
+	db.DB.Model(&Admin{}).Where("id = ?", id).First(adm)
+	return adm
+}
 
+// 根据id删除用户
+func DeleteAdminById(id any) error {
+	adm := GetAdminFromId(id)
+	if adm == nil || adm.Id < 1 {
+		return fmt.Errorf(i18n.T("Account not found"))
+	}
+
+	if adm.Main == 1 {
+		return fmt.Errorf(i18n.T("Super administrators cannot delete"))
+	}
+
+	return db.DB.Where("id = ?", id).Delete(&Admin{}).Error
 }

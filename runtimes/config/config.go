@@ -7,11 +7,13 @@ import (
 )
 
 const (
-	LOGROOT   = "logs"           // 日志目录
-	CACHEROOT = "cache"          // 缓存目录
-	DATAROOT  = "data"           // 媒体文件路径
-	WEBROOT   = ".web"           // 网页端文件路径,开头是.的默认隐藏
-	DBFILE    = WEBROOT + "/.db" // 数据库文件
+	LOGROOT     = "logs"           // 日志目录
+	CACHEROOT   = "cache"          // 缓存目录
+	DATAROOT    = "data"           // 媒体文件路径
+	WEBROOT     = ".web"           // 网页端文件路径,开头是.的默认隐藏
+	DBFILE      = WEBROOT + "/.db" // 数据库文件
+	VERSION     = "1.0.0"          // 字符串版本
+	VERSIONCODE = 100              // 整数版本
 )
 
 type mkdirStruct struct {

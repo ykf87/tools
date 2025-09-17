@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/db/admins"
@@ -28,6 +29,11 @@ var WebPort int                   // 网页打开的url
 var WebUrl string                 // 打开的url地址
 var NetIp string                  // 本机ip
 var DataPath string               // 数据存储目录
+
+type fileReplaceReqs struct {
+	NewContent string
+	Req        *regexp.Regexp
+}
 
 func Start(port int) {
 	var err error
@@ -115,8 +121,17 @@ func webUrl(NetIp string, port, WebPort int) {
 	}
 
 	var jsFiles []string
-	finder := regexp.MustCompile(`VITE_SERVICE_BASE_URL:"([^"]+)"`)
-	replaceTo := fmt.Sprintf(`VITE_SERVICE_BASE_URL:"http://%s:%d"`, NetIp, port)
+
+	rps := []*fileReplaceReqs{
+		&fileReplaceReqs{
+			Req:        regexp.MustCompile(`VITE_SERVICE_BASE_URL:"([^"]+)"`),
+			NewContent: fmt.Sprintf(`VITE_SERVICE_BASE_URL:"http://%s:%d"`, NetIp, port),
+		},
+		&fileReplaceReqs{
+			Req:        regexp.MustCompile(`VITE_SERVICE_WS_URL:"([^"]+)"`),
+			NewContent: fmt.Sprintf(`VITE_SERVICE_WS_URL:"ws://%s:%d/user/ws"`, NetIp, port),
+		},
+	}
 	filepath.WalkDir(assetsFullPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -126,7 +141,7 @@ func webUrl(NetIp string, port, WebPort int) {
 		if !d.IsDir() && filepath.Ext(path) == ".js" {
 			jsFiles = append(jsFiles, path)
 
-			if err := replaceFileContent(path, replaceTo, finder); err != nil {
+			if err := replaceFileContent(path, rps); err != nil {
 				logs.Error(err.Error())
 				panic(err)
 			}
@@ -148,14 +163,18 @@ func webUrl(NetIp string, port, WebPort int) {
 }
 
 // 替换文件内容
-func replaceFileContent(file, newcont string, re *regexp.Regexp) error {
+func replaceFileContent(file string, regs []*fileReplaceReqs) error {
 	// 读取文件内容
 	content, err := os.ReadFile(file)
 	if err != nil {
 		return err
 	}
 
-	newContent := re.ReplaceAllString(string(content), newcont)
+	newContent := string(content)
+	for _, v := range regs {
+		newContent = v.Req.ReplaceAllString(newContent, v.NewContent)
+	}
+	// newContent := re.ReplaceAllString(string(content), newcont)
 
 	err = os.WriteFile(file, []byte(newContent), 0644)
 	if err != nil {
@@ -164,9 +183,20 @@ func replaceFileContent(file, newcont string, re *regexp.Regexp) error {
 	return nil
 }
 
+// 判断是否来自ws
+func isWebSocket(c *gin.Context) bool {
+	connectionHeader := strings.ToLower(c.GetHeader("Connection"))
+	upgradeHeader := strings.ToLower(c.GetHeader("Upgrade"))
+
+	return strings.Contains(connectionHeader, "upgrade") && upgradeHeader == "websocket"
+}
+
 // 用户鉴权
 func AuthMiddleware(c *gin.Context) {
 	token := c.GetHeader("Authorization")
+	if token == "" && isWebSocket(c) {
+		token = c.Query("token")
+	}
 	if token == "" {
 		response.Error(c, http.StatusUnauthorized, i18n.T("Please Login first"), nil)
 		c.Abort()
@@ -181,16 +211,22 @@ func AuthMiddleware(c *gin.Context) {
 	}
 
 	c.Set("_user", adm)
-	// if _, ok := c.Get("user"); !ok {
-	// 	msg := "Please log in first"
-	// 	if ue, ok := c.Get("user_error"); ok {
-	// 		uerr := ue.(error)
-	// 		msg = uerr.Error()
-	// 	}
-	// 	resp.Error(c, msg, nil, http.StatusUnauthorized)
-	// 	c.Abort()
-	// 	return
-	// }
+	c.Next()
+}
 
+// 超级用户权限中间件
+func SuperAdminMiddleware(c *gin.Context) {
+	u, ok := c.Get("_user")
+	if !ok {
+		response.Error(c, http.StatusBadRequest, i18n.T("Please Login first"), nil)
+		c.Abort()
+		return
+	}
+	us, ok := u.(*admins.Admin)
+	if !ok || us.Id < 1 || us.Main != 1 {
+		response.Error(c, http.StatusBadRequest, i18n.T("You do not have permission to perform this operation"), nil)
+		c.Abort()
+		return
+	}
 	c.Next()
 }

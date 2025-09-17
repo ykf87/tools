@@ -54,6 +54,7 @@ func GetAdminFromJwt(tokenStr string) (*Admin, error) {
 	})
 
 	if err != nil {
+		fmt.Println(err, "--------", tokenStr)
 		return nil, err
 	}
 	if !token.Valid {

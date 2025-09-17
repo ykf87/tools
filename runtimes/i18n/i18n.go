@@ -15,12 +15,12 @@ func init() {
 func T(key string, args ...any) string {
 	v, ok := i18nMap.Load(config.Lang)
 	if !ok {
-		return key
+		return fmt.Sprintf(key, args...)
 	}
 
 	val := v.(map[string]string)
 	if str, ok := val[key]; ok {
-		return str
+		return fmt.Sprintf(str, args...)
 	}
 
 	return fmt.Sprintf(key, args...)

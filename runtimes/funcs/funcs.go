@@ -216,12 +216,22 @@ func GetLocalIP() (string, error) {
 
 // 获取当前uuid
 func Uuid() string {
-	uid, err := uuid.NewUUID()
-	if err != nil {
-		return ""
-		// panic(err)
+	// uid, err := uuid.NewUUID()
+	// if err != nil {
+	// 	return ""
+	// 	// panic(err)
+	// }
+	// return uid.String()
+
+	interfaces, _ := net.Interfaces()
+	for _, i := range interfaces {
+		if len(i.HardwareAddr) == 0 {
+			continue
+		}
+		// 用 MAC 地址生成固定 UUID
+		return uuid.NewMD5(uuid.Nil, i.HardwareAddr).String()
 	}
-	return uid.String()
+	return uuid.New().String()
 }
 
 // 生成密码
