@@ -29,6 +29,20 @@ func Editer(c *gin.Context) {
 		return
 	}
 
+	u, ok := c.Get("_user")
+	if !ok {
+		response.Error(c, http.StatusNotFound, i18n.T("Please Login first"), nil)
+		return
+	}
+	dbadm := u.(*admins.Admin)
+
+	if dbadm.Main == 1 {
+		if adm.Status == 0 {
+			response.Error(c, http.StatusNotFound, i18n.T("Superusers cannot modify"), nil)
+			return
+		}
+	}
+
 	if adm.Password != "" {
 		adm.Password, _ = funcs.GenPassword(adm.Password, 0)
 	}
