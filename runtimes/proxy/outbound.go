@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -11,13 +12,6 @@ import (
 	"tools/runtimes/i18n"
 
 	_ "github.com/xtls/xray-core/app/proxyman/outbound"
-	// core "github.com/xtls/xray-core/core"
-	// serials "github.com/xtls/xray-core/infra/conf/serial"
-	// "github.com/xtls/xray-core/common/serial"
-	// proxyss "github.com/xtls/xray-core/proxy/shadowsocks"
-	// proxysocks "github.com/xtls/xray-core/proxy/socks"
-	// proxytrojan "github.com/xtls/xray-core/proxy/trojan"
-	// proxyvmess "github.com/xtls/xray-core/proxy/vmess"
 )
 
 type Outbound struct {
@@ -37,9 +31,75 @@ func ParseProxy(raw string) (*ProxyConfig, error) {
 		return parseVLess(raw)
 	case strings.HasPrefix(raw, "trojan://"):
 		return parseTrojan(raw)
+	case strings.HasPrefix(raw, "http://"):
+		return parseHttp(raw)
+	case strings.HasPrefix(raw, "https://"):
+		return parseHttps(raw)
 	default:
 		return nil, errors.New(i18n.T("unsupported proxy scheme"))
 	}
+}
+
+func (this *ProxyConfig) GetOutbound() (*Outbound, error) {
+	outbound := &Outbound{
+		Protocol: this.Protocol,
+		Settings: map[string]any{},
+	}
+
+	switch this.Protocol {
+	case "ss", "shadowsocks":
+		// SS 协议的 Settings 通常包含：
+		// "servers": [{ "address": ..., "port": ..., "method": ..., "password": ... }]
+		outbound.Protocol = "shadowsocks"
+		servers := []map[string]any{
+			{
+				"address":  this.RemoteAddr,
+				"port":     this.RemotePort,
+				"method":   this.Security, // method 对应 Security 字段
+				"password": this.Password,
+			},
+		}
+		outbound.Settings["servers"] = servers
+	case "socks":
+		outbound.Settings["servers"] = []map[string]any{
+			{"address": this.RemoteAddr, "port": this.RemotePort, "user": this.Username, "pass": this.Password},
+		}
+	case "vmess":
+		outbound.Settings["vnext"] = []map[string]any{
+			{
+				"address": this.RemoteAddr,
+				"port":    this.RemotePort,
+				"users": []map[string]any{
+					{"id": this.UUID, "alterId": 0, "security": this.Security},
+				},
+			},
+		}
+	case "vless":
+		outbound.Settings["vnext"] = []map[string]any{
+			{"address": this.RemoteAddr, "port": this.RemotePort, "users": []map[string]any{{"id": this.UUID}}},
+		}
+	case "trojan":
+		outbound.Settings["servers"] = []map[string]any{
+			{"address": this.RemoteAddr, "port": this.RemotePort, "password": this.Password},
+		}
+	case "http", "https":
+		mmsfd := make(map[string]any)
+		mmsfd["address"] = this.RemoteAddr
+		mmsfd["port"] = this.RemotePort
+		if this.Username != "" && this.Password != "" {
+			mmsfd["users"] = []map[string]any{{
+				"user": this.Username,
+				"pass": this.Password,
+			}}
+		}
+		outbound.Settings["servers"] = []map[string]any{
+			mmsfd,
+		}
+	default:
+		return nil, fmt.Errorf("unsupported protocol: %s", this.Protocol)
+	}
+
+	return outbound, nil
 }
 
 func parseQuery(q url.Values) map[string]string {
@@ -65,37 +125,28 @@ func parseSocks(socksURL string) (*ProxyConfig, error) {
 		query = parts[1]
 	}
 
+	var decoded string
 	decodedBytes, err := base64.StdEncoding.DecodeString(base64Part)
 	if err != nil {
-		return nil, err
-	}
-	decoded := string(decodedBytes)
-
-	// decoded 形如 "username:password@host:port"
-	upParts := strings.SplitN(decoded, "@", 2)
-	if len(upParts) != 2 {
-		return nil, errors.New("invalid socks format")
+		// return nil, err
+		decoded = base64Part
+	} else {
+		decoded = string(decodedBytes)
 	}
 
-	userPass := strings.SplitN(upParts[0], ":", 2)
-	hostPort := strings.SplitN(upParts[1], ":", 2)
-	if len(userPass) != 2 || len(hostPort) != 2 {
-		return nil, errors.New("invalid socks user/pass or host/port format")
-	}
-
-	remotePort, err := strconv.Atoi(hostPort[1])
-	if err != nil {
-		return nil, err
+	addr, port, un, pwd := getHostPortOrNamePwd(decoded)
+	if addr == "" || port < 10 {
+		return nil, fmt.Errorf("Wrong socks proxy")
 	}
 
 	cfg := &ProxyConfig{
 		Protocol:   "socks",
 		ListenAddr: "127.0.0.1", // 默认本地监听
 		ListenPort: 0,           // 默认端口，可在调用时修改
-		RemoteAddr: hostPort[0],
-		RemotePort: remotePort,
-		Username:   userPass[0],
-		Password:   userPass[1],
+		RemoteAddr: addr,
+		RemotePort: port,
+		Username:   un,
+		Password:   pwd,
 		Extra:      make(map[string]any),
 	}
 
@@ -313,270 +364,76 @@ func parseTrojan(trojanURL string) (*ProxyConfig, error) {
 	return cfg, nil
 }
 
-// func ParseOutbound(link string) (map[string]interface{}, error) {
-// 	switch {
-// 	case strings.HasPrefix(link, "ss://"):
-// 		return parseSS(link)
-// 	case strings.HasPrefix(link, "vmess://"):
-// 		return parseVmess(link)
-// 	case strings.HasPrefix(link, "trojan://"):
-// 		return parseTrojan(link)
-// 	// case strings.HasPrefix(link, "socks://"):
-// 	// 	return parseSocks(link)
-// 	default:
-// 		return nil, fmt.Errorf("未知链接类型")
-// 	}
-// }
+func parseHttp(row string) (*ProxyConfig, error) {
+	if !strings.HasPrefix(row, "http://") {
+		return nil, errors.New("not a http url")
+	}
 
-// // ---------- Shadowsocks ----------
-// func parseSS(link string) (map[string]interface{}, error) {
-// 	ssLink := strings.TrimPrefix(link, "ss://")
-// 	if idx := strings.Index(ssLink, "#"); idx != -1 {
-// 		ssLink = ssLink[:idx]
-// 	}
+	row = strings.TrimLeft(row, "http://")
 
-// 	at := strings.LastIndex(ssLink, "@")
-// 	if at == -1 {
-// 		return nil, fmt.Errorf("ss 链接格式错误")
-// 	}
+	cfg := new(ProxyConfig)
+	cfg.Protocol = "http"
 
-// 	userInfoEnc := ssLink[:at]
-// 	hostPort := ssLink[at+1:]
+	host, port, username, pwd := getHostPortOrNamePwd(strings.TrimLeft(row, "https://"))
 
-// 	userInfoBytes, err := base64.StdEncoding.DecodeString(userInfoEnc)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("base64 解码失败: %v", err)
-// 	}
+	if host == "" || port < 10 {
+		return nil, fmt.Errorf("Wrong http proxy")
+	}
+	cfg.RemoteAddr = host
+	cfg.RemotePort = port
+	cfg.Username = username
+	cfg.Password = pwd
 
-// 	parts := strings.SplitN(string(userInfoBytes), ":", 2)
-// 	if len(parts) != 2 {
-// 		return nil, fmt.Errorf("user:pass 格式错误")
-// 	}
-// 	method := parts[0]
-// 	password := parts[1]
+	if cfg.RemoteAddr == "" || cfg.RemotePort < 10 {
+		return nil, fmt.Errorf("Wrong http proxy")
+	}
 
-// 	host, portStr, err := net.SplitHostPort(hostPort)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("host:port 解析失败: %v", err)
-// 	}
+	return cfg, nil
+}
 
-// 	port, _ := strconv.Atoi(portStr)
+func parseHttps(row string) (*ProxyConfig, error) {
+	if !strings.HasPrefix(row, "https://") {
+		return nil, errors.New("not a https url")
+	}
 
-// 	return map[string]interface{}{
-// 		"protocol": "shadowsocks",
-// 		"settings": map[string]interface{}{
-// 			"servers": []map[string]interface{}{
-// 				{
-// 					"address":  host,
-// 					"port":     port,
-// 					"method":   method,
-// 					"password": password,
-// 				},
-// 			},
-// 		},
-// 		"streamSettings": map[string]interface{}{
-// 			"network": "tcp",
-// 		},
-// 	}, nil
+	cfg := new(ProxyConfig)
+	cfg.Protocol = "https"
 
-// 	// // 生成 JSON
-// 	// ssJSON := map[string]interface{}{
-// 	// 	"outbounds": []map[string]interface{}{
-// 	// 		{
-// 	// 			"protocol": "shadowsocks",
-// 	// 			"settings": map[string]interface{}{
-// 	// 				"servers": []map[string]interface{}{
-// 	// 					{
-// 	// 						"address":  host,
-// 	// 						"port":     port,
-// 	// 						"method":   method,
-// 	// 						"password": password,
-// 	// 					},
-// 	// 				},
-// 	// 			},
-// 	// 			"streamSettings": map[string]interface{}{
-// 	// 				"network": "tcp",
-// 	// 			},
-// 	// 		},
-// 	// 	},
-// 	// }
+	host, port, username, pwd := getHostPortOrNamePwd(strings.TrimLeft(row, "https://"))
 
-// 	// data, _ := json.Marshal(ssJSON)
-// 	// reader := strings.NewReader(string(data))
-// 	// cfg, err := serials.LoadJSONConfig(reader)
-// 	// if err != nil {
-// 	// 	return nil, err
-// 	// }
+	if host == "" || port < 10 {
+		return nil, fmt.Errorf("Wrong http proxy")
+	}
+	cfg.RemoteAddr = host
+	cfg.RemotePort = port
+	cfg.Username = username
+	cfg.Password = pwd
 
-// 	// return cfg, nil
-// }
+	return cfg, nil
+}
 
-// // ---------- VMess ----------
-// func parseVmess(link string) (map[string]interface{}, error) {
-// 	vmessBase64 := strings.TrimPrefix(link, "vmess://")
-// 	vmessJSONBytes, err := base64.StdEncoding.DecodeString(vmessBase64)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("vmess base64 解码失败: %v", err)
-// 	}
-
-// 	resps := make(map[string]interface{})
-// 	if err := json.Unmarshal(vmessJSONBytes, &resps); err != nil {
-// 		return nil, err
-// 	}
-// 	return resps, nil
-
-// 	// // vmessJSONBytes 是完整 JSON 配置片段
-// 	// reader := strings.NewReader(string(vmessJSONBytes))
-// 	// cfg, err := serials.LoadJSONConfig(reader)
-// 	// if err != nil {
-// 	// 	return nil, err
-// 	// }
-// 	// return cfg, nil
-// }
-
-// // ---------- Trojan ----------
-// func parseTrojan(link string) (map[string]interface{}, error) {
-// 	trojanLink := strings.TrimPrefix(link, "trojan://")
-// 	if idx := strings.Index(trojanLink, "#"); idx != -1 {
-// 		trojanLink = trojanLink[:idx]
-// 	}
-
-// 	at := strings.LastIndex(trojanLink, "@")
-// 	if at == -1 {
-// 		return nil, fmt.Errorf("trojan 链接格式错误")
-// 	}
-// 	password := trojanLink[:at]
-// 	hostPort := trojanLink[at+1:]
-
-// 	host, portStr, err := net.SplitHostPort(hostPort)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("host:port 解析失败: %v", err)
-// 	}
-// 	port, _ := strconv.Atoi(portStr)
-
-// 	return map[string]interface{}{
-// 		"protocol": "trojan",
-// 		"settings": map[string]interface{}{
-// 			"servers": []map[string]interface{}{
-// 				{
-// 					"address":  host,
-// 					"port":     port,
-// 					"password": password,
-// 				},
-// 			},
-// 		},
-// 		"streamSettings": map[string]interface{}{
-// 			"network": "tcp",
-// 		},
-// 	}, nil
-
-// 	// trojanJSON := map[string]interface{}{
-// 	// 	"outbounds": []map[string]interface{}{
-// 	// 		{
-// 	// 			"protocol": "trojan",
-// 	// 			"settings": map[string]interface{}{
-// 	// 				"servers": []map[string]interface{}{
-// 	// 					{
-// 	// 						"address":  host,
-// 	// 						"port":     port,
-// 	// 						"password": password,
-// 	// 					},
-// 	// 				},
-// 	// 			},
-// 	// 			"streamSettings": map[string]interface{}{
-// 	// 				"network": "tcp",
-// 	// 			},
-// 	// 		},
-// 	// 	},
-// 	// }
-
-// 	// data, _ := json.Marshal(trojanJSON)
-// 	// reader := strings.NewReader(string(data))
-// 	// cfg, err := serials.LoadJSONConfig(reader)
-// 	// if err != nil {
-// 	// 	return nil, err
-// 	// }
-
-// 	// return cfg, nil
-// }
-
-// // parseSocks 解析 socks:// 链接生成 Outbound
-// // 支持格式：
-// //   socks://host:port
-// //   socks://user:pass@host:port
-// func parseSocks(link string) (map[string]interface{}, error) {
-// 	socksLink := strings.TrimPrefix(link, "socks://")
-// 	// 去掉注释
-// 	if idx := strings.Index(socksLink, "#"); idx != -1 {
-// 		socksLink = socksLink[:idx]
-// 	}
-
-// 	var user, pass string
-// 	var hostPort string
-
-// 	if strings.Contains(socksLink, "@") {
-// 		parts := strings.SplitN(socksLink, "@", 2)
-// 		userPass := parts[0]
-// 		hostPort = parts[1]
-// 		up := strings.SplitN(userPass, ":", 2)
-// 		if len(up) == 2 {
-// 			user = up[0]
-// 			pass = up[1]
-// 		}
-// 	} else {
-// 		hostPort = socksLink
-// 	}
-
-// 	host, portStr, err := net.SplitHostPort(hostPort)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("解析 host:port 失败: %v", err)
-// 	}
-// 	port, _ := strconv.Atoi(portStr)
-// 	return map[string]interface{}{
-// 		"protocol": "socks",
-// 		"settings": map[string]interface{}{
-// 			"servers": []map[string]interface{}{
-// 				{
-// 					"address": host,
-// 					"port":    port,
-// 					"user":    user,
-// 					"pass":    pass,
-// 				},
-// 			},
-// 		},
-// 		"streamSettings": map[string]interface{}{
-// 			"network": "tcp",
-// 		},
-// 	}, nil
-
-// 	// // 构造 JSON 配置
-// 	// socksJSON := map[string]interface{}{
-// 	// 	"outbounds": []map[string]interface{}{
-// 	// 		{
-// 	// 			"protocol": "socks",
-// 	// 			"settings": map[string]interface{}{
-// 	// 				"servers": []map[string]interface{}{
-// 	// 					{
-// 	// 						"address": host,
-// 	// 						"port":    port,
-// 	// 						"user":    user,
-// 	// 						"pass":    pass,
-// 	// 					},
-// 	// 				},
-// 	// 			},
-// 	// 			"streamSettings": map[string]interface{}{
-// 	// 				"network": "tcp",
-// 	// 			},
-// 	// 		},
-// 	// 	},
-// 	// }
-
-// 	// data, _ := json.Marshal(socksJSON)
-// 	// reader := strings.NewReader(string(data))
-// 	// cfg, err := serials.LoadJSONConfig(reader)
-// 	// if err != nil {
-// 	// 	return nil, err
-// 	// }
-
-// 	// return cfg, nil
-// }
+// 通过连接获取 host, port, username 和 password
+func getHostPortOrNamePwd(str string) (string, int, string, string) {
+	var remotePort int
+	var remoteAddr, userName, passowrd string
+	strs := strings.Split(str, "@")
+	for _, v := range strs {
+		if strings.Contains(v, ".") {
+			hs := strings.Split(v, ":")
+			for _, dsdf := range hs {
+				if port, err := strconv.Atoi(dsdf); err == nil {
+					remotePort = port
+				} else if strings.Contains(dsdf, ".") {
+					remoteAddr = dsdf
+				}
+			}
+		} else if strings.Contains(v, ":") {
+			sdfm := strings.Split(v, ":")
+			if len(sdfm) == 2 {
+				userName = sdfm[0]
+				passowrd = sdfm[1]
+			}
+		}
+	}
+	return remoteAddr, remotePort, userName, passowrd
+}

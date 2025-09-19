@@ -1,7 +1,9 @@
 package web
 
 import (
+	"tools/runtimes/controllers/proxys"
 	"tools/runtimes/controllers/ws"
+
 	// "tools/runtimes/config"
 	"tools/runtimes/controllers/user"
 	// "github.com/gin-gonic/gin"
@@ -23,4 +25,7 @@ func router() {
 	superUser := userGroup.Use(SuperAdminMiddleware)
 	superUser.POST("editer", user.Editer)
 	superUser.POST("delete", user.Remove)
+
+	proxyGroup := AuthRoutes.Group("proxy")
+	proxyGroup.GET("", proxys.GetList)
 }

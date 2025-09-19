@@ -44,13 +44,15 @@ import (
 	_ "tools/runtimes"
 	_ "tools/runtimes/db"
 	"tools/runtimes/listens/web"
-	"tools/runtimes/proxy"
+	// "tools/runtimes/proxy"
 )
 
 func main() {
-	prostr := "ss://YWVzLTEyOC1nY206NTU0MTkyOTgtNjFiMC00OWVlLTkyZjgtOTM5MDQ1ZDY1N2Mz@8aqaqmlb.sched.sma-2.1.ssndlls.xin:40011#%F0%9F%87%B9%F0%9F%87%BC%E9%AB%98%E7%BA%A7%20%7C%20%E5%8F%B0%E6%B9%BE%2001"
-	// prostr = "vmess://eyJob3N0IjoibGl2ZS5iaWxpYmlsaS5jb20iLCJwYXRoIjoiLzYiLCJ0bHMiOiIiLCJ2ZXJpZnlfY2VydCI6dHJ1ZSwiYWRkIjoiY2RuLm5vZGU0LnpuZXRiZXQ5ODUudG9wIiwicG9ydCI6MzAwMjksImFpZCI6MCwibmV0Ijoid3MiLCJ0eXBlIjoibm9uZSIsInYiOiIyIiwicHMiOiJWSVAgfCDljJfnvo4t576O5Zu9MDkiLCJpZCI6ImI2NTRhZTE4LWFiMDYtM2FhMS1iY2I0LWFhZmQ3NWZhYjRmMyIsImNsYXNzIjoyfQ=="
-	go proxy.Run(prostr, "127.0.0.1", 15586)
+	// prostr := "ss://YWVzLTEyOC1nY206NTU0MTkyOTgtNjFiMC00OWVlLTkyZjgtOTM5MDQ1ZDY1N2Mz@8aqaqmlb.sched.sma-2.1.ssndlls.xin:40011#%F0%9F%87%B9%F0%9F%87%BC%E9%AB%98%E7%BA%A7%20%7C%20%E5%8F%B0%E6%B9%BE%2001"
+	// prostr = "ss://YWVzLTEyOC1nY206NTU0MTkyOTgtNjFiMC00OWVlLTkyZjgtOTM5MDQ1ZDY1N2Mz@4dqaqmlb.sched.sma-1.2.ssndlls.xin:30061#%F0%9F%87%B2%F0%9F%87%BD%E6%A0%87%E5%87%86%20%7C%20%E5%A2%A8%E8%A5%BF%E5%93%A5"
+	// prostr = "socks://127.0.0.1:33211"
+	// pp, err := proxy.Run(prostr, "127.0.0.1", 15586, false)
+	// fmt.Println(err, pp.Listened())
 	// fmt.Println(err, "-------------------run err")
 	// checkNode()
 

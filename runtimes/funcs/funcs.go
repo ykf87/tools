@@ -4,7 +4,9 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math"
@@ -18,7 +20,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
-
 	// "syscall"
 	// "github.com/lxn/win"
 	// "github.com/kbinani/screenshot"
@@ -252,4 +253,34 @@ func VerifyPassword(hash, password string) error {
 func TruncateFloat64(f float64, decimals int) float64 {
 	factor := math.Pow(10, float64(decimals))
 	return math.Trunc(f*factor) / factor
+}
+
+// 字符串md5
+func Md5String(str string) string {
+	hash := md5.New()
+	hash.Write([]byte(str))
+
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+// 文件md5
+func Md5File(reader io.Reader) string {
+	hash := md5.New()
+	const bufferSize = 8192 // 8 KB 缓冲区
+	buffer := make([]byte, bufferSize)
+
+	for {
+		n, err := reader.Read(buffer)
+		if err != nil && err != io.EOF {
+			fmt.Println("File Read Failure:" + err.Error())
+			return ""
+		}
+		if n == 0 {
+			break // 数据读取完成
+		}
+		hash.Write(buffer[:n]) // 写入哈希对象
+	}
+
+	// 返回计算出的 MD5 值
+	return hex.EncodeToString(hash.Sum(nil))
 }
