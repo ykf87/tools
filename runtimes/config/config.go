@@ -7,13 +7,15 @@ import (
 )
 
 const (
-	LOGROOT     = "logs"           // 日志目录
-	CACHEROOT   = "cache"          // 缓存目录
-	DATAROOT    = "data"           // 媒体文件路径
-	WEBROOT     = ".web"           // 网页端文件路径,开头是.的默认隐藏
-	DBFILE      = WEBROOT + "/.db" // 数据库文件
-	VERSION     = "1.0.0"          // 字符串版本
-	VERSIONCODE = 100              // 整数版本
+	LOGROOT      = "logs"           // 日志目录
+	CACHEROOT    = "cache"          // 缓存目录
+	DATAROOT     = "data"           // 媒体文件路径
+	WEBROOT      = ".web"           // 网页端文件路径,开头是.的默认隐藏
+	SYSROOT      = ".sys"           // 系统存储的文件
+	DBFILE       = SYSROOT + "/.db" // 数据库文件
+	VERSION      = "1.0.0"          // 字符串版本
+	VERSIONCODE  = 100              // 整数版本
+	PROXYMINPORT = 100              // 代理最小的端口号
 )
 
 type mkdirStruct struct {
@@ -55,6 +57,11 @@ var Mkdirs = map[string]*mkdirStruct{
 	},
 	"data": &mkdirStruct{
 		DirName: DATAROOT,
+		Mode:    os.ModePerm,
+		IsHide:  false,
+	},
+	"sys": &mkdirStruct{
+		DirName: SYSROOT,
 		Mode:    os.ModePerm,
 		IsHide:  false,
 	},

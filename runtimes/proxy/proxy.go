@@ -30,6 +30,7 @@ type ProxyConfig struct {
 	Network    string
 	Path       string
 	Extra      map[string]any
+	Transfers  []string
 	ConfMd5    string
 	server     *core.Instance
 	Guard      bool // 是否是进程守护,也就是和程序一起运行,不执行关闭操作
@@ -37,11 +38,22 @@ type ProxyConfig struct {
 
 var proxysMap sync.Map
 
-/**
-传入配置字符串和本地监听地址和端口, 启动代理监听. guard 为是否是守护代理,守护代理无法被停止
-jumps - 桥接代理的配置
-*/
-func Run(configStr, addr string, port int, guard bool, transfers ...string) (*ProxyConfig, error) {
+// 获取配置是否在监听
+func IsRuning(configStr string) *ProxyConfig {
+	confMd5 := funcs.Md5String(configStr)
+	if p, ok := proxysMap.Load(confMd5); ok { // 如果已经启动则直接返回
+		pc := p.(*ProxyConfig)
+		if pc.server == nil {
+			proxysMap.Delete(confMd5)
+		} else {
+			return pc
+		}
+	}
+	return nil
+}
+
+// 获取用于启动的结构体,内部会解析出outbound
+func Client(configStr, addr string, port int) (*ProxyConfig, error) {
 	confMd5 := funcs.Md5String(configStr)
 	if p, ok := proxysMap.Load(confMd5); ok { // 如果已经启动则直接返回
 		pc := p.(*ProxyConfig)
@@ -56,19 +68,53 @@ func Run(configStr, addr string, port int, guard bool, transfers ...string) (*Pr
 	if err != nil {
 		return nil, err
 	}
-
 	if cfg == nil {
 		return nil, fmt.Errorf("Run error")
 	}
+
 	if addr == "" {
 		addr = "0.0.0.0"
 	}
 
+	if port == 0 { // 如果未指定端口,自动获取可用端口
+		p, err := funcs.FreePort()
+		if err != nil {
+			return nil, err
+		}
+		port = p
+	} else { // 如果指定了端口,则检查端口是否已被占用
+		if ok := funcs.IsPortAvailable(port); !ok {
+			return nil, fmt.Errorf(i18n.T("Port %d is already in use", port))
+		}
+	}
+
 	cfg.ListenAddr = addr
 	cfg.ListenPort = port
-	cfg.Guard = guard
+	cfg.ConfMd5 = confMd5
+	return cfg, nil
+}
 
-	configJSON, err := cfg.GenerateXrayConfig(transfers...)
+// 服务重启,守护进程也可用重启
+func (this *ProxyConfig) Restart() error {
+	if this.server != nil {
+		if err := this.server.Close(); err != nil {
+			return err
+		}
+	}
+	proxysMap.Delete(this.ConfMd5)
+
+	_, err := this.Run(this.Guard, this.Transfers...)
+	return err
+}
+
+/**
+启动代理监听. guard 为是否是守护代理,守护代理无法被停止
+transfers - 桥接代理的配置
+*/
+func (this *ProxyConfig) Run(guard bool, transfers ...string) (*ProxyConfig, error) {
+	this.Guard = guard
+
+	configJSON, err := this.GenerateXrayConfig(transfers...)
 	if err != nil {
 		return nil, err
 	}
@@ -81,12 +127,12 @@ func Run(configStr, addr string, port int, guard bool, transfers ...string) (*Pr
 	if err := server.Start(); err != nil {
 		return nil, err
 	}
-	cfg.server = server
-	cfg.ConfMd5 = confMd5
+	this.server = server
+	this.Transfers = transfers
 
-	proxysMap.Store(cfg.ConfMd5, cfg)
+	proxysMap.Store(this.ConfMd5, this)
 
-	return cfg, nil
+	return this, nil
 }
 
 // 关闭代理
@@ -119,7 +165,11 @@ func (this *ProxyConfig) GenerateXrayConfig(transfers ...string) (*core.Config, 
 
 	// 转接的代理配置
 	for _, v := range transfers {
-		pcs, err := Run(v, "", 0, false)
+		cli, err := Client(v, "", 0)
+		if err != nil {
+			continue
+		}
+		pcs, err := cli.Run(false)
 		if err == nil {
 			o, err := pcs.GetOutbound()
 			if err == nil {
@@ -167,7 +217,19 @@ func GetLocal(configStr string, transfers ...string) (string, error) {
 	var pc *ProxyConfig
 	pcm, ok := proxysMap.Load(confMd5)
 	if !ok {
-		ppp, err := Run(configStr, "", 0, false, transfers...)
+		// var port int
+		// var err error
+		// for {
+		// 	port, err = funcs.FreePort()
+		// 	if err == nil {
+		// 		break
+		// 	}
+		// }
+		cli, err := Client(configStr, "", 0)
+		if err != nil {
+			return "", err
+		}
+		ppp, err := cli.Run(false, transfers...)
 		if err != nil {
 			return "", err
 		}
@@ -181,6 +243,7 @@ func GetLocal(configStr string, transfers ...string) (string, error) {
 	}
 
 	proxyUrl := pc.Listened()
+	// fmt.Println(proxyUrl, "------- use proxy", pc.ListenAddr, pc.ListenPort)
 
 	urlStr := "https://api.btloader.com/country"
 	var transport *http.Transport

@@ -54,6 +54,17 @@ func FreePort() (int, error) {
 	return port, nil
 }
 
+// 检查端口是否被占用
+func IsPortAvailable(port int) bool {
+	addr := fmt.Sprintf(":%d", port)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return false // 已被占用
+	}
+	_ = ln.Close()
+	return true
+}
+
 // 标准 Base64 解编码
 func Base64Encode(input string) string {
 	return base64.StdEncoding.EncodeToString([]byte(input))

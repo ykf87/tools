@@ -20,6 +20,7 @@ type ListStruct struct {
 	By      string `json:"by" form:"by"`
 	Col     string `json:"col" form:"col"`
 	Cval    string `json:"cval" form:"cval"`
+	Sub     int64  `json:"sub" form:"sub"`
 }
 
 // 获取列表
@@ -40,6 +41,12 @@ func GetList(c *gin.Context) {
 
 	if l.Col != "" && l.Cval != "" {
 		model = model.Where(fmt.Sprintf("%s = ?", l.Col), l.Cval)
+	}
+
+	if l.Sub < 1 {
+		model = model.Where("subscribe = 0")
+	} else {
+		model = model.Where("subscribe = ?", l.Sub)
 	}
 
 	var total int64
@@ -70,4 +77,17 @@ func GetList(c *gin.Context) {
 	rs := gin.H{"list": ps, "total": total}
 	rsp, _ := parses.Marshal(rs, c)
 	response.Success(c, rsp, "")
+}
+
+// 获取一行数据
+func GetRow(c *gin.Context) {
+	id := c.Param("id")
+	px := proxys.GetById(id)
+
+	if px == nil {
+		response.Error(c, http.StatusNotFound, "", nil)
+		return
+	}
+	pxc, _ := parses.Marshal(px, c)
+	response.Success(c, pxc, "Success")
 }
