@@ -7,13 +7,39 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"tools/runtimes/db/mqs"
+	"tools/runtimes/eventbus"
+	"tools/runtimes/logs"
+	"tools/runtimes/mq"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 // Downloader 配置
 type Downloader struct {
-	Client     *http.Client
-	Proxy      string
-	OnProgress func(percent float64)
+	Client     *http.Client          `json:"-"`
+	OnProgress func(percent float64) `json:"-"`
+	Proxy      string                `json:"proxy"`
+	Url        string                `json:"url"`
+	Dest       string                `json:"dest"`
+}
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
+
+func init() {
+	mq.MqClient.Subscribe("download", func(msg *mqs.Mq) error {
+		rrs := new(Downloader)
+		if err := json.Unmarshal([]byte(msg.Payload), rrs); err != nil {
+			logs.Error(err.Error() + ": downloader mq")
+			return err
+		}
+		loader := NewDownloader(rrs.Proxy, func(percent float64) {
+			eventbus.Bus.Publish("ws", map[string]any{
+				"downloaded": percent,
+			})
+		})
+		return loader.Download(rrs.Url, rrs.Dest)
+	})
 }
 
 // NewDownloader 创建下载器
@@ -115,6 +141,10 @@ func (d *Downloader) Download(urlStr, destPath string) error {
 	}
 
 	return nil
+}
+
+func Down(url, dest, proxy string) {
+	mq.MqClient.Publish("download", Downloader{Proxy: proxy, Url: url, Dest: dest}, 0)
 }
 
 // func main() {

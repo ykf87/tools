@@ -142,12 +142,16 @@ func SendContent(uuid, tp string, data any) {
 			return true
 		})
 	} else if c, ok := CONNS.Load(uuid); ok {
-		conns := c.([]*Conn)
+		conn, ok := c.(*Conn)
+		if !ok {
+			return
+		}
 
 		bt, _ := json.Marshal(WsResp{Type: tp, Data: data})
-		for _, conn := range conns {
-			go conn.WriteMessage(bt)
-		}
+		go conn.WriteMessage(bt)
+		// for _, conn := range conns {
+		// 	go conn.WriteMessage(bt)
+		// }
 	}
 }
 

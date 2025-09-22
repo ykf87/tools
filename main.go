@@ -41,9 +41,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	// "time"
 	_ "tools/runtimes"
 	_ "tools/runtimes/db"
+
+	// "tools/runtimes/db/mqs"
 	"tools/runtimes/listens/web"
+	// "tools/runtimes/mq"
 	// "tools/runtimes/proxy"
 )
 
@@ -60,6 +65,20 @@ func main() {
 	// if err != nil {
 	// 	panic(err)
 	// }
+
+	// mqSystem := mq.New(mqs.NewStore(db.MQDB))
+	// mqSystem.Subscribe("download", func(msg *mqs.Mq) error {
+	// 	fmt.Printf("processing message %d: %s", msg.ID, msg.Payload)
+	// 	// 模拟下载
+	// 	time.Sleep(2 * time.Second)
+	// 	if msg.RetryCount < 1 {
+	// 		return fmt.Errorf("simulate fail once")
+	// 	}
+	// 	return nil
+	// })
+	// // mqSystem.Start()
+	// mqSystem.Publish("download", "http://example.com/file1.zip", 0)
+
 	port := 19998
 	go web.Start(port)
 

@@ -63,7 +63,7 @@ var Mkdirs = map[string]*mkdirStruct{
 	"sys": &mkdirStruct{
 		DirName: SYSROOT,
 		Mode:    os.ModePerm,
-		IsHide:  false,
+		IsHide:  true,
 	},
 }
 
