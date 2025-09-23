@@ -1,4 +1,4 @@
-package tags
+package tag
 
 import (
 	"tools/runtimes/db"
@@ -7,8 +7,8 @@ import (
 )
 
 type Tag struct {
-	Id   int64  `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name string `json:"name" gorm:"uniqueIndex"`
+	Id   int64  `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
+	Name string `json:"name" gorm:"uniqueIndex" form:"name"`
 }
 
 func (this *Tag) Save(tx *gorm.DB) error {
@@ -36,6 +36,7 @@ func (this *Tag) Remove(tx *gorm.DB) error {
 	return nil
 }
 
+// 通过id获取标签
 func GetById(id any) *Tag {
 	tg := new(Tag)
 	db.DB.Model(&Tag{}).Where("id = ?", id).First(tg)

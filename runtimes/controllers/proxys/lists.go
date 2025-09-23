@@ -73,7 +73,7 @@ func GetList(c *gin.Context) {
 	}
 
 	var ps []*proxys.Proxy
-	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Offset((l.Page - 1) * l.Limit).Limit(l.Limit).Debug().Find(&ps)
+	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Offset((l.Page - 1) * l.Limit).Limit(l.Limit).Find(&ps)
 	rs := gin.H{"list": ps, "total": total}
 	rsp, _ := parses.Marshal(rs, c)
 	response.Success(c, rsp, "")

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 	"tools/runtimes/funcs"
 	"tools/runtimes/i18n"
 	"tools/runtimes/logs"
@@ -53,7 +54,7 @@ func IsRuning(configStr string) *ProxyConfig {
 }
 
 // 获取用于启动的结构体,内部会解析出outbound
-func Client(configStr, addr string, port int) (*ProxyConfig, error) {
+func Client(configStr, addr string, port int, transfers ...string) (*ProxyConfig, error) {
 	confMd5 := funcs.Md5String(configStr)
 	if p, ok := proxysMap.Load(confMd5); ok { // 如果已经启动则直接返回
 		pc := p.(*ProxyConfig)
@@ -90,6 +91,7 @@ func Client(configStr, addr string, port int) (*ProxyConfig, error) {
 
 	cfg.ListenAddr = addr
 	cfg.ListenPort = port
+	cfg.Transfers = transfers
 	cfg.ConfMd5 = confMd5
 	return cfg, nil
 }
@@ -103,7 +105,7 @@ func (this *ProxyConfig) Restart() error {
 	}
 	proxysMap.Delete(this.ConfMd5)
 
-	_, err := this.Run(this.Guard, this.Transfers...)
+	_, err := this.Run(this.Guard)
 	return err
 }
 
@@ -111,10 +113,10 @@ func (this *ProxyConfig) Restart() error {
 启动代理监听. guard 为是否是守护代理,守护代理无法被停止
 transfers - 桥接代理的配置
 */
-func (this *ProxyConfig) Run(guard bool, transfers ...string) (*ProxyConfig, error) {
+func (this *ProxyConfig) Run(guard bool) (*ProxyConfig, error) {
 	this.Guard = guard
 
-	configJSON, err := this.GenerateXrayConfig(transfers...)
+	configJSON, err := this.GenerateXrayConfig(this.Transfers...)
 	if err != nil {
 		return nil, err
 	}
@@ -123,21 +125,28 @@ func (this *ProxyConfig) Run(guard bool, transfers ...string) (*ProxyConfig, err
 	if err != nil {
 		return nil, err
 	}
+	if server == nil {
+		return nil, fmt.Errorf(i18n.T("Proxy created error"))
+	}
 
 	if err := server.Start(); err != nil {
 		return nil, err
 	}
 	this.server = server
-	this.Transfers = transfers
 
 	proxysMap.Store(this.ConfMd5, this)
 
 	return this, nil
 }
 
+// 代理是否已启动
+func (this *ProxyConfig) IsRuning() bool {
+	return this.server != nil
+}
+
 // 关闭代理
-func (this *ProxyConfig) Close() error {
-	if this.Guard == true {
+func (this *ProxyConfig) Close(enforce bool) error {
+	if this.Guard == true && enforce == false {
 		return fmt.Errorf(i18n.T("The daemon agent cannot be shut down"))
 	}
 	if this.server != nil {
@@ -145,6 +154,7 @@ func (this *ProxyConfig) Close() error {
 			return err
 		}
 	}
+	this.server = nil
 	proxysMap.Delete(this.ConfMd5)
 	return nil
 }
@@ -211,25 +221,49 @@ func (this *ProxyConfig) Listened() string {
 	return ""
 }
 
+// 获取到达网站的延时
+func (this *ProxyConfig) Delay(urls []string) (map[string]int64, error) {
+	if this.server == nil {
+		if _, err := this.Run(false); err != nil {
+			return nil, fmt.Errorf("Proxy start error:" + err.Error())
+		}
+		defer this.Close(false)
+	}
+
+	proxyURL, _ := url.Parse(this.Listened()) // 替换为你的代理
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyURL(proxyURL),
+		},
+		Timeout: 10 * time.Second,
+	}
+
+	rsmap := make(map[string]int64)
+	for _, urlRow := range urls {
+		start := time.Now()
+		resp, err := client.Get(urlRow)
+		if err != nil {
+			rsmap[urlRow] = -1
+			continue
+		}
+		resp.Body.Close()
+		latency := time.Since(start)
+		rsmap[urlRow] = latency.Milliseconds()
+	}
+	return rsmap, nil
+}
+
 // 获取ip所在国家iso
 func GetLocal(configStr string, transfers ...string) (string, error) {
 	confMd5 := funcs.Md5String(configStr)
 	var pc *ProxyConfig
 	pcm, ok := proxysMap.Load(confMd5)
 	if !ok {
-		// var port int
-		// var err error
-		// for {
-		// 	port, err = funcs.FreePort()
-		// 	if err == nil {
-		// 		break
-		// 	}
-		// }
-		cli, err := Client(configStr, "", 0)
+		cli, err := Client(configStr, "", 0, transfers...)
 		if err != nil {
 			return "", err
 		}
-		ppp, err := cli.Run(false, transfers...)
+		ppp, err := cli.Run(false)
 		if err != nil {
 			return "", err
 		}

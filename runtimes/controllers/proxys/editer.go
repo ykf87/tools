@@ -118,6 +118,12 @@ func Remove(c *gin.Context) {
 	id := c.Param("id")
 	pc := proxys.GetById(id)
 	if pc != nil && pc.Id > 0 {
-
+		if client, err := proxy.Client(pc.Config, "", 0); err == nil {
+			if client != nil && client.IsRuning() {
+				client.Close(true)
+			}
+		}
 	}
+	pc.Remove()
+	response.Success(c, nil, "")
 }
