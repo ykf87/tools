@@ -74,6 +74,18 @@ func GetList(c *gin.Context) {
 
 	var ps []*proxys.Proxy
 	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Offset((l.Page - 1) * l.Limit).Limit(l.Limit).Find(&ps)
+
+	// 处理代理标签
+	if len(ps) > 0 {
+		proxys.SetTags(ps)
+	}
+	for _, v := range ps {
+		if cc := v.IsStart(); cc != nil {
+			v.IsRuning = 1
+			v.ListerAddr = cc.Listened()
+		}
+	}
+
 	rs := gin.H{"list": ps, "total": total}
 	rsp, _ := parses.Marshal(rs, c)
 	response.Success(c, rsp, "")

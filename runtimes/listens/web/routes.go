@@ -32,6 +32,7 @@ func router() {
 	proxyGroup := AuthRoutes.Group("proxy")
 	{
 		proxyGroup.GET("", proxys.GetList)
+		proxyGroup.POST("", proxys.Editer)
 		proxyGroup.POST("/:id", proxys.Editer)
 		proxyGroup.GET("/:id", proxys.GetRow)
 		proxyGroup.POST("local/", proxys.GetLocal)

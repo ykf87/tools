@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"tools/runtimes/config"
+	"tools/runtimes/db"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/i18n"
 	"tools/runtimes/parses"
@@ -17,6 +18,9 @@ func Editer(c *gin.Context) {
 	var dbid int64
 	id := c.Param("id")
 	px := new(proxys.Proxy)
+
+	tx := db.DB.Begin()
+
 	if id != "" {
 		idi, err := strconv.Atoi(id)
 		if err != nil {
@@ -87,26 +91,32 @@ func Editer(c *gin.Context) {
 		px.Username = pcr.Username
 	}
 
-	if err := px.Save(nil); err != nil {
+	if err := px.Save(tx); err != nil {
+		tx.Rollback()
 		response.Error(c, http.StatusNotFound, err.Error(), nil)
 		return
 	}
 
-	// 管理标签
 	if len(pcr.Tags) > 0 {
-		px.CoverTgs(pcr.Tags)
+		if err := px.CoverTgs(pcr.Tags, tx); err != nil {
+			tx.Rollback()
+			response.Error(c, http.StatusNotFound, err.Error(), nil)
+			return
+		}
 	}
 
 	if needGetLocal == true {
 		if loc, err := proxy.GetLocal(px.Config, px.Transfer); err == nil {
 			px.Local = loc
-			px.Save(nil)
+			px.Save(tx)
 		}
 	}
 
+	tx.Commit()
+
 	// 如果代理已经是启动状态,需要重新启动
 	if pcc := px.IsStart(); pcc != nil {
-		pcc.Restart()
+		pcc.Restart(px.Port)
 	}
 
 	pxc, _ := parses.Marshal(px, c)

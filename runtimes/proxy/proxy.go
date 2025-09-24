@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"tools/runtimes/config"
 	"tools/runtimes/funcs"
 	"tools/runtimes/i18n"
 	"tools/runtimes/logs"
@@ -74,7 +75,8 @@ func Client(configStr, addr string, port int, transfers ...string) (*ProxyConfig
 	}
 
 	if addr == "" {
-		addr = "0.0.0.0"
+		lip, _ := funcs.GetLocalIP()
+		addr = lip
 	}
 
 	if port == 0 { // 如果未指定端口,自动获取可用端口
@@ -97,13 +99,16 @@ func Client(configStr, addr string, port int, transfers ...string) (*ProxyConfig
 }
 
 // 服务重启,守护进程也可用重启
-func (this *ProxyConfig) Restart() error {
+func (this *ProxyConfig) Restart(port int) error {
 	if this.server != nil {
 		if err := this.server.Close(); err != nil {
 			return err
 		}
 	}
 	proxysMap.Delete(this.ConfMd5)
+	if port > config.PROXYMINPORT {
+		this.ListenPort = port
+	}
 
 	_, err := this.Run(this.Guard)
 	return err
@@ -275,6 +280,7 @@ func GetLocal(configStr string, transfers ...string) (string, error) {
 	if pc.server == nil || pc.ListenAddr == "" {
 		return "", fmt.Errorf(i18n.T("The proxy is not enabled"))
 	}
+	defer pc.Close(false)
 
 	proxyUrl := pc.Listened()
 	// fmt.Println(proxyUrl, "------- use proxy", pc.ListenAddr, pc.ListenPort)

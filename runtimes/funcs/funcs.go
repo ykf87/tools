@@ -205,7 +205,7 @@ func GetLocalIP() (string, error) {
 	// 获取所有网卡的地址
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
-		return "", err
+		return "127.0.0.1", err
 	}
 
 	for _, addr := range addrs {
@@ -218,12 +218,17 @@ func GetLocalIP() (string, error) {
 		// 只要 IPv4，并且不是回环地址
 		if ipNet.IP.To4() != nil && !ipNet.IP.IsLoopback() {
 			ip := ipNet.IP.String()
+			ips := strings.Split(ip, ".")
+			if ips[len(ips)-1] == "1" {
+				continue
+			}
+			// fmt.Println(ip, "--------")
 			if strings.Contains(ip, "192.168") {
 				return ip, nil
 			}
 		}
 	}
-	return "", fmt.Errorf("未找到局域网 IP")
+	return "127.0.0.1", nil
 }
 
 // 获取当前uuid
