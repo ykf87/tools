@@ -21,6 +21,7 @@ type Proxy struct { // 如果有修改字段,需要更新Save方法
 	Subscribe  int64    `json:"subscribe" gorm:"index;default:0" form:"subscribe"`  // 订阅的id,订阅的代理额外管理
 	Port       int      `json:"port" gorm:"index;default:0" form:"port"`            // 指定的端口,不存在则随机使用空余端口
 	Config     string   `json:"config" gorm:"not null;" form:"config"`              // 代理信息,可以是vmess,vless等,也可以是http代理等
+	ConfigMd5  string   `json:"config_md5" gorm:"uniqueIndex;not null"`             // 配置的md5,用于去重
 	Username   string   `json:"username" gorm:"default:null;index" form:"username"` // 有些http代理等需要用户名
 	Password   string   `json:"password" gorm:"default:null" form:"password"`       // 对应的密码
 	Transfer   string   `json:"transfer" gorm:"default:null" form:"transfer"`       // 有些代理需要中转,无法直连.目的是解决有的好的ip在国外无法通过国内直连,可以是proxy的id或者具体配置
@@ -28,6 +29,7 @@ type Proxy struct { // 如果有修改字段,需要更新Save方法
 	Tags       []string `json:"tags" gorm:"-" form:"tags"`                          // 标签列表,不写入数据库,仅在添加和修改时使用
 	IsRuning   int      `json:"is_runing" gorm:"-" form:"-"`                        // 是否启动
 	ListerAddr string   `json:"lister_addr" gorm:"-" form:"-"`                      // 监听地址
+	// Ping       string   `json:"ping" gorm:"-" form:"-"`                             // 测速结果
 	// Gid       int64    `json:"gid" gorm:"default:0;index"`         // 分组
 }
 
@@ -36,17 +38,19 @@ func init() {
 	db.DB.AutoMigrate(&ProxyTag{})
 
 	//随系统启动的代理
-	var proxys []*Proxy
-	db.DB.Model(&Proxy{}).Where("auto_run = 1").Find(&proxys)
-	for _, v := range proxys {
-		v.Start(true)
-		if v.Local == "" {
-			if local, err := proxy.GetLocal(v.Config, v.Transfer); err == nil {
-				v.Local = local
-				v.Save(nil)
+	go func() {
+		var proxys []*Proxy
+		db.DB.Model(&Proxy{}).Where("auto_run = 1").Find(&proxys)
+		for _, v := range proxys {
+			v.Start(true)
+			if v.Local == "" {
+				if local, err := proxy.GetLocal(v.Config, v.Transfer); err == nil {
+					v.Local = local
+					v.Save(nil)
+				}
 			}
 		}
-	}
+	}()
 }
 
 // 保存
@@ -84,6 +88,16 @@ func (this *Proxy) Start(keep bool) (*proxy.ProxyConfig, error) {
 	return p.Run(keep)
 }
 
+// 停止配置的代理
+// enforce 是否强制关闭
+func (this *Proxy) Stop(enforce bool) error {
+	pc, err := proxy.Client(this.Config, "", 0)
+	if err != nil {
+		return err
+	}
+	return pc.Close(enforce)
+}
+
 // 通过id获取代理
 func GetById(id any) *Proxy {
 	px := new(Proxy)
@@ -109,14 +123,15 @@ func (this *Proxy) CoverTgs(tagsName []string, tx *gorm.DB) error {
 		return err
 	}
 
-	mp := tag.GetTagsByNames(tagsName)
+	mp := tag.GetTagsByNames(tagsName, tx)
 
 	var ntag []ProxyTag
 	for _, tagg := range tagsName {
-		if tid, ok := mp[tagg]; !ok {
+		if tid, ok := mp[tagg]; ok {
 			ntag = append(ntag, ProxyTag{ProxyId: this.Id, TagId: tid})
 		}
 	}
+
 	if len(ntag) > 0 {
 		if err := tx.Create(ntag).Error; err != nil {
 			return err

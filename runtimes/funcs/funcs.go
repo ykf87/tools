@@ -11,6 +11,7 @@ import (
 	"io"
 	"math"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -77,6 +78,15 @@ func Base64Decode(encoded string) (string, error) {
 		return "", err
 	}
 	return string(data), nil
+}
+
+// urldecode 解码
+func UrlDecode(str string) string {
+	decoded, err := url.QueryUnescape(str)
+	if err != nil {
+		return ""
+	}
+	return decoded
 }
 
 // RunCommand 启动指定可执行文件，并传入任意参数
@@ -231,15 +241,8 @@ func GetLocalIP() (string, error) {
 	return "127.0.0.1", nil
 }
 
-// 获取当前uuid
+// 获取当前固定的uuid
 func Uuid() string {
-	// uid, err := uuid.NewUUID()
-	// if err != nil {
-	// 	return ""
-	// 	// panic(err)
-	// }
-	// return uid.String()
-
 	interfaces, _ := net.Interfaces()
 	for _, i := range interfaces {
 		if len(i.HardwareAddr) == 0 {
@@ -249,6 +252,16 @@ func Uuid() string {
 		return uuid.NewMD5(uuid.Nil, i.HardwareAddr).String()
 	}
 	return uuid.New().String()
+}
+
+// 生产随机的uuid
+func RoundmUuid() string {
+	uid, err := uuid.NewUUID()
+	if err != nil {
+		return ""
+		// panic(err)
+	}
+	return uid.String()
 }
 
 // 生成密码

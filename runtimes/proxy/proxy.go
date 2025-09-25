@@ -21,6 +21,7 @@ import (
 
 type ProxyConfig struct {
 	Protocol   string
+	Name       string
 	ListenAddr string
 	ListenPort int
 	RemoteAddr string
@@ -248,6 +249,7 @@ func (this *ProxyConfig) Delay(urls []string) (map[string]int64, error) {
 		start := time.Now()
 		resp, err := client.Get(urlRow)
 		if err != nil {
+			fmt.Println(err, "----")
 			rsmap[urlRow] = -1
 			continue
 		}
@@ -276,6 +278,7 @@ func GetLocal(configStr string, transfers ...string) (string, error) {
 	} else {
 		pc = pcm.(*ProxyConfig)
 	}
+	defer pc.Close(false)
 
 	if pc.server == nil || pc.ListenAddr == "" {
 		return "", fmt.Errorf(i18n.T("The proxy is not enabled"))

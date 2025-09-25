@@ -13,14 +13,15 @@ import (
 )
 
 type ListStruct struct {
-	Page    int    `json:"page" form:"page"`
-	Limit   int    `json:"limit" form:"limit"`
-	Q       string `json:"q" form:"q"`
-	SortCol string `json:"scol" form:"scol"`
-	By      string `json:"by" form:"by"`
-	Col     string `json:"col" form:"col"`
-	Cval    string `json:"cval" form:"cval"`
-	Sub     int64  `json:"sub" form:"sub"`
+	Page    int     `json:"page" form:"page"`
+	Limit   int     `json:"limit" form:"limit"`
+	Q       string  `json:"q" form:"q"`
+	SortCol string  `json:"scol" form:"scol"`
+	By      string  `json:"by" form:"by"`
+	Col     string  `json:"col" form:"col"`
+	Cval    string  `json:"cval" form:"cval"`
+	Sub     int64   `json:"sub" form:"sub"`
+	Tags    []int64 `json:"tags" form:"tags"`
 }
 
 // 获取列表
@@ -31,12 +32,10 @@ func GetList(c *gin.Context) {
 		return
 	}
 
-	fmt.Println(l)
-
 	model := db.DB.Model(&proxys.Proxy{})
 	if l.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", l.Q)
-		model = model.Where("name LIKE ? OR remark LIKE ? or local LIKE ?", qs, qs, qs)
+		model = model.Where("name LIKE ? OR remark LIKE ? or local = ?", qs, qs, l.Q)
 	}
 
 	if l.Col != "" && l.Cval != "" {
@@ -47,6 +46,16 @@ func GetList(c *gin.Context) {
 		model = model.Where("subscribe = 0")
 	} else {
 		model = model.Where("subscribe = ?", l.Sub)
+	}
+
+	if len(l.Tags) > 0 {
+		var tagIds []int64
+		for _, v := range l.Tags {
+			tagIds = append(tagIds, v)
+		}
+		if len(tagIds) > 0 {
+			model = model.Joins("right join proxy_tags on proxy_id = id").Where("proxy_tags.tag_id in ?", tagIds)
+		}
 	}
 
 	var total int64
@@ -73,7 +82,7 @@ func GetList(c *gin.Context) {
 	}
 
 	var ps []*proxys.Proxy
-	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Offset((l.Page - 1) * l.Limit).Limit(l.Limit).Find(&ps)
+	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Offset((l.Page - 1) * l.Limit).Limit(l.Limit).Debug().Find(&ps)
 
 	// 处理代理标签
 	if len(ps) > 0 {
@@ -102,4 +111,30 @@ func GetRow(c *gin.Context) {
 	}
 	pxc, _ := parses.Marshal(px, c)
 	response.Success(c, pxc, "Success")
+}
+
+// 启动
+func Start(c *gin.Context) {
+	id := c.Param("id")
+	pc := proxys.GetById(id)
+	if pc != nil && pc.Id > 0 {
+		if _, err := pc.Start(false); err != nil {
+			response.Error(c, http.StatusOK, err.Error(), nil)
+			return
+		}
+	}
+	response.Success(c, nil, "Success")
+}
+
+// 启动
+func Stop(c *gin.Context) {
+	id := c.Param("id")
+	pc := proxys.GetById(id)
+	if pc != nil && pc.Id > 0 {
+		if err := pc.Stop(true); err != nil {
+			response.Error(c, http.StatusOK, err.Error(), nil)
+			return
+		}
+	}
+	response.Success(c, nil, "Success")
 }

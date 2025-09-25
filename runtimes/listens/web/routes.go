@@ -34,10 +34,16 @@ func router() {
 		proxyGroup.GET("", proxys.GetList)
 		proxyGroup.POST("", proxys.Editer)
 		proxyGroup.POST("/:id", proxys.Editer)
+		proxyGroup.POST("batchadd", proxys.BatchAdd)
 		proxyGroup.GET("/:id", proxys.GetRow)
-		proxyGroup.POST("local/", proxys.GetLocal)
-		proxyGroup.POST("local/:id", proxys.GetLocal)
+		proxyGroup.POST("locals", proxys.Locals)
+		proxyGroup.POST("local/:id", proxys.Local)
+		proxyGroup.POST("delete", proxys.Removes)
 		proxyGroup.POST("delete/:id", proxys.Remove)
+		proxyGroup.POST("start/:id", proxys.Start)
+		proxyGroup.POST("stop/:id", proxys.Stop)
+		proxyGroup.POST("ping/:id", proxys.Ping)
+		// proxyGroup.POST("local/:id", proxys.Local)
 	}
 
 	tagGroup := AuthRoutes.Group("tags")

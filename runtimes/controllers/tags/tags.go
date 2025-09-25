@@ -32,19 +32,22 @@ func List(c *gin.Context) {
 		qs := fmt.Sprintf("%%%s%%", dt.Q)
 		model = model.Where("name LIKE ?", qs)
 	}
-
-	if dt.Page < 1 {
-		dt.Page = 1
-	}
-	if dt.Limit < 1 {
-		dt.Limit = 20
-	}
-
 	var total int64
 	model.Count(&total)
+	model = model.Order("id DESC")
+
+	if dt.Limit != -1 {
+		if dt.Page < 1 {
+			dt.Page = 1
+		}
+		if dt.Limit < 1 {
+			dt.Limit = 20
+		}
+		model = model.Offset((dt.Page - 1) * dt.Limit).Limit(dt.Limit)
+	}
 
 	var list []*tag.Tag
-	model.Order("id DESC").Offset((dt.Page - 1) * dt.Limit).Limit(dt.Limit).Find(&list)
+	model.Find(&list)
 
 	rrs, _ := parses.Marshal(list, c)
 	response.Success(c, gin.H{"list": rrs, "total": total}, "")

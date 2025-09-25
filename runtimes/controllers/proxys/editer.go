@@ -3,10 +3,14 @@ package proxys
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
 	"tools/runtimes/db/proxys"
+	"tools/runtimes/db/tag"
+	"tools/runtimes/funcs"
 	"tools/runtimes/i18n"
+	"tools/runtimes/logs"
 	"tools/runtimes/parses"
 	"tools/runtimes/proxy"
 	"tools/runtimes/response"
@@ -15,6 +19,17 @@ import (
 )
 
 func Editer(c *gin.Context) {
+	pcr := new(proxys.Proxy)
+	if err := c.ShouldBindJSON(pcr); err != nil {
+		response.Error(c, http.StatusNotFound, err.Error(), nil)
+		return
+	}
+
+	if pcr.Config == "" {
+		response.Error(c, http.StatusNotFound, i18n.T("Configuration cannot be empty"), nil)
+		return
+	}
+
 	var dbid int64
 	id := c.Param("id")
 	px := new(proxys.Proxy)
@@ -39,16 +54,6 @@ func Editer(c *gin.Context) {
 		}
 	}
 
-	pcr := new(proxys.Proxy)
-	if err := c.ShouldBindJSON(pcr); err != nil {
-		response.Error(c, http.StatusNotFound, err.Error(), nil)
-		return
-	}
-	if pcr.Config == "" {
-		response.Error(c, http.StatusNotFound, i18n.T("Configuration cannot be empty"), nil)
-		return
-	}
-
 	if pcr.Port != 0 && pcr.Port < config.PROXYMINPORT {
 		response.Error(c, http.StatusNotFound, i18n.T("The port number cannot be less than %d", config.PROXYMINPORT), nil)
 		return
@@ -70,6 +75,7 @@ func Editer(c *gin.Context) {
 		px.Name = pcr.Name
 		if pcr.Config != px.Config {
 			px.Config = pcr.Config
+			px.ConfigMd5 = funcs.Md5String(pcr.Config)
 			needGetLocal = true
 		}
 		px.AutoRun = pcr.AutoRun
@@ -84,6 +90,7 @@ func Editer(c *gin.Context) {
 		px.AutoRun = pcr.AutoRun
 		px.Name = pcr.Name
 		px.Config = pcr.Config
+		px.ConfigMd5 = funcs.Md5String(pcr.Config)
 		px.Password = pcr.Password
 		px.Port = pcr.Port
 		px.Remark = pcr.Remark
@@ -99,6 +106,7 @@ func Editer(c *gin.Context) {
 
 	if len(pcr.Tags) > 0 {
 		if err := px.CoverTgs(pcr.Tags, tx); err != nil {
+			logs.Error(err.Error())
 			tx.Rollback()
 			response.Error(c, http.StatusNotFound, err.Error(), nil)
 			return
@@ -136,4 +144,159 @@ func Remove(c *gin.Context) {
 	}
 	pc.Remove()
 	response.Success(c, nil, "")
+}
+
+// 批量删除
+type rmvsdt struct {
+	Ids []int64 `json:"ids" form:"ids"`
+}
+
+func Removes(c *gin.Context) {
+	ids := new(rmvsdt)
+	if err := c.ShouldBind(ids); err == nil {
+		tx := db.DB.Begin()
+		if err := tx.Where("id in ?", ids.Ids).Delete(&proxys.Proxy{}).Error; err != nil {
+			tx.Rollback()
+			response.Error(c, http.StatusBadGateway, "", nil)
+			return
+		}
+		if err := tx.Where("proxy_id in ?", ids.Ids).Delete(&proxys.ProxyTag{}).Error; err != nil {
+			tx.Rollback()
+			response.Error(c, http.StatusBadGateway, "", nil)
+			return
+		}
+		tx.Commit()
+	}
+	response.Success(c, nil, "")
+}
+
+// 批量添加代理
+func BatchAdd(c *gin.Context) {
+	pcr := new(proxys.Proxy)
+	if err := c.ShouldBindJSON(pcr); err != nil {
+		response.Error(c, http.StatusNotFound, err.Error(), nil)
+		return
+	}
+
+	if pcr.Id > 0 {
+		response.Error(c, http.StatusNotFound, i18n.T("Batch editing is not possible"), nil)
+		return
+	}
+
+	if pcr.Config == "" {
+		response.Error(c, http.StatusNotFound, i18n.T("Configuration cannot be empty"), nil)
+		return
+	}
+
+	ccs := strings.ReplaceAll(pcr.Config, "\r\n", "\n")
+	ccs = strings.ReplaceAll(ccs, "\r", "\n")
+	configs := strings.Split(ccs, "\n")
+
+	var ccmd5 []string
+	for _, v := range configs {
+		ccmd5 = append(ccmd5, funcs.Md5String(v))
+	}
+
+	var dbhads []*proxys.Proxy
+	db.DB.Model(&proxys.Proxy{}).Where("config_md5 in ?", ccmd5).Find(&dbhads)
+	dbhadMap := make(map[string]byte)
+	for _, v := range dbhads {
+		dbhadMap[v.ConfigMd5] = 1
+	}
+
+	var pxs []*proxys.Proxy
+	for _, v := range configs {
+		if strings.Trim(v, " ") == "" {
+			continue
+		}
+		cmd5 := funcs.Md5String(v)
+		if _, ok := dbhadMap[cmd5]; ok {
+			continue
+		}
+
+		ot, err := proxy.Client(v, "", 0)
+		if err != nil || ot == nil {
+			continue
+		}
+
+		name := ot.Name
+		if name == "" {
+			name = funcs.RoundmUuid()
+		}
+
+		px := new(proxys.Proxy)
+		px.AutoRun = pcr.AutoRun
+		px.Name = name
+		px.Config = v
+		px.ConfigMd5 = cmd5
+		px.Remark = pcr.Remark
+		px.Transfer = pcr.Transfer
+		px.Username = pcr.Username
+		px.Password = pcr.Password
+
+		pxs = append(pxs, px)
+	}
+
+	if len(pxs) > 0 {
+		if err := db.DB.Create(pxs).Error; err == nil {
+			if len(pcr.Tags) > 0 {
+				tagmp := tag.GetTagsByNames(pcr.Tags, nil)
+				var tagids []int64
+				for _, v := range pcr.Tags {
+					if tid, ok := tagmp[v]; ok {
+						tagids = append(tagids, tid)
+					}
+				}
+
+				var ptags []*proxys.ProxyTag
+				for _, v := range pxs {
+					for _, tagid := range tagids {
+						ttt := new(proxys.ProxyTag)
+						ttt.ProxyId = v.Id
+						ttt.TagId = tagid
+						ptags = append(ptags, ttt)
+					}
+				}
+
+				if len(ptags) > 0 {
+					db.DB.Create(ptags)
+				}
+			}
+
+			for _, v := range pxs {
+				go func() {
+					if loc, err := proxy.GetLocal(v.Config, v.Transfer); err == nil {
+						v.Local = loc
+						v.Save(nil)
+					}
+				}()
+			}
+		}
+	}
+	response.Success(c, nil, "")
+}
+
+// 延迟
+func Ping(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		response.Error(c, http.StatusBadRequest, i18n.T("Error"), nil)
+		return
+	}
+	pc := proxys.GetById(id)
+	if pc != nil && pc.Id > 0 {
+		pxc, err := proxy.Client(pc.Config, "", 0)
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, i18n.T("Error"), nil)
+			return
+		}
+		mmp, err := pxc.Delay([]string{"https://www.google.com"})
+		if err != nil {
+			response.Error(c, http.StatusBadRequest, i18n.T("Error"), nil)
+			return
+		}
+		response.Success(c, mmp, "")
+		return
+	}
+	response.Error(c, http.StatusBadRequest, "", nil)
 }

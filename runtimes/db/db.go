@@ -36,6 +36,7 @@ func init() {
 	ddd.SetMaxIdleConns(10)
 	ddd.SetMaxOpenConns(100)
 	ddd.SetConnMaxLifetime(time.Hour)
+	ddd.Exec("PRAGMA journal_mode=WAL;")
 
 	funcs.HiddenDir(dbfile)
 	DB = dbs
@@ -60,6 +61,7 @@ func init() {
 	mqqq.SetMaxIdleConns(10)
 	mqqq.SetMaxOpenConns(100)
 	mqqq.SetConnMaxLifetime(time.Hour)
+	mqqq.Exec("PRAGMA journal_mode=WAL;")
 	MQDB = mqdb
 }
 

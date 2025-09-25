@@ -48,13 +48,30 @@ func GetById(id any) *Tag {
 }
 
 // 通过标签名称获取对应的数组
-func GetTagsByNames(names []string) map[string]int64 {
+func GetTagsByNames(names []string, tx *gorm.DB) map[string]int64 {
+	if tx == nil {
+		tx = db.DB
+	}
 	var tgs []*Tag
-	db.DB.Model(&Tag{}).Where("name in ?", names).Find(&tgs)
+	tx.Model(&Tag{}).Where("name in ?", names).Find(&tgs)
 	mp := make(map[string]int64)
 	for _, v := range tgs {
 		mp[v.Name] = v.Id
 	}
+
+	var addn []*Tag
+	for _, v := range names {
+		if _, ok := mp[v]; !ok {
+			addn = append(addn, &Tag{Name: v})
+		}
+	}
+	if len(addn) > 0 {
+		tx.Create(&addn)
+	}
+	for _, v := range addn {
+		mp[v.Name] = v.Id
+	}
+
 	return mp
 }
 

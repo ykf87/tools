@@ -169,6 +169,13 @@ func parseSS(ssURL string) (*ProxyConfig, error) {
 	parts := strings.SplitN(raw, "#", 2) // 去掉 remark
 	raw = parts[0]
 
+	var name string
+	if len(parts) >= 2 {
+		if res := funcs.UrlDecode(parts[1]); res != "" {
+			name = res
+		}
+	}
+
 	var userInfo string
 	// 判断是否包含 @，如果包含可能是明文格式
 	if strings.Contains(raw, "@") {
@@ -210,6 +217,7 @@ func parseSS(ssURL string) (*ProxyConfig, error) {
 
 	cfg := &ProxyConfig{
 		Protocol:   "ss",
+		Name:       name,
 		ListenAddr: "127.0.0.1",
 		ListenPort: 0,
 		RemoteAddr: hostPort[0],
