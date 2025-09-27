@@ -47,16 +47,17 @@ func AesEncryptCBC(orig string) string {
 }
 
 func AesDecryptCBC(cryted string) string {
-	crytedByte, _ := base64.StdEncoding.DecodeString(cryted)
+	crytedByte, err := base64.StdEncoding.DecodeString(cryted)
+	if err != nil || len(crytedByte) <= 0 {
+		return cryted
+	}
+
 	k := key
-
 	block, _ := aes.NewCipher(k)
-
 	blockSize := block.BlockSize()
 
 	ivCopy := iv
 	blockMode := cipher.NewCBCDecrypter(block, ivCopy[:blockSize])
-
 	orig := make([]byte, len(crytedByte))
 
 	blockMode.CryptBlocks(orig, crytedByte)

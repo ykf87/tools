@@ -1,6 +1,7 @@
 package proxys
 
 import (
+	"tools/runtimes/aess"
 	"tools/runtimes/db"
 	"tools/runtimes/db/tag"
 	"tools/runtimes/proxy"
@@ -18,6 +19,9 @@ type Proxy struct { // 如果有修改字段,需要更新Save方法
 	Name       string   `json:"name" gorm:"default:null;index" form:"name"`         // 名称
 	Remark     string   `json:"remark" gorm:"default:null;index" form:"remark"`     // 备注
 	Local      string   `json:"local" gorm:"default:null;index"`                    // 地区
+	Ip         string   `json:"ip" gorm:"default:null;index;"`                      // 代理的ip地址
+	Timezone   string   `json:"timezone" gorm:"default:null;"`                      // 代理的时区
+	Lang       string   `json:"lang" gorm:"default:null"`                           // 代理所在地区使用的语言
 	Subscribe  int64    `json:"subscribe" gorm:"index;default:0" form:"subscribe"`  // 订阅的id,订阅的代理额外管理
 	Port       int      `json:"port" gorm:"index;default:0" form:"port"`            // 指定的端口,不存在则随机使用空余端口
 	Config     string   `json:"config" gorm:"not null;" form:"config"`              // 代理信息,可以是vmess,vless等,也可以是http代理等
@@ -26,6 +30,7 @@ type Proxy struct { // 如果有修改字段,需要更新Save方法
 	Password   string   `json:"password" gorm:"default:null" form:"password"`       // 对应的密码
 	Transfer   string   `json:"transfer" gorm:"default:null" form:"transfer"`       // 有些代理需要中转,无法直连.目的是解决有的好的ip在国外无法通过国内直连,可以是proxy的id或者具体配置
 	AutoRun    int      `json:"auto_run" gorm:"default:0;index" form:"auto_run"`    // 系统启动跟随启动
+	Encrypt    int      `json:"encrypt" gorm:"index;type:tinyint(1);default:0"`     // 配置是否加密,服务端拿到的是加密的,防止被用于别处
 	Tags       []string `json:"tags" gorm:"-" form:"tags"`                          // 标签列表,不写入数据库,仅在添加和修改时使用
 	IsRuning   int      `json:"is_runing" gorm:"-" form:"-"`                        // 是否启动
 	ListerAddr string   `json:"lister_addr" gorm:"-" form:"-"`                      // 监听地址
@@ -44,8 +49,11 @@ func init() {
 		for _, v := range proxys {
 			v.Start(true)
 			if v.Local == "" {
-				if local, err := proxy.GetLocal(v.Config, v.Transfer); err == nil {
-					v.Local = local
+				if local, err := proxy.GetLocal(v.GetConfig(), v.GetTransfer()); err == nil {
+					v.Local = local.Iso
+					v.Ip = local.Ip
+					v.Timezone = local.Timezone
+					v.Lang = local.Lang
 					v.Save(nil)
 				}
 			}
@@ -64,6 +72,9 @@ func (this *Proxy) Save(tx *gorm.DB) error {
 				"name":      this.Name,
 				"remark":    this.Remark,
 				"local":     this.Local,
+				"ip":        this.Ip,
+				"lang":      this.Lang,
+				"timezone":  this.Timezone,
 				"subscribe": this.Subscribe,
 				"config":    this.Config,
 				"username":  this.Username,
@@ -77,10 +88,26 @@ func (this *Proxy) Save(tx *gorm.DB) error {
 	}
 }
 
+// 返回正确的config代理内容
+func (this *Proxy) GetConfig() string {
+	if this.Encrypt == 1 {
+		return aess.AesDecryptCBC(this.Config)
+	}
+	return this.Config
+}
+
+// 返回正确的transfer代理内容
+func (this *Proxy) GetTransfer() string {
+	if this.Encrypt == 1 {
+		return aess.AesDecryptCBC(this.Transfer)
+	}
+	return this.Transfer
+}
+
 // 启动配置的代理
 // keep 是否守护代理
 func (this *Proxy) Start(keep bool) (*proxy.ProxyConfig, error) {
-	p, err := proxy.Client(this.Config, "", this.Port, this.Transfer)
+	p, err := proxy.Client(this.GetConfig(), "", this.Port, this.GetTransfer())
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +118,7 @@ func (this *Proxy) Start(keep bool) (*proxy.ProxyConfig, error) {
 // 停止配置的代理
 // enforce 是否强制关闭
 func (this *Proxy) Stop(enforce bool) error {
-	pc, err := proxy.Client(this.Config, "", 0)
+	pc, err := proxy.Client(this.GetConfig(), "", 0)
 	if err != nil {
 		return err
 	}
@@ -152,7 +179,7 @@ func (this *Proxy) CoverTgs(tagsName []string, tx *gorm.DB) error {
 
 // 返回当前代理是否已启动
 func (this *Proxy) IsStart() *proxy.ProxyConfig {
-	return proxy.IsRuning(this.Config)
+	return proxy.IsRuning(this.GetConfig())
 }
 
 // 删除当前的

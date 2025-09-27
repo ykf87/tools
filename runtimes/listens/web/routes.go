@@ -3,6 +3,7 @@ package web
 import (
 	"tools/runtimes/controllers/proxys"
 	"tools/runtimes/controllers/tags"
+	"tools/runtimes/controllers/video/down"
 	"tools/runtimes/controllers/ws"
 
 	// "tools/runtimes/config"
@@ -35,6 +36,7 @@ func router() {
 		proxyGroup.POST("", proxys.Editer)
 		proxyGroup.POST("/:id", proxys.Editer)
 		proxyGroup.POST("batchadd", proxys.BatchAdd)
+		proxyGroup.POST("batchediter", proxys.BatchEditer)
 		proxyGroup.GET("/:id", proxys.GetRow)
 		proxyGroup.POST("locals", proxys.Locals)
 		proxyGroup.POST("local/:id", proxys.Local)
@@ -51,5 +53,13 @@ func router() {
 		tagGroup.GET("", tags.List)
 		tagGroup.POST("add", tags.Add)
 		tagGroup.POST("delete/:id", tags.Delete)
+	}
+
+	videosGroup := AuthRoutes.Group("video")
+	{
+		vDownloader := videosGroup.Group("downloader")
+		{
+			vDownloader.POST("", down.Download)
+		}
 	}
 }

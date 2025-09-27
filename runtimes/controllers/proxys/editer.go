@@ -114,8 +114,11 @@ func Editer(c *gin.Context) {
 	}
 
 	if needGetLocal == true {
-		if loc, err := proxy.GetLocal(px.Config, px.Transfer); err == nil {
-			px.Local = loc
+		if loc, err := proxy.GetLocal(px.GetConfig(), px.GetTransfer()); err == nil {
+			px.Local = loc.Iso
+			px.Lang = loc.Lang
+			px.Timezone = loc.Timezone
+			px.Ip = loc.Ip
 			px.Save(tx)
 		}
 	}
@@ -125,6 +128,10 @@ func Editer(c *gin.Context) {
 	// 如果代理已经是启动状态,需要重新启动
 	if pcc := px.IsStart(); pcc != nil {
 		pcc.Restart(px.Port)
+	} else if px.AutoRun == 1 {
+		if pcc, err := proxy.Client(px.GetConfig(), px.ListerAddr, px.Port, px.GetTransfer()); err == nil && pcc != nil {
+			pcc.Run(true)
+		}
 	}
 
 	pxc, _ := parses.Marshal(px, c)
@@ -136,7 +143,7 @@ func Remove(c *gin.Context) {
 	id := c.Param("id")
 	pc := proxys.GetById(id)
 	if pc != nil && pc.Id > 0 {
-		if client, err := proxy.Client(pc.Config, "", 0); err == nil {
+		if client, err := proxy.Client(pc.GetConfig(), "", 0); err == nil {
 			if client != nil && client.IsRuning() {
 				client.Close(true)
 			}
@@ -265,8 +272,11 @@ func BatchAdd(c *gin.Context) {
 
 			for _, v := range pxs {
 				go func() {
-					if loc, err := proxy.GetLocal(v.Config, v.Transfer); err == nil {
-						v.Local = loc
+					if loc, err := proxy.GetLocal(v.GetConfig(), v.GetTransfer()); err == nil {
+						v.Local = loc.Iso
+						v.Timezone = loc.Timezone
+						v.Lang = loc.Lang
+						v.Ip = loc.Ip
 						v.Save(nil)
 					}
 				}()
@@ -285,7 +295,7 @@ func Ping(c *gin.Context) {
 	}
 	pc := proxys.GetById(id)
 	if pc != nil && pc.Id > 0 {
-		pxc, err := proxy.Client(pc.Config, "", 0)
+		pxc, err := proxy.Client(pc.GetConfig(), "", 0)
 		if err != nil {
 			response.Error(c, http.StatusBadRequest, i18n.T("Error"), nil)
 			return
@@ -299,4 +309,86 @@ func Ping(c *gin.Context) {
 		return
 	}
 	response.Error(c, http.StatusBadRequest, "", nil)
+}
+
+// 批量修改
+type batchEditeData struct {
+	Ids      []int64  `json:"ids" form:"ids"`
+	Username string   `json:"username" form:"username"`
+	Password string   `json:"password" form:"password"`
+	Remark   string   `json:"remark" form:"remark"`
+	Transfer string   `json:"transfer" form:"transfer"`
+	Tags     []string `json:"tags" form:"tags"`
+}
+
+func BatchEditer(c *gin.Context) {
+	dt := new(batchEditeData)
+	if err := c.ShouldBind(dt); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	needUpdate := false
+	taglen := 0
+	var uptags map[string]int64
+	upto := make(map[string]interface{})
+	if dt.Username != "" {
+		upto["username"] = dt.Username
+		needUpdate = true
+	}
+	if dt.Password != "" {
+		upto["password"] = dt.Password
+		needUpdate = true
+	}
+	if dt.Remark != "" {
+		upto["remark"] = dt.Remark
+		needUpdate = true
+	}
+	if dt.Transfer != "" {
+		upto["transfer"] = dt.Transfer
+		needUpdate = true
+	}
+	if len(dt.Tags) > 0 {
+		uptags = tag.GetTagsByNames(dt.Tags, nil)
+		for _, _ = range uptags {
+			taglen++
+		}
+	}
+
+	tx := db.DB.Begin()
+	if needUpdate == true {
+		if err := tx.Model(&proxys.Proxy{}).Where("id in ?", dt.Ids).Updates(upto).Error; err != nil {
+			tx.Rollback()
+			response.Error(c, http.StatusBadGateway, err.Error(), nil)
+			return
+		}
+	}
+
+	if uptags != nil && taglen > 0 {
+		if err := tx.Where("proxy_id in ?", dt.Ids).Delete(&proxys.ProxyTag{}).Error; err != nil {
+			tx.Rollback()
+			response.Error(c, http.StatusBadGateway, err.Error(), nil)
+			return
+		}
+
+		var dbProxyTag []*proxys.ProxyTag
+		for _, pid := range dt.Ids {
+			for _, tagid := range uptags {
+				dbProxyTag = append(dbProxyTag, &proxys.ProxyTag{
+					ProxyId: pid,
+					TagId:   tagid,
+				})
+			}
+		}
+		if len(dbProxyTag) > 0 {
+			if err := tx.Create(dbProxyTag).Error; err != nil {
+				tx.Rollback()
+				response.Error(c, http.StatusBadGateway, err.Error(), nil)
+				return
+			}
+		}
+	}
+
+	tx.Commit()
+	response.Success(c, nil, "")
 }

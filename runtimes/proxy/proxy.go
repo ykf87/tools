@@ -3,7 +3,6 @@ package proxy
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,9 +11,8 @@ import (
 	"tools/runtimes/config"
 	"tools/runtimes/funcs"
 	"tools/runtimes/i18n"
-	"tools/runtimes/logs"
+	"tools/runtimes/ipinfos"
 
-	"github.com/tidwall/gjson"
 	core "github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/infra/conf/serial"
 )
@@ -261,79 +259,80 @@ func (this *ProxyConfig) Delay(urls []string) (map[string]int64, error) {
 }
 
 // 获取ip所在国家iso
-func GetLocal(configStr string, transfers ...string) (string, error) {
+func GetLocal(configStr string, transfers ...string) (*ipinfos.Ipinfo, error) {
 	confMd5 := funcs.Md5String(configStr)
 	var pc *ProxyConfig
 	pcm, ok := proxysMap.Load(confMd5)
 	if !ok {
 		cli, err := Client(configStr, "", 0, transfers...)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		ppp, err := cli.Run(false)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
+		defer ppp.Close(false)
 		pc = ppp
 	} else {
 		pc = pcm.(*ProxyConfig)
 	}
-	defer pc.Close(false)
 
 	if pc.server == nil || pc.ListenAddr == "" {
-		return "", fmt.Errorf(i18n.T("The proxy is not enabled"))
+		return nil, fmt.Errorf(i18n.T("The proxy is not enabled"))
 	}
 	defer pc.Close(false)
 
 	proxyUrl := pc.Listened()
-	// fmt.Println(proxyUrl, "------- use proxy", pc.ListenAddr, pc.ListenPort)
 
-	urlStr := "https://api.btloader.com/country"
-	var transport *http.Transport
-	var client *http.Client
+	return ipinfos.Get(proxyUrl)
 
-	if proxyUrl != "" {
-		proxyURL, err := url.Parse(proxyUrl)
-		if err == nil {
-			transport = &http.Transport{
-				Proxy: http.ProxyURL(proxyURL),
-			}
-			client = &http.Client{
-				Transport: transport,
-			}
-		} else {
-			return "", err
-		}
-	}
-	if client == nil {
-		client = &http.Client{}
-	}
-	req, err := http.NewRequest("GET", urlStr, nil)
-	if err != nil {
-		logs.Error(err.Error())
-		return "", err
-	}
-	resp, err := client.Do(req)
+	// urlStr := "https://api.btloader.com/country"
+	// var transport *http.Transport
+	// var client *http.Client
 
-	if err != nil {
-		logs.Error(err.Error())
-		return "", err
-	}
-	defer resp.Body.Close()
+	// if proxyUrl != "" {
+	// 	proxyURL, err := url.Parse(proxyUrl)
+	// 	if err == nil {
+	// 		transport = &http.Transport{
+	// 			Proxy: http.ProxyURL(proxyURL),
+	// 		}
+	// 		client = &http.Client{
+	// 			Transport: transport,
+	// 		}
+	// 	} else {
+	// 		return "", err
+	// 	}
+	// }
+	// if client == nil {
+	// 	client = &http.Client{}
+	// }
+	// req, err := http.NewRequest("GET", urlStr, nil)
+	// if err != nil {
+	// 	logs.Error(err.Error())
+	// 	return "", err
+	// }
+	// resp, err := client.Do(req)
 
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf(i18n.T("Return code error"))
-	}
+	// if err != nil {
+	// 	logs.Error(err.Error())
+	// 	return "", err
+	// }
+	// defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		logs.Error(err.Error())
-		return "", err
-	}
+	// if resp.StatusCode != 200 {
+	// 	return "", fmt.Errorf(i18n.T("Return code error"))
+	// }
 
-	gs := gjson.ParseBytes(body).Map()
-	if gs["country"].Exists() {
-		return strings.ToLower(gs["country"].String()), nil
-	}
-	return "", fmt.Errorf(i18n.T("Unable to query country"))
+	// body, err := ioutil.ReadAll(resp.Body)
+	// if err != nil {
+	// 	logs.Error(err.Error())
+	// 	return "", err
+	// }
+
+	// gs := gjson.ParseBytes(body).Map()
+	// if gs["country"].Exists() {
+	// 	return strings.ToLower(gs["country"].String()), nil
+	// }
+	// return "", fmt.Errorf(i18n.T("Unable to query country"))
 }

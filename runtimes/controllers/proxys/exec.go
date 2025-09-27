@@ -22,11 +22,12 @@ func GetLocal(c *gin.Context) {
 	var config string
 	var trans string
 	id := c.Param("id")
+	var px *proxys.Proxy
 	if id != "" {
-		px := proxys.GetById(id)
+		px = proxys.GetById(id)
 		if px != nil && px.Id > 0 {
-			config = px.Config
-			trans = px.Transfer
+			config = px.GetConfig()
+			trans = px.GetTransfer()
 		}
 	} else {
 		ddt := new(GetLocalData)
@@ -49,9 +50,16 @@ func GetLocal(c *gin.Context) {
 		return
 	}
 
+	if px != nil && px.Id > 0 {
+		px.Local = local.Iso
+		px.Timezone = local.Timezone
+		px.Lang = local.Lang
+		px.Ip = local.Ip
+	}
+
 	response.Success(c, gin.H{
 		"local":    local,
-		"localico": fmt.Sprintf("https://flagpedia.net/data/flags/h80/%s.webp", local),
+		"localico": fmt.Sprintf("https://flagpedia.net/data/flags/h80/%s.webp", local.Iso),
 	}, "")
 }
 
@@ -64,9 +72,12 @@ func Local(c *gin.Context) {
 	}
 	pc := proxys.GetById(id)
 	if pc != nil && pc.Id > 0 {
-		loc, err := proxy.GetLocal(pc.Config, pc.Transfer)
+		loc, err := proxy.GetLocal(pc.GetConfig(), pc.GetTransfer())
 		if err == nil {
-			pc.Local = loc
+			pc.Local = loc.Iso
+			pc.Ip = loc.Ip
+			pc.Timezone = loc.Timezone
+			pc.Lang = loc.Lang
 			pc.Save(nil)
 		} else {
 			response.Error(c, http.StatusBadRequest, i18n.T("Region acquisition failed"), nil)
@@ -94,10 +105,15 @@ func Locals(c *gin.Context) {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					proxy.GetLocal(v.Config, v.Transfer)
+					if loc, err := proxy.GetLocal(v.GetConfig(), v.GetTransfer()); err == nil {
+						v.Local = loc.Iso
+						v.Ip = loc.Ip
+						v.Timezone = loc.Timezone
+						v.Lang = loc.Lang
+						v.Save(nil)
+					}
 				}()
 			}
-
 			wg.Wait()
 		}
 	}
