@@ -1,5 +1,11 @@
 package browser
 
+import (
+	"fmt"
+	"math/rand"
+	"time"
+)
+
 type SSLFeature struct {
 	Name  string
 	Value string
@@ -293,3 +299,174 @@ var langMap = map[string]string{
 
 var BrowserMemorys = []int{2, 4, 8, 16, 32, 64}
 var BrowserCpu = []int{2, 4, 6, 8, 12}
+
+type AudioContextStruct struct {
+	Analyer float64 `json:"analyer"`
+	Channel float64 `json:"channel"`
+	Mode    int     `json:"mode"`
+}
+
+func (this *AudioContextStruct) Random() {
+	this.Analyer = rand.Float64() * 0.01
+	this.Channel = rand.Float64() * 1e-6
+	this.Mode = 1
+}
+
+type CanvasStruct struct {
+	R    int `json:"r"`
+	G    int `json:"g"`
+	B    int `json:"b"`
+	A    int `json:"a"`
+	Mode int `json:"mode"`
+}
+
+func (this *CanvasStruct) Random() {
+	this.A = rand.Intn(10)
+	this.R = rand.Intn(21) - 10
+	this.G = rand.Intn(21) - 10
+	this.B = rand.Intn(21) - 10
+	this.Mode = 1
+}
+
+type ClientRectsStruct struct {
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+	Mode   int     `json:"mode"`
+}
+
+func (this *ClientRectsStruct) Random() {
+	this.Width = rand.Float64()*2 - 1
+	this.Height = rand.Float64()*2 - 1
+	this.Mode = 1
+}
+
+type CookieS struct {
+	Name     string `json:"name"`
+	Value    string `json:"value"`
+	Domain   string `json:"domain"`
+	Path     string `json:"path"`
+	Session  bool   `json:"session"`
+	HttpOnly bool   `json:"httpOnly"`
+	Secure   bool   `json:"secure"`
+	SameSite string `json:"sameSite"`
+}
+
+type CookieStruct struct {
+	JsonStr string     `json:"jsonStr"`
+	Mode    int        `json:"mode"`
+	Value   []*CookieS `json:"value"`
+}
+
+type LocationStruct struct {
+	Enable    int     `json:"enable"` // 是否开启位置信息.1询问地址,2允许,3关闭
+	Mode      int     `json:"mode"`   // 1自己设置位置信息,2根据ip自动,一般选2就行.如果是1,则必须设置lat和log
+	Latitude  float64 `json:"latitude"`
+	Longitude float64 `json:"longitude"`
+	Precision int     `json:"precision"`
+}
+
+type DeviceNameStruct struct {
+	Mode  int    `json:"mode"`
+	Value string `json:"value"`
+}
+
+func (this *DeviceNameStruct) Random() {
+	rand.Seed(time.Now().UnixNano())
+	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	length := 8 // 生成 8 位随机字符
+
+	result := make([]byte, length)
+	for i := range result {
+		result[i] = charset[rand.Intn(len(charset))]
+	}
+	this.Value = fmt.Sprintf("DESKTOP-%s", string(result))
+	this.Mode = 1
+}
+
+type PortStruct struct {
+	API      string `json:"API"`
+	Host     string `json:"host"`
+	Mode     int    `json:"mode"`
+	Pass     string `json:"pass"`
+	Port     string `json:"port"`
+	Protocol string `json:"protocol"`
+	User     string `json:"user"`
+	Value    string `json:"value"`
+}
+type SecChUaStruct struct {
+	Brand   string `json:"brand"`
+	Version any    `json:"version"`
+}
+
+type SpeechVoicesStruct struct {
+	Default      bool   `json:"default"`
+	Lang         string `json:"lang"`
+	LocalService bool   `json:"localService"`
+	Name         string `json:"name"`
+	VoiceURI     string `json:"voiceURI"`
+}
+
+type User struct {
+	AudioContext  *AudioContextStruct `json:"audio-context"`
+	Canvas        *CanvasStruct       `json:"canvas"`
+	ChromeVersion string              `json:"chrome_version"`
+	ClientRects   *ClientRectsStruct  `json:"ClientRects"`
+	Cookie        []*CookieStruct     `json:"cookie"`
+	Cpu           struct {
+		Mode  int `json:"mode"`
+		Value int `json:"value"`
+	} `json:"cpu"`
+	DeviceName *DeviceNameStruct `json:"device-name"`
+	Dnt        struct {
+		Mode  int `json:"mode"`
+		Value int `json:"value"`
+	} `json:"dnt"`
+	Fonts struct {
+		Mode  int      `json:"mode"`
+		Value []string `json:"value"`
+	} `json:"fonts"`
+	Gpu struct {
+		Mode  int `json:"mode"`
+		Value int `json:"value"`
+	} `json:"gpu"`
+	Group    string `json:"group"`
+	Homepage struct {
+		Mode  int    `json:"mode"`
+		Value string `json:"value"`
+	} `json:"homepage"`
+	Id        int64           `json:"id"`
+	IsRunning bool            `json:"isRunning"`
+	Location  *LocationStruct `json:"location"`
+	Mac       struct {
+		Mode  int    `json:"mode"`
+		Value string `json:"value"`
+	} `json:"mac"`
+	Media struct {
+		Mode int `json:"mode"`
+	} `json:"media"`
+	Memory struct {
+		Mode  int `json:"mode"`
+		Value int `json:"value"`
+	}
+	Name     string `json:"name"`
+	Os       string `json:"os"`
+	PortScan struct {
+		Mode  int      `json:"mode"`
+		Value []string `json:"value"`
+	} `json:"port-scan"`
+	Proxy  *PortStruct `json:"proxy"`
+	Screen struct {
+		Width  int    `json:"width"`
+		Height int    `json:"height"`
+		Mode   int    `json:"mode"`
+		Value  string `json:"_value"`
+	}
+	SecChUa struct {
+		Mode  int `json:"mode"`
+		Value []SecChUaStruct
+	} `json:"sec-ch-ua"`
+	SpeechVoices struct {
+		Mode  int                  `json:"mode"`
+		Value []SpeechVoicesStruct `json:"value"`
+	} `json:"speech_voices"`
+}

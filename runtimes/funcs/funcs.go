@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/rand"
 	"net"
 	"net/url"
 	"os"
@@ -312,4 +313,30 @@ func Md5File(reader io.Reader) string {
 
 	// 返回计算出的 MD5 值
 	return hex.EncodeToString(hash.Sum(nil))
+}
+
+// RandomMAC 生成一个随机 MAC 地址
+// prefix 可以为空，例如 "00:1A:2B" 表示指定厂商前缀
+func RandomMAC(prefix string) string {
+	rand.Seed(time.Now().UnixNano())
+
+	mac := make([]byte, 6)
+
+	if prefix != "" {
+		parts := strings.Split(prefix, ":")
+		if len(parts) != 3 && len(parts) != 6 {
+			panic("prefix 格式错误，例如：00:1A:2B 或 00:1A:2B:XX:XX:XX")
+		}
+		for i := 0; i < len(parts) && i < 6; i++ {
+			fmt.Sscanf(parts[i], "%02X", &mac[i])
+		}
+		rand.Read(mac[len(parts):])
+	} else {
+		rand.Read(mac)
+		// 设置本地管理位 & 单播位
+		mac[0] = (mac[0] | 2) & 0xfe
+	}
+
+	return fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
+		mac[0], mac[1], mac[2], mac[3], mac[4], mac[5])
 }
