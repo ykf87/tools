@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/funcs"
 )
@@ -31,7 +32,7 @@ func init() {
 	}
 }
 
-func NewBrowser(lang string) *User {
+func NewBrowser(lang, timezone string) *User {
 	bs := new(User)
 	bs.AudioContext = new(AudioContextStruct)
 	bs.AudioContext.Random()
@@ -73,11 +74,34 @@ func NewBrowser(lang string) *User {
 		Brand:   "Not=A?Brand",
 		Version: "99",
 	})
+
+	bs.Timestamp = time.Now().UnixNano() / int64(time.Millisecond)
+
+	bs.SetTimezone(timezone)
+	bs.Ua.Mode = 0
+	bs.Ua.Value = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+	bs.UaFullVersion.Mode = 0
+	bs.UaFullVersion.Value = "120.0.6099.291"
+
+	bs.UaLanguage.Mode = 1
+	bs.UaLanguage.Value = lang
+
+	bs.Webgl = new(WebglStruct)
+	bs.Webgl.Random()
+
+	bs.WebglImg = new(WebglImgStruct)
+	bs.WebglImg.Random()
+	bs.Webrtc.Mode = 0
 	return bs
 }
 
 func (this *User) SetProxy(proxyurl, user, password string) {
-
+	if proxyurl != "" {
+		this.Proxy.Mode = 2
+		this.Proxy.User = user
+		this.Proxy.Pass = password
+	}
 }
 
 func (this *User) SetProxyApi(apiUrl string) {
@@ -93,4 +117,38 @@ func (this *User) SetScreen(width, height int) {
 	this.Screen.Height = height
 	this.Screen.Mode = 1
 	this.Screen.Value = fmt.Sprintf("%d x %d", width, height)
+}
+
+func (this *User) SetTimezone(timezone string) {
+	loc, err := time.LoadLocation(timezone)
+
+	if err != nil {
+		return
+	}
+
+	if this.TimeZone == nil {
+		this.TimeZone = new(TimezoneStruct)
+	}
+	_, offset := time.Now().In(loc).Zone()
+	hours := offset / 3600
+	minutes := (offset % 3600) / 60
+
+	sign := "+"
+	if hours < 0 || minutes < 0 {
+		sign = "-"
+	}
+	zone := fmt.Sprintf("UTC%s%02d:%02d", sign, abs(hours), abs(minutes))
+
+	this.TimeZone.Locale = ""
+	this.TimeZone.Mode = 2
+	this.TimeZone.Name = this.TimeZone.GetName(timezone)
+	this.TimeZone.Utc = timezone
+	this.TimeZone.Value = 8
+	this.TimeZone.Zone = zone
+}
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }

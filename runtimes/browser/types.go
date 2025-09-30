@@ -3,6 +3,7 @@ package browser
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 )
 
@@ -297,6 +298,136 @@ var langMap = map[string]string{
 	"rw-RW":      "Rwanda",
 }
 
+var Timezones = []string{
+	"(UTC-12:00) International Date Line West",
+	"(UTC-11:00) Coordinated Universal Time-11",
+	"(UTC-10:00) Hawaii",
+	"(UTC-09:00) Alaska",
+	"(UTC-08:00) Baja California",
+	"(UTC-07:00) Pacific Daylight Time (US & Canada)",
+	"(UTC-08:00) Pacific Standard Time (US & Canada)",
+	"(UTC-07:00) Arizona",
+	"(UTC-07:00) Chihuahua, La Paz, Mazatlan",
+	"(UTC-07:00) Mountain Time (US & Canada)",
+	"(UTC-06:00) Central America",
+	"(UTC-06:00) Central Time (US & Canada)",
+	"(UTC-06:00) Guadalajara, Mexico City, Monterrey",
+	"(UTC-06:00) Saskatchewan",
+	"(UTC-05:00) Bogota, Lima, Quito",
+	"(UTC-05:00) Eastern Time (US & Canada)",
+	"(UTC-04:00) Eastern Daylight Time (US & Canada)",
+	"(UTC-05:00) Indiana (East)",
+	"(UTC-04:30) Caracas",
+	"(UTC-04:00) Asuncion",
+	"(UTC-04:00) Atlantic Time (Canada)",
+	"(UTC-04:00) Cuiaba",
+	"(UTC-04:00) Georgetown, La Paz, Manaus, San Juan",
+	"(UTC-04:00) Santiago",
+	"(UTC-03:30) Newfoundland",
+	"(UTC-03:00) Brasilia",
+	"(UTC-03:00) Buenos Aires",
+	"(UTC-03:00) Cayenne, Fortaleza",
+	"(UTC-03:00) Greenland",
+	"(UTC-03:00) Montevideo",
+	"(UTC-03:00) Salvador",
+	"(UTC-02:00) Coordinated Universal Time-02",
+	"(UTC-02:00) Mid-Atlantic - Old",
+	"(UTC-01:00) Azores",
+	"(UTC-01:00) Cape Verde Is.",
+	"(UTC) Casablanca",
+	"(UTC) Coordinated Universal Time",
+	"(UTC) Edinburgh, London",
+	"(UTC+01:00) Edinburgh, London",
+	"(UTC) Dublin, Lisbon",
+	"(UTC) Monrovia, Reykjavik",
+	"(UTC+01:00) Amsterdam, Berlin, Bern, Rome, Stockholm, Vienna",
+	"(UTC+01:00) Belgrade, Bratislava, Budapest, Ljubljana, Prague",
+	"(UTC+01:00) Brussels, Copenhagen, Madrid, Paris",
+	"(UTC+01:00) Sarajevo, Skopje, Warsaw, Zagreb",
+	"(UTC+01:00) West Central Africa",
+	"(UTC+01:00) Windhoek",
+	"(UTC+02:00) Athens, Bucharest",
+	"(UTC+02:00) Beirut",
+	"(UTC+02:00) Cairo",
+	"(UTC+02:00) Damascus",
+	"(UTC+02:00) E. Europe",
+	"(UTC+02:00) Harare, Pretoria",
+	"(UTC+02:00) Helsinki, Kyiv, Riga, Sofia, Tallinn, Vilnius",
+	"(UTC+03:00) Istanbul",
+	"(UTC+02:00) Jerusalem",
+	"(UTC+02:00) Tripoli",
+	"(UTC+03:00) Amman",
+	"(UTC+03:00) Baghdad",
+	"(UTC+02:00) Kaliningrad",
+	"(UTC+03:00) Kuwait, Riyadh",
+	"(UTC+03:00) Nairobi",
+	"(UTC+03:00) Moscow, St. Petersburg, Volgograd, Minsk",
+	"(UTC+04:00) Samara, Ulyanovsk, Saratov",
+	"(UTC+03:30) Tehran",
+	"(UTC+04:00) Abu Dhabi, Muscat",
+	"(UTC+04:00) Baku",
+	"(UTC+04:00) Port Louis",
+	"(UTC+04:00) Tbilisi",
+	"(UTC+04:00) Yerevan",
+	"(UTC+04:30) Kabul",
+	"(UTC+05:00) Ashgabat, Tashkent",
+	"(UTC+05:00) Yekaterinburg",
+	"(UTC+05:00) Islamabad, Karachi",
+	"(UTC+05:30) Chennai, Kolkata, Mumbai, New Delhi",
+	"(UTC+05:30) Sri Jayawardenepura",
+	"(UTC+05:45) Kathmandu",
+	"(UTC+06:00) Nur-Sultan (Astana)",
+	"(UTC+06:00) Dhaka",
+	"(UTC+06:30) Yangon (Rangoon)",
+	"(UTC+07:00) Bangkok, Hanoi, Jakarta",
+	"(UTC+07:00) Novosibirsk",
+	"(UTC+08:00) Beijing, Chongqing, Hong Kong, Urumqi",
+	"(UTC+08:00) Krasnoyarsk",
+	"(UTC+08:00) Kuala Lumpur, Singapore",
+	"(UTC+08:00) Perth",
+	"(UTC+08:00) Taipei",
+	"(UTC+08:00) Ulaanbaatar",
+	"(UTC+08:00) Irkutsk",
+	"(UTC+09:00) Osaka, Sapporo, Tokyo",
+	"(UTC+09:00) Seoul",
+	"(UTC+09:30) Adelaide",
+	"(UTC+09:30) Darwin",
+	"(UTC+10:00) Brisbane",
+	"(UTC+10:00) Canberra, Melbourne, Sydney",
+	"(UTC+10:00) Guam, Port Moresby",
+	"(UTC+10:00) Hobart",
+	"(UTC+09:00) Yakutsk",
+	"(UTC+11:00) Solomon Is., New Caledonia",
+	"(UTC+11:00) Vladivostok",
+	"(UTC+12:00) Auckland, Wellington",
+	"(UTC+12:00) Coordinated Universal Time+12",
+	"(UTC+12:00) Fijiaaa",
+	"(UTC+12:00) Magadan",
+	"(UTC+12:00) Petropavlovsk-Kamchatsky - Old",
+	"(UTC+13:00) Nuku'alofa",
+	"(UTC+13:00) Samoa",
+}
+
+func (this *TimezoneStruct) GetName(tz string) string {
+	tz = strings.ReplaceAll(tz, "/", "")
+	tz = strings.ReplaceAll(tz, "_", "")
+	for _, v := range Timezones {
+		if strings.Contains(v, tz) {
+			return v
+		}
+	}
+
+	tzs := strings.Split(tz, " ")
+	for _, v := range tzs {
+		for _, j := range Timezones {
+			if strings.Contains(j, v) {
+				return j
+			}
+		}
+	}
+	return ""
+}
+
 var BrowserMemorys = []int{2, 4, 8, 16, 32, 64}
 var BrowserCpu = []int{2, 4, 6, 8, 12}
 
@@ -406,6 +537,44 @@ type SpeechVoicesStruct struct {
 	VoiceURI     string `json:"voiceURI"`
 }
 
+type TimezoneStruct struct {
+	Locale string `json:"locale"`
+	Mode   int    `json:"mode"`
+	Name   string `json:"name"`
+	Utc    string `json:"utc"`
+	Value  int    `json:"value"`
+	Zone   string `json:"zone"`
+}
+
+type WebglStruct struct {
+	Mode   int    `json:"mode"`
+	Render string `json:"render"`
+	Vendor string `json:"vendor"`
+}
+
+func (this *WebglStruct) Random() {
+	this.Mode = 1
+	vendor := BrowserWebGLs[rand.Intn(len(BrowserWebGLs)-1)]
+	this.Vendor = vendor.Group
+	this.Render = vendor.Values[rand.Intn(len(vendor.Values)-1)]
+}
+
+type WebglImgStruct struct {
+	Mode int `json:"mode"`
+	R    int `json:"r"`
+	G    int `json:"g"`
+	B    int `json:"b"`
+	A    int `json:"a"`
+}
+
+func (this *WebglImgStruct) Random() {
+	this.A = rand.Intn(10)
+	this.R = rand.Intn(21) - 10
+	this.G = rand.Intn(21) - 10
+	this.B = rand.Intn(21) - 10
+	this.Mode = 1
+}
+
 type User struct {
 	AudioContext  *AudioContextStruct `json:"audio-context"`
 	Canvas        *CanvasStruct       `json:"canvas"`
@@ -469,4 +638,27 @@ type User struct {
 		Mode  int                  `json:"mode"`
 		Value []SpeechVoicesStruct `json:"value"`
 	} `json:"speech_voices"`
+	Ssl struct {
+		Mode  int      `json:"mode"`
+		Value []string `json:"value"`
+	} `json:"ssl"`
+	TimeZone  *TimezoneStruct `json:"time-zone"`
+	Timestamp int64           `json:"timestamp"`
+	Ua        struct {
+		Mode  int    `json:"mode"`
+		Value string `json:"value"`
+	} `json:"ua"`
+	UaFullVersion struct {
+		Mode  int    `json:"mode"`
+		Value string `json:"value"`
+	} `json:"ua-full-version"`
+	UaLanguage struct {
+		Mode  int    `json:"mode"`
+		Value string `json:"value"`
+	} `json:"ua-language"`
+	Webgl    *WebglStruct    `json:"webgl"`
+	WebglImg *WebglImgStruct `json:"webgl-img"`
+	Webrtc   struct {
+		Mode int `json:"mode"`
+	}
 }
