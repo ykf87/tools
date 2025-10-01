@@ -79,6 +79,24 @@ func main() {
 	// // mqSystem.Start()
 	// mqSystem.Publish("download", "http://example.com/file1.zip", 0)
 
+	// vbPath := browser.BROWSERFILE
+
+	// // 指定自定义浏览器路径
+	// url := launcher.New().
+	// 	Leakless(false).
+	// 	Bin(vbPath).     // 使用 VirtualBrowser
+	// 	Headless(false). // 是否显示窗口
+	// 	Set("user-data-dir", config.BROWSERCACHE+"/1").
+	// 	Set("worker-id", "1").
+	// 	MustLaunch()
+
+	// browser := rod.New().ControlURL(url).MustConnect()
+	// defer browser.MustClose()
+
+	// page := browser.MustPage("https://www.baidu.com")
+	// title := page.MustEval("() => document.title").String()
+	// fmt.Println("Page title:", title)
+
 	port := 19998
 	go web.Start(port)
 

@@ -7,13 +7,18 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/funcs"
+
+	json "github.com/json-iterator/go"
 )
 
 var BROWSERPATH = ""
 var BROWSERFILE = ""
+
+var Running sync.Map
 
 func init() {
 	needdownload := false
@@ -94,6 +99,42 @@ func NewBrowser(lang, timezone string) *User {
 	bs.WebglImg.Random()
 	bs.Webrtc.Mode = 0
 	return bs
+}
+
+type VirtualBrowserConfig struct {
+	Users []*User `json:"users"`
+}
+
+func (this *User) Run(worker int64) (*User, error) {
+	if u, ok := Running.Load(worker); ok {
+		usr := u.(*User)
+		return usr, nil
+	}
+	cc := new(VirtualBrowserConfig)
+	cc.Users = append(cc.Users, this)
+	bt, err := json.Marshal(cc)
+	if err != nil {
+		return nil, err
+	}
+
+	this.Id = worker
+
+	wk := filepath.Join(config.BROWSERCACHE, fmt.Sprintf("%d", this.Id))
+	if _, err := os.Stat(wk); err != nil {
+		if err := os.MkdirAll(wk, os.ModePerm); err != nil {
+			return nil, err
+		}
+	}
+
+	if err = os.WriteFile(wk, bt, 0644); err != nil {
+		return nil, err
+	}
+
+	this.Lanuch(wk)
+
+	Running.Store(worker, this)
+	return this, nil
+	// Running.Store()
 }
 
 func (this *User) SetProxy(proxyurl, user, password string) {

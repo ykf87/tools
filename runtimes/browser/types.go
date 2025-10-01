@@ -5,6 +5,8 @@ import (
 	"math/rand"
 	"strings"
 	"time"
+
+	"github.com/go-rod/rod"
 )
 
 type SSLFeature struct {
@@ -661,4 +663,6 @@ type User struct {
 	Webrtc   struct {
 		Mode int `json:"mode"`
 	}
+	LanucherUrl string       `json:"-"`
+	browser     *rod.Browser `json:"-"`
 }
