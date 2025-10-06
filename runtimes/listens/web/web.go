@@ -59,10 +59,11 @@ func Start(port int) {
 	}()
 	time.Sleep(time.Second)
 
-	WebPort, err = funcs.FreePort()
-	if err != nil {
-		panic(err)
-	}
+	// WebPort, err = funcs.FreePort()
+	// if err != nil {
+	// 	panic(err)
+	// }
+	WebPort := 15558
 
 	go func() {
 		webUrl(NetIp, RunPort, WebPort)
@@ -205,6 +206,7 @@ func AuthMiddleware(c *gin.Context) {
 
 	adm, err := admins.GetAdminFromJwt(token)
 	if err != nil {
+		logs.Error(err.Error())
 		response.Error(c, http.StatusUnauthorized, err.Error(), nil)
 		c.Abort()
 		return

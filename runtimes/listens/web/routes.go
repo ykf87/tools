@@ -1,17 +1,21 @@
 package web
 
 import (
+	"tools/runtimes/controllers/browsers"
 	"tools/runtimes/controllers/proxys"
 	"tools/runtimes/controllers/tags"
+	"tools/runtimes/controllers/user"
 	"tools/runtimes/controllers/video/down"
 	"tools/runtimes/controllers/ws"
+	"tools/runtimes/response"
 
-	// "tools/runtimes/config"
-	"tools/runtimes/controllers/user"
-	// "github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin"
 )
 
 func router() {
+	ROUTER.GET("", func(c *gin.Context) {
+		response.Success(c, nil, "")
+	})
 	ROUTER.Static("/data", DataPath)
 	ROUTER.POST("/auth/login", user.Login)
 	AuthRoutes := ROUTER
@@ -61,5 +65,11 @@ func router() {
 		{
 			vDownloader.POST("", down.Download)
 		}
+	}
+
+	browserGroup := AuthRoutes.Group("browser")
+	{
+		browserGroup.GET("", browsers.List)
+		browserGroup.GET("tags", browsers.BrowserTags)
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"tools/runtimes/aess"
 	"tools/runtimes/db"
 	"tools/runtimes/db/tag"
+	"tools/runtimes/eventbus"
 	"tools/runtimes/proxy"
 
 	"gorm.io/gorm"
@@ -67,7 +68,7 @@ func (this *Proxy) Save(tx *gorm.DB) error {
 		tx = db.DB
 	}
 	if this.Id > 0 {
-		return tx.Model(&Proxy{}).Where("id = ?", this.Id).
+		err := tx.Model(&Proxy{}).Where("id = ?", this.Id).
 			Updates(map[string]interface{}{
 				"name":      this.Name,
 				"remark":    this.Remark,
@@ -83,6 +84,11 @@ func (this *Proxy) Save(tx *gorm.DB) error {
 				"auto_run":  this.AutoRun,
 				"port":      this.Port,
 			}).Error
+		if err != nil {
+			return err
+		}
+		eventbus.Bus.Publish("proxy_change", this)
+		return nil
 	} else {
 		return tx.Create(this).Error
 	}

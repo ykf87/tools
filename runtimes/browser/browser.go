@@ -134,7 +134,6 @@ func (this *User) Run(worker int64) (*User, error) {
 
 	Running.Store(worker, this)
 	return this, nil
-	// Running.Store()
 }
 
 func (this *User) SetProxy(proxyurl, user, password string) {

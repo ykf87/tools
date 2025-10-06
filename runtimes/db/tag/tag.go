@@ -35,7 +35,7 @@ func (this *Tag) Remove(tx *gorm.DB) error {
 		tx = db.DB
 	}
 	if this != nil && this.Id > 0 {
-		return db.DB.Where("id = ?", this.Id).Delete(&Tag{}).Error
+		return tx.Where("id = ?", this.Id).Delete(&Tag{}).Error
 	}
 	return nil
 }

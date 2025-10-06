@@ -20,7 +20,7 @@ func init() {
 	// dbs, err := gorm.Open(sqlite.Open(dbfile), &gorm.Config{})
 	dbs, err := gorm.Open(sqlite.Dialector{
 		DriverName: "sqlite", // 改这里
-		DSN:        dbfile,
+		DSN:        dbfile + "?_busy_timeout=5000&_journal_mode=WAL",
 	}, &gorm.Config{})
 	if err != nil {
 		logs.Error(err.Error())
@@ -37,6 +37,7 @@ func init() {
 	ddd.SetMaxOpenConns(100)
 	ddd.SetConnMaxLifetime(time.Hour)
 	ddd.Exec("PRAGMA journal_mode=WAL;")
+	ddd.Exec("PRAGMA synchronous = NORMAL;")
 
 	funcs.HiddenDir(dbfile)
 	DB = dbs
@@ -45,7 +46,7 @@ func init() {
 	mqFile := config.FullPath(filepath.Join(config.SYSROOT, ".mq"))
 	mqdb, err := gorm.Open(sqlite.Dialector{
 		DriverName: "sqlite", // 改这里
-		DSN:        mqFile,
+		DSN:        mqFile + "?_busy_timeout=5000&_journal_mode=WAL",
 	}, &gorm.Config{})
 	if err != nil {
 		logs.Error(err.Error())
@@ -62,6 +63,7 @@ func init() {
 	mqqq.SetMaxOpenConns(100)
 	mqqq.SetConnMaxLifetime(time.Hour)
 	mqqq.Exec("PRAGMA journal_mode=WAL;")
+	mqqq.Exec("PRAGMA synchronous = NORMAL;")
 	MQDB = mqdb
 }
 

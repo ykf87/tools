@@ -82,7 +82,7 @@ func GetList(c *gin.Context) {
 	}
 
 	var ps []*proxys.Proxy
-	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Offset((l.Page - 1) * l.Limit).Limit(l.Limit).Debug().Find(&ps)
+	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Offset((l.Page - 1) * l.Limit).Limit(l.Limit).Find(&ps)
 
 	// 处理代理标签
 	if len(ps) > 0 {
