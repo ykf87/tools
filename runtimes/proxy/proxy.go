@@ -113,11 +113,20 @@ func (this *ProxyConfig) Restart(port int) error {
 	return err
 }
 
-/**
+/*
+*
 启动代理监听. guard 为是否是守护代理,守护代理无法被停止
 transfers - 桥接代理的配置
 */
 func (this *ProxyConfig) Run(guard bool) (*ProxyConfig, error) {
+	if p, ok := proxysMap.Load(this.ConfMd5); ok { // 如果已经启动则直接返回
+		pc := p.(*ProxyConfig)
+		if pc.server == nil {
+			proxysMap.Delete(this.ConfMd5)
+		} else {
+			return pc, nil
+		}
+	}
 	this.Guard = guard
 
 	configJSON, err := this.GenerateXrayConfig(this.Transfers...)

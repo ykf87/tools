@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -18,6 +19,8 @@ const (
 	PROXYMINPORT = 100                         // 代理最小的端口号
 	BROWSERCACHE = SYSROOT + "/browsers/cache" // 浏览器缓存
 )
+
+var RuningRoot string
 
 type mkdirStruct struct {
 	DirName string      `json:"dir_name"`
@@ -39,7 +42,6 @@ var ApiUrl = ""
 var WebUrl = ""
 var MediaUrl = ""
 
-var RuningRoot string
 var Mkdirs = map[string]*mkdirStruct{
 	"log": &mkdirStruct{
 		DirName: LOGROOT,
@@ -78,6 +80,9 @@ func FullPath(pathName ...string) string {
 	cleaned := make([]string, 0, len(pathName))
 	for _, p := range pathName {
 		if p != "" {
+			if strings.Contains(p, RuningRoot) {
+				p = strings.TrimLeft(p, RuningRoot)
+			}
 			cleaned = append(cleaned, p)
 		}
 	}

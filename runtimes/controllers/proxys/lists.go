@@ -74,15 +74,19 @@ func GetList(c *gin.Context) {
 			sortBy = "DESC"
 		}
 	}
-	if l.Page < 1 {
-		l.Page = 1
-	}
-	if l.Limit < 1 {
-		l.Limit = 10
+
+	if l.Limit != -1 {
+		if l.Page < 1 {
+			l.Page = 1
+		}
+		if l.Limit < 1 {
+			l.Limit = 10
+		}
+		model = model.Offset((l.Page - 1) * l.Limit).Limit(l.Limit)
 	}
 
 	var ps []*proxys.Proxy
-	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Offset((l.Page - 1) * l.Limit).Limit(l.Limit).Find(&ps)
+	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Find(&ps)
 
 	// 处理代理标签
 	if len(ps) > 0 {

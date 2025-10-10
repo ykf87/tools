@@ -161,7 +161,7 @@ var BrowserWebGLs = []*WebGL{
 	}},
 }
 
-var langMap = map[string]string{
+var LangMap = map[string]string{
 	"ca-ES":      "Catalan",
 	"prs-AF":     "Dari",
 	"ps-AF":      "Pashto",
@@ -524,6 +524,7 @@ type PortStruct struct {
 	Port     string `json:"port"`
 	Protocol string `json:"protocol"`
 	User     string `json:"user"`
+	Url      string `json:"url"`
 	Value    string `json:"value"`
 }
 type SecChUaStruct struct {
@@ -618,7 +619,7 @@ type User struct {
 	Memory struct {
 		Mode  int `json:"mode"`
 		Value int `json:"value"`
-	}
+	} `json:"memort"`
 	Name     string `json:"name"`
 	Os       string `json:"os"`
 	PortScan struct {
@@ -631,7 +632,7 @@ type User struct {
 		Height int    `json:"height"`
 		Mode   int    `json:"mode"`
 		Value  string `json:"_value"`
-	}
+	} `json:"screen"`
 	SecChUa struct {
 		Mode  int `json:"mode"`
 		Value []SecChUaStruct
@@ -662,7 +663,9 @@ type User struct {
 	WebglImg *WebglImgStruct `json:"webgl-img"`
 	Webrtc   struct {
 		Mode int `json:"mode"`
-	}
+	} `json:"webrtc"`
 	LanucherUrl string       `json:"-"`
 	browser     *rod.Browser `json:"-"`
 }
+
+const configFileName = "virtual.dat"

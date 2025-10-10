@@ -2,9 +2,11 @@ package clients
 
 import (
 	"time"
+	"tools/runtimes/browser"
 	"tools/runtimes/db"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/eventbus"
+	"tools/runtimes/proxy"
 
 	"gorm.io/gorm"
 )
@@ -23,8 +25,9 @@ type Browser struct {
 	Ip          string `json:"ip" gorm:"default:null;"`                               // ip地址,设置了代理才有
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
-	Tags        []string `json:"tags" gorm:"-" form:"tags"` // 标签
-	Opend       bool     `json:"opend" gorm:"-" form:"-"`   // 是否启动
+	Tags        []string      `json:"tags" gorm:"-" form:"tags"` // 标签
+	Bs          *browser.User `json:"-" gorm:"-" form:"-"`       // 浏览器
+	Opend       bool          `json:"opend" gorm:"-" form:"-"`   // 是否启动
 }
 
 type BrowserTag struct {
@@ -55,6 +58,18 @@ func init() {
 					"proxy_name": proxy.Name,
 				})
 			}()
+		}
+	})
+
+	eventbus.Bus.Subscribe("browser-close", func(dt any) {
+		if bu, ok := dt.(*browser.User); ok {
+			if bu.Id > 0 {
+				if bs, err := GetBrowserById(bu.Id); err == nil {
+					eventbus.Bus.Publish("ws", map[string]any{
+						"browser": bs,
+					})
+				}
+			}
 		}
 	})
 }
@@ -91,7 +106,7 @@ func (this *BrowserTag) Remove(tx *gorm.DB) error {
 }
 
 // 通过id获取标签
-func GetById(id any) *BrowserTag {
+func GetBrowserTagsById(id any) *BrowserTag {
 	tg := new(BrowserTag)
 	db.DB.Model(&BrowserTag{}).Where("id = ?", id).First(tg)
 	return tg
@@ -138,6 +153,16 @@ func GetBrowserTagsByIds(ids []int64) map[int64]string {
 
 // tag标签结束----------------------------------------
 // browser开始----------------------------------------
+
+func GetBrowserById(id any) (*Browser, error) {
+	b := new(Browser)
+	err := db.DB.Model(&Browser{}).Where("id = ?", id).First(b).Error
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
 func (this *Browser) Save(tx *gorm.DB) error {
 	if tx == nil {
 		tx = db.DB
@@ -154,6 +179,8 @@ func (this *Browser) Save(tx *gorm.DB) error {
 				"width":        this.Width,
 				"height":       this.Height,
 				"updated_at":   time.Now(),
+				"ip":           this.Ip,
+				"proxy_name":   this.ProxyName,
 			}).Error
 	} else {
 		this.CreatedAt = time.Now()
@@ -232,6 +259,58 @@ func SetBrowserTags(pcs []*Browser) {
 	}
 }
 
-func (this *Browser) Open(proxyUrl string, width, height int) {
+func (this *Browser) Open() error {
+	var proxyUrl string
+	if this.Proxy > 0 {
+		px := proxys.GetById(this.Proxy)
+		if px != nil || px.Id > 0 {
+			if pc, err := px.Start(false); err == nil {
+				proxyUrl = pc.Listened()
+			}
+		}
+	}
+	if proxyUrl == "" && this.ProxyConfig != "" {
+		if pc, err := proxy.Client(this.ProxyConfig, "", 0); err == nil {
+			if _, err := pc.Run(false); err == nil {
+				proxyUrl = pc.Listened()
+			}
+		}
+	}
 
+	this.Bs = browser.NewBrowser(this.Lang, this.Timezone, this.Id)
+	if proxyUrl != "" {
+		this.Bs.SetProxy(proxyUrl, "", "")
+	}
+	this.Bs.SetScreen(this.Width, this.Height)
+	this.Bs.SetTimezone(this.Timezone)
+
+	if _, err := this.Bs.Run(); err != nil {
+		return err
+	}
+	this.Opend = true
+	return nil
+}
+
+func (this *Browser) Close() error {
+	if bbs, ok := browser.Running.Load(this.Id); ok {
+		if bs, ok := bbs.(*browser.User); ok {
+			return bs.Close()
+		}
+	}
+	return nil
+}
+
+func (this *Browser) Delete() error {
+	if err := db.DB.Where("id = ?", this.Id).Delete(&Browser{}).Error; err != nil {
+		return err
+	}
+	db.DB.Where("browser_id = ?", this.Id).Delete(&BrowserToTag{})
+	if bbs, ok := browser.Running.Load(this.Id); ok {
+		if bs, ok := bbs.(*browser.User); ok {
+			return bs.Close()
+		}
+	}
+
+	eventbus.Bus.Publish("browser-delete", "")
+	return nil
 }

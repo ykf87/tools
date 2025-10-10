@@ -20,7 +20,11 @@ func init() {
 	pongBytes = []byte("pong")
 
 	eventbus.Bus.Subscribe("ws", func(data interface{}) {
-		cws.SendContent("1", "download", data)
+		if dt, ok := data.(map[string]any); ok {
+			for tp, content := range dt {
+				cws.SendContent("1", tp, content)
+			}
+		}
 	})
 }
 

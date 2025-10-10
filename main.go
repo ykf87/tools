@@ -44,6 +44,7 @@ import (
 
 	// "time"
 	_ "tools/runtimes"
+	"tools/runtimes/browser"
 	_ "tools/runtimes/db"
 
 	// "tools/runtimes/db/mqs"
@@ -106,6 +107,7 @@ func main() {
 	fmt.Println("")
 
 	web.WebCloseCh()
+	browser.Flush()
 
 	fmt.Println("----")
 }

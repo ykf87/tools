@@ -70,6 +70,13 @@ func router() {
 	browserGroup := AuthRoutes.Group("browser")
 	{
 		browserGroup.GET("", browsers.List)
+		browserGroup.GET("langs", browsers.GetLangs)
+		browserGroup.GET("timezones", browsers.GetTimezones)
 		browserGroup.GET("tags", browsers.BrowserTags)
+		browserGroup.POST("", browsers.Editer)
+		browserGroup.POST("/:id", browsers.Editer)
+		browserGroup.POST("start/:id", browsers.Start)
+		browserGroup.POST("stop/:id", browsers.Stop)
+		browserGroup.POST("delete/:id", browsers.Delete)
 	}
 }

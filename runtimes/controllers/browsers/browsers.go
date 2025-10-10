@@ -3,10 +3,13 @@ package browsers
 import (
 	"fmt"
 	"net/http"
+	"tools/runtimes/browser"
 	"tools/runtimes/db"
 	"tools/runtimes/db/clients"
+	"tools/runtimes/db/proxys"
 	"tools/runtimes/i18n"
 	"tools/runtimes/parses"
+	"tools/runtimes/proxy"
 	"tools/runtimes/response"
 
 	"github.com/gin-gonic/gin"
@@ -125,10 +128,167 @@ func List(c *gin.Context) {
 	response.Success(c, rsp, "")
 }
 
+// 编辑
 type BrowserAddData struct {
-	Id     int64  `json:"id" form:"id"`         // 编辑的时候才有
-	Width  int    `json:"width" form:"width"`   // 屏幕宽度
-	Height int    `json:"height" form:"height"` // 屏幕高度
-	Name   string `json:"name" form:"name"`     // 名称
-	Proxy  int64  `json:"proxy" form:"proxy"`   // 代理的id
+	Id          int64    `json:"id" form:"id"`                    // 编辑的时候才有
+	Width       int      `json:"width" form:"width"`              // 屏幕宽度
+	Height      int      `json:"height" form:"height"`            // 屏幕高度
+	Name        string   `json:"name" form:"name"`                // 名称
+	Proxy       int64    `json:"proxy" form:"proxy"`              // 代理的id
+	ProxyConfig string   `json:"proxy_config" form:"ProxyConfig"` // 具体的配置
+	Tags        []string `json:"tags" form:"tags"`                // 标签
+	Lang        string   `json:"lang" form:"lang"`                // 语言
+	Timezone    string   `json:"timezone" form:"timezone"`        // 时区
+}
+
+func Editer(c *gin.Context) {
+	id := c.Param("id")
+	var l BrowserAddData
+	if err := c.ShouldBind(&l); err != nil {
+		response.Error(c, http.StatusNotFound, i18n.T("Error"), nil)
+		return
+	}
+
+	if l.Name == "" {
+		response.Error(c, http.StatusNotFound, i18n.T("Name can not be empty"), nil)
+		return
+	}
+
+	var browserObj *clients.Browser
+	if id != "" {
+		bb, err := clients.GetBrowserById(id)
+		if err != nil {
+			response.Error(c, http.StatusNotFound, err.Error(), nil)
+			return
+		}
+		browserObj = bb
+	} else {
+		browserObj = new(clients.Browser)
+	}
+
+	changeed := false
+	if browserObj.Name != l.Name {
+		browserObj.Name = l.Name
+		changeed = true
+	}
+	if browserObj.Width != l.Width {
+		browserObj.Width = l.Width
+		changeed = true
+	}
+	if browserObj.Height != l.Height {
+		browserObj.Height = l.Height
+		changeed = true
+	}
+	if browserObj.Proxy != l.Proxy {
+		if l.Proxy > 0 {
+			px := proxys.GetById(l.Proxy)
+			if px == nil || px.Id < 1 {
+				response.Error(c, http.StatusNotFound, i18n.T("Proxy id not found"), nil)
+				return
+			}
+			browserObj.Proxy = l.Proxy
+			browserObj.Local = px.Local
+			browserObj.Lang = px.Lang
+			browserObj.Timezone = px.Timezone
+			browserObj.Ip = px.Ip
+			browserObj.ProxyName = px.Name
+		} else {
+			browserObj.Proxy = 0
+		}
+		changeed = true
+	}
+	if browserObj.ProxyConfig != l.ProxyConfig {
+		if browserObj.Proxy < 1 {
+			loc, err := proxy.GetLocal(l.ProxyConfig)
+			if err != nil {
+				response.Error(c, http.StatusNotFound, err.Error(), nil)
+				return
+			}
+			browserObj.Ip = loc.Ip
+			browserObj.Timezone = loc.Timezone
+			browserObj.Local = loc.Iso
+			browserObj.Lang = loc.Lang
+		}
+		browserObj.ProxyConfig = l.ProxyConfig
+		changeed = true
+	}
+	if browserObj.Lang != l.Lang {
+		browserObj.Lang = l.Lang
+		changeed = true
+	}
+	if browserObj.Timezone != l.Timezone {
+		browserObj.Timezone = l.Timezone
+		changeed = true
+	}
+
+	if len(l.Tags) > 0 {
+		if err := browserObj.CoverTgs(l.Tags, nil); err != nil {
+			response.Error(c, http.StatusNotFound, err.Error(), nil)
+			return
+		}
+	}
+	if changeed {
+		if err := browserObj.Save(nil); err != nil {
+			response.Error(c, http.StatusNotFound, err.Error(), nil)
+			return
+		}
+	}
+	response.Success(c, browserObj, "Success")
+}
+
+// 获取语言列表
+func GetLangs(c *gin.Context) {
+	response.Success(c, browser.LangMap, "Success")
+}
+
+// 获取语言列表
+func GetTimezones(c *gin.Context) {
+	response.Success(c, browser.Timezones, "Success")
+}
+
+// 启动浏览器
+func Start(c *gin.Context) {
+	id := c.Param("id")
+	bs, err := clients.GetBrowserById(id)
+	if err != nil {
+		response.Error(c, http.StatusNotFound, err.Error(), nil)
+		return
+	}
+	if err := bs.Open(); err != nil {
+		response.Error(c, http.StatusNotFound, err.Error(), nil)
+		return
+	}
+	response.Success(c, nil, "Success")
+}
+
+// 关闭浏览器
+func Stop(c *gin.Context) {
+	id := c.Param("id")
+	bs, err := clients.GetBrowserById(id)
+	if err != nil {
+		response.Error(c, http.StatusNotFound, err.Error(), nil)
+		return
+	}
+
+	if err := bs.Close(); err != nil {
+		response.Error(c, http.StatusNotFound, err.Error(), nil)
+		return
+	}
+	response.Success(c, nil, "Success")
+}
+
+// 删除浏览器
+func Delete(c *gin.Context) {
+	id := c.Param("id")
+	bs, err := clients.GetBrowserById(id)
+	if err != nil {
+		response.Error(c, http.StatusNotFound, err.Error(), nil)
+		return
+	}
+
+	if err := bs.Delete(); err != nil {
+		response.Error(c, http.StatusNotFound, err.Error(), nil)
+		return
+	}
+	response.Success(c, nil, "Success")
 }
