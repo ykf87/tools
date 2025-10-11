@@ -2,12 +2,12 @@ package ws
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
-	"net/http"
 	"tools/runtimes/config"
 	"tools/runtimes/db/admins"
 	"tools/runtimes/eventbus"
-	cws "tools/runtimes/ws"
+	"tools/runtimes/listens/ws"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,42 +20,41 @@ func init() {
 	pongBytes = []byte("pong")
 
 	eventbus.Bus.Subscribe("ws", func(data interface{}) {
-		if dt, ok := data.(map[string]any); ok {
-			for tp, content := range dt {
-				cws.SendContent("1", tp, content)
+		if dt, ok := data.(*ws.SentWsStruct); ok {
+			obj := map[string]any{"type": dt.Type, "data": dt.Content}
+			if brt, err := json.Marshal(obj); err == nil {
+				if dt.UserId > 0 {
+					ws.SentMsg(dt.UserId, brt)
+				} else if dt.Group != "" {
+					ws.SentGroup(dt.Group, brt)
+				}
 			}
 		}
 	})
 }
 
 func WsHandler(c *gin.Context) {
-	conn, err := cws.GetConn(c.Writer, c.Request, nil, func(r *http.Request) bool {
-		return true
-	})
-
-	if err != nil {
-		return
-	}
-
 	u, ok := c.Get("_user")
 	if !ok {
 		return
 	}
 	user := u.(*admins.Admin)
-	cws.CONNS.Store(fmt.Sprintf("%d", user.Id), conn)
 
-	conn.WriteMessage([]byte(fmt.Sprintf(`{"type":"version", "data":"%s"}`, config.VERSION)))
+	conn, err := ws.Connect(c, user.Id)
+	if err != nil {
+		return
+	}
+
+	ws.SentMsg(user.Id, []byte(fmt.Sprintf(`{"type":"version", "data":"%s"}`, config.VERSION)))
 	eventbus.Bus.Publish("ws", map[string]any{"aaa": 1111})
 	for {
 		p, err := conn.ReadMessage()
-		// messageType, p, err := conn.Conn.ReadMessage()
 		if err != nil {
 			break
 		}
 
 		if bytes.Equal(p, pingBytes) {
 			conn.WriteMessage(pongBytes)
-			// conn.Conn.WriteMessage(messageType, pongBytes)
 			continue
 		}
 	}

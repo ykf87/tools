@@ -6,6 +6,7 @@ import (
 	"tools/runtimes/db"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/eventbus"
+	"tools/runtimes/listens/ws"
 	"tools/runtimes/proxy"
 
 	"gorm.io/gorm"
@@ -65,9 +66,11 @@ func init() {
 		if bu, ok := dt.(*browser.User); ok {
 			if bu.Id > 0 {
 				if bs, err := GetBrowserById(bu.Id); err == nil {
-					eventbus.Bus.Publish("ws", map[string]any{
-						"browser": bs,
-					})
+					msgdata := new(ws.SentWsStruct)
+					msgdata.UserId = bu.UserId
+					msgdata.Type = "browser"
+					msgdata.Content = bs
+					eventbus.Bus.Publish("ws", msgdata)
 				}
 			}
 		}

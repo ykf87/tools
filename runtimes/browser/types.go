@@ -666,6 +666,7 @@ type User struct {
 	} `json:"webrtc"`
 	LanucherUrl string       `json:"-"`
 	browser     *rod.Browser `json:"-"`
+	UserId      int64        `json:"-"`
 }
 
 const configFileName = "virtual.dat"

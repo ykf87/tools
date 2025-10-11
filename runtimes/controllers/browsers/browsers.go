@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"tools/runtimes/browser"
 	"tools/runtimes/db"
+	"tools/runtimes/db/admins"
 	"tools/runtimes/db/clients"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/i18n"
@@ -258,6 +259,19 @@ func Start(c *gin.Context) {
 		response.Error(c, http.StatusNotFound, err.Error(), nil)
 		return
 	}
+
+	u, ok := c.Get("_user")
+	if ok == false {
+		response.Error(c, http.StatusNotFound, i18n.T("Please login first"), nil)
+		return
+	}
+	user, ok := u.(*admins.Admin)
+	if ok != true {
+		response.Error(c, http.StatusNotFound, i18n.T("Please login first"), nil)
+		return
+	}
+
+	bs.Bs.UserId = user.Id
 	response.Success(c, nil, "Success")
 }
 
