@@ -14,6 +14,7 @@ import (
 
 var DB *gorm.DB
 var MQDB *gorm.DB
+var MEDIADB *gorm.DB
 
 func init() {
 	dbfile := config.FullPath(config.DBFILE)
@@ -65,6 +66,30 @@ func init() {
 	mqqq.Exec("PRAGMA journal_mode=WAL;")
 	mqqq.Exec("PRAGMA synchronous = NORMAL;")
 	MQDB = mqdb
+
+	// 媒体文件的数据库
+	mediaFile := config.FullPath(filepath.Join(config.SYSROOT, ".media"))
+	mediadb, err := gorm.Open(sqlite.Dialector{
+		DriverName: "sqlite", // 改这里
+		DSN:        mediaFile + "?_busy_timeout=5000&_journal_mode=WAL",
+	}, &gorm.Config{})
+	if err != nil {
+		logs.Error(err.Error())
+		panic(err.Error())
+	}
+
+	mediaqqq, err := mediadb.DB()
+	if err != nil {
+		logs.Error(err.Error())
+		panic("db error")
+	}
+
+	mediaqqq.SetMaxIdleConns(10)
+	mediaqqq.SetMaxOpenConns(100)
+	mediaqqq.SetConnMaxLifetime(time.Hour)
+	mediaqqq.Exec("PRAGMA journal_mode=WAL;")
+	mediaqqq.Exec("PRAGMA synchronous = NORMAL;")
+	MEDIADB = mediadb
 }
 
 // func init() {

@@ -79,4 +79,11 @@ func router() {
 		browserGroup.POST("stop/:id", browsers.Stop)
 		browserGroup.POST("delete/:id", browsers.Delete)
 	}
+
+	spiderGroup := AuthRoutes.Group("spider")
+	{
+		spiderVideoGroup := spiderGroup.Group("video")
+		spiderVideoGroup.POST("", down.List)
+		spiderVideoGroup.POST("down", down.Download)
+	}
 }

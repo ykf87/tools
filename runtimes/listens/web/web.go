@@ -132,6 +132,10 @@ func webUrl(NetIp string, port, WebPort int) {
 			Req:        regexp.MustCompile(`VITE_SERVICE_WS_URL:"([^"]+)"`),
 			NewContent: fmt.Sprintf(`VITE_SERVICE_WS_URL:"ws://%s:%d/user/ws"`, NetIp, port),
 		},
+		&fileReplaceReqs{
+			Req:        regexp.MustCompile(`wsurl="([^"]+)"`),
+			NewContent: fmt.Sprintf(`wsurl="ws://%s:%d"`, NetIp, port),
+		},
 	}
 	filepath.WalkDir(assetsFullPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
