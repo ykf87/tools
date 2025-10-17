@@ -3,6 +3,7 @@ package browser
 import (
 	"fmt"
 	"math/rand"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -656,8 +657,9 @@ type User struct {
 		Value string `json:"value"`
 	} `json:"ua-full-version"`
 	UaLanguage struct {
-		Mode  int    `json:"mode"`
-		Value string `json:"value"`
+		Language string `json:"language"`
+		Mode     int    `json:"mode"`
+		Value    string `json:"value"`
 	} `json:"ua-language"`
 	Webgl    *WebglStruct    `json:"webgl"`
 	WebglImg *WebglImgStruct `json:"webgl-img"`
@@ -667,6 +669,7 @@ type User struct {
 	LanucherUrl string       `json:"-"`
 	browser     *rod.Browser `json:"-"`
 	UserId      int64        `json:"-"`
+	Cmd         *exec.Cmd    `json:"-"`
 }
 
 const configFileName = "virtual.dat"

@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"tools/runtimes/db/medias"
+	"tools/runtimes/config"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/i18n"
 	"tools/runtimes/proxy"
@@ -61,7 +61,7 @@ func List(c *gin.Context) {
 		return
 	}
 
-	findPath := filepath.Join(medias.MediaPath, ddt.Path)
+	findPath := filepath.Join(config.MEDIAROOT, ddt.Path)
 	fn, err := os.Stat(findPath)
 	if err != nil {
 		response.Error(c, http.StatusNotFound, err.Error(), nil)
@@ -168,7 +168,7 @@ func List(c *gin.Context) {
 	lf, _ := strconv.ParseFloat(fmt.Sprintf("%d", ddt.Limit), 64)
 	pages := int(math.Ceil(tf / lf))
 
-	rp := map[string]any{"pages": pages, "limit": limits, "list": lists, "total": total, "dirs": dirlen, "fils": flen, "baseurl": medias.MediaPath, "prevpath": ddt.Path}
+	rp := map[string]any{"pages": pages, "limit": limits, "list": lists, "total": total, "dirs": dirlen, "fils": flen, "baseurl": config.FullPath(config.MEDIAROOT), "prevpath": ddt.Path}
 	response.Success(c, rp, "Success")
 }
 

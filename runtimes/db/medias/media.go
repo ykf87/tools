@@ -1,17 +1,12 @@
 package medias
 
 import (
-	"os"
-	"path/filepath"
 	"time"
-	"tools/runtimes/config"
 	"tools/runtimes/db"
 	"tools/runtimes/eventbus"
 
 	"gorm.io/gorm"
 )
-
-var MediaPath string
 
 type Media struct {
 	Id       int64  `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
@@ -28,12 +23,12 @@ type Media struct {
 func init() {
 	db.MEDIADB.AutoMigrate(&Media{})
 
-	MediaPath = filepath.Join(config.RuningRoot, "media")
-	if _, err := os.Stat(MediaPath); err != nil {
-		if err := os.MkdirAll(MediaPath, os.ModePerm); err != nil {
-			panic(err)
-		}
-	}
+	// MediaPath = filepath.Join(config.RuningRoot, "media")
+	// if _, err := os.Stat(MediaPath); err != nil {
+	// 	if err := os.MkdirAll(MediaPath, os.ModePerm); err != nil {
+	// 		panic(err)
+	// 	}
+	// }
 }
 
 func (this *Media) Save(tx *gorm.DB) error {

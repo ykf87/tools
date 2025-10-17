@@ -18,6 +18,7 @@ const (
 	VERSIONCODE  = 100                         // 整数版本
 	PROXYMINPORT = 100                         // 代理最小的端口号
 	BROWSERCACHE = SYSROOT + "/browsers/cache" // 浏览器缓存
+	MEDIAROOT    = DATAROOT + "/media"         // 媒体文件路径
 )
 
 var RuningRoot string
@@ -28,7 +29,7 @@ type mkdirStruct struct {
 	IsHide  bool        `json:"is_hide"`
 }
 
-var WebFilesDownUrl = "https://127.0.0.1" // 网页下载地址
+var WebFilesDownUrl = "http://127.0.0.1" // 网页下载地址
 
 var Lang = "zh-cn"
 var Timezone = "PRC"
@@ -72,6 +73,11 @@ var Mkdirs = map[string]*mkdirStruct{
 		DirName: BROWSERCACHE,
 		Mode:    os.ModePerm,
 		IsHide:  true,
+	},
+	"media": &mkdirStruct{
+		DirName: MEDIAROOT,
+		Mode:    os.ModePerm,
+		IsHide:  false,
 	},
 }
 

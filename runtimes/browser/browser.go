@@ -109,8 +109,21 @@ func NewBrowser(lang, timezone string, id int64) *User {
 	bs.UaFullVersion.Mode = 0
 	bs.UaFullVersion.Value = "120.0.6099.291"
 
-	bs.UaLanguage.Mode = 1
-	bs.UaLanguage.Value = lang
+	if lang != "" {
+		bs.UaLanguage.Mode = 1
+		if strings.Contains(lang, "-") == false {
+			for k, _ := range LangMap {
+				if strings.Contains(k, lang) == true {
+					bs.UaLanguage.Language = k
+					bs.UaLanguage.Value = fmt.Sprintf("%s,%s", k, lang)
+					break
+				}
+			}
+		} else {
+			bs.UaLanguage.Language = lang
+			bs.UaLanguage.Value = lang
+		}
+	}
 	bs.Webrtc.Mode = 0
 	bs.SetHomePage("about:blank")
 

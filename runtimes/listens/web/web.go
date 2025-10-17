@@ -50,6 +50,7 @@ func Start(port int) {
 	ROUTER.Use(Corss())
 	ROUTER.Use(gzip.Gzip(gzip.DefaultCompression))
 	ROUTER.Use(WriteLogs)
+	ROUTER.Static("/media", config.FullPath(config.MEDIAROOT))
 	RunPort = port
 	router()
 
@@ -75,6 +76,8 @@ func Start(port int) {
 	config.WebUrl = WebUrl
 	config.MediaUrl = fmt.Sprintf("http://%s:%d/%s", NetIp, RunPort, config.DATAROOT)
 	config.ApiUrl = fmt.Sprintf("http://%s:%d", NetIp, RunPort)
+
+	config.MediaUrl = fmt.Sprintf("http://%s:%d/media")
 
 	for {
 		select {

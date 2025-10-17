@@ -127,7 +127,7 @@ func (c *Command) Run() error {
 	return cmd.Run()
 }
 
-func RunCommand(wait bool, cmdName string, args ...string) (string, error) {
+func RunCommand(wait bool, cmdName string, args ...string) (string, *exec.Cmd, error) {
 	cmd := exec.Command(cmdName, args...)
 
 	if wait {
@@ -137,17 +137,17 @@ func RunCommand(wait bool, cmdName string, args ...string) (string, error) {
 		cmd.Stderr = &stderr
 		err := cmd.Run()
 		if err != nil {
-			return stderr.String(), fmt.Errorf("执行失败: %v", err)
+			return stderr.String(), nil, fmt.Errorf("执行失败: %v", err)
 		}
-		return out.String(), nil
+		return out.String(), cmd, nil
 	} else {
 		// 异步执行，不等待结果
 		err := cmd.Start()
 		if err != nil {
-			return "", fmt.Errorf("启动失败: %v", err)
+			return "", nil, fmt.Errorf("启动失败: %v", err)
 		}
 		// 不等待，立即返回
-		return "", nil
+		return "", cmd, nil
 	}
 }
 
