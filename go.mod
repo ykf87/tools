@@ -42,6 +42,7 @@ require (
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect

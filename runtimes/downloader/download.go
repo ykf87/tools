@@ -7,11 +7,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"tools/runtimes/db/mqs"
 	"tools/runtimes/eventbus"
 	"tools/runtimes/logs"
 	"tools/runtimes/mq"
 
+	"github.com/h2non/filetype"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -60,7 +62,7 @@ func NewDownloader(proxy string, onProgress func(percent float64)) *Downloader {
 	}
 }
 
-// Download 下载文件，支持断点续传
+// Download 下载文件，支持断点续传. destPath需要完整的文件名称
 func (d *Downloader) Download(urlStr, destPath string) error {
 	// 创建目标目录
 	if err := os.MkdirAll(filepath.Dir(destPath), os.ModePerm); err != nil {
@@ -145,6 +147,34 @@ func (d *Downloader) Download(urlStr, destPath string) error {
 
 func Down(url, dest, proxy string) {
 	mq.MqClient.Publish("download", Downloader{Proxy: proxy, Url: url, Dest: dest}, 0)
+}
+
+func (d *Downloader) GetUrlFileExt(url string) (string, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := d.Client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	headerBuf := make([]byte, 261)
+	n, err := resp.Body.Read(headerBuf)
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+
+	kind, _ := filetype.Match(headerBuf[:n])
+	var ext string
+	if kind != filetype.Unknown {
+		ext = kind.Extension
+	} else {
+		// fallback: 尝试从 URL 获取扩展名
+		ext = strings.TrimLeft(filepath.Ext(url), ".")
+	}
+	return ext, nil
 }
 
 // func main() {

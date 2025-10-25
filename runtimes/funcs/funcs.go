@@ -340,3 +340,29 @@ func RandomMAC(prefix string) string {
 	return fmt.Sprintf("%02X:%02X:%02X:%02X:%02X:%02X",
 		mac[0], mac[1], mac[2], mac[3], mac[4], mac[5])
 }
+
+const (
+	_          = iota
+	KB float64 = 1 << (10 * iota)
+	MB
+	GB
+	TB
+)
+
+func FormatFileSize(size int64) string {
+
+	floatSize := float64(size)
+
+	switch {
+	case floatSize >= TB:
+		return fmt.Sprintf("%.2f T", floatSize/TB)
+	case floatSize >= GB:
+		return fmt.Sprintf("%.2f G", floatSize/GB)
+	case floatSize >= MB:
+		return fmt.Sprintf("%.2f M", floatSize/MB)
+	case floatSize >= KB:
+		return fmt.Sprintf("%.2f K", floatSize/KB)
+	default:
+		return fmt.Sprintf("%d B", size)
+	}
+}
