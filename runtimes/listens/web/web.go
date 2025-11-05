@@ -77,7 +77,7 @@ func Start(port int) {
 	config.MediaUrl = fmt.Sprintf("http://%s:%d/%s", NetIp, RunPort, config.DATAROOT)
 	config.ApiUrl = fmt.Sprintf("http://%s:%d", NetIp, RunPort)
 
-	config.MediaUrl = fmt.Sprintf("http://%s:%d/media")
+	config.MediaUrl = fmt.Sprintf("http://%s:%d/media", NetIp, RunPort)
 
 	for {
 		select {

@@ -61,13 +61,14 @@ type ListDataStruct struct {
 }
 
 type Pms struct {
-	Name       string  `json:"name"`         //文件名称
-	Path       string  `json:"path"`         //路径名称
-	FullName   string  `json:"full_name"`    //运行目录下的相对路径
-	Timer      int64   `json:"timer"`        //最后更新时间
-	Dir        bool    `json:"dir"`          //是否是目录
-	Ext        string  `json:"ext"`          //文件后缀
-	Size       string  `json:"size"`         //文件大小
+	Name       string  `json:"name"`         // 文件名称
+	Path       string  `json:"path"`         // 路径名称
+	FullName   string  `json:"full_name"`    // 运行目录下的相对路径
+	Url        string  `json:"url"`          // 链接地址
+	Timer      int64   `json:"timer"`        // 最后更新时间
+	Dir        bool    `json:"dir"`          // 是否是目录
+	Ext        string  `json:"ext"`          // 文件后缀
+	Size       string  `json:"size"`         // 文件大小
 	Mime       string  `json:"mime"`         // 文件类型
 	Fmt        string  `json:"fmt"`          // 下载百分比字符串
 	Num        float64 `json:"num"`          // 下载进度数字,100为下载完成
@@ -143,6 +144,8 @@ func List(c *gin.Context) {
 			t.Ext = strings.ToLower(tms[len(tms)-1])
 		}
 		t.Mime = getMime(filepath.Join(config.MEDIAROOT, t.FullName))
+		// fmt.Println(config.MediaUrl, "------------")
+		t.Url = fmt.Sprintf("%s%s", config.MediaUrl, t.FullName)
 
 		if ddt.Ext != "" && ddt.Ext != t.Ext {
 			continue
