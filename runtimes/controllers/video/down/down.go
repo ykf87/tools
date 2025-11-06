@@ -439,6 +439,11 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path str
 		md.Platform = parseRes.Platform
 		md.Url = parseRes.VideoUrl
 		md.Title = parseRes.Title
+
+		if parseRes.Author.Uid != ""{
+			mu := medias.MkerMediaUser(parseRes.Platform, parseRes.Author.Uid, parseRes.Author.Avatar, parseRes.Author.Name, proxy)
+			md.UserId = mu.Id
+		}
 		md.Save(nil)
 
 		dbk := new(Pms)

@@ -1,9 +1,15 @@
 package medias
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"time"
+	"tools/runtimes/config"
 	"tools/runtimes/db"
+	"tools/runtimes/downloader"
 	"tools/runtimes/eventbus"
+	"tools/runtimes/funcs"
 
 	"gorm.io/gorm"
 )
@@ -36,10 +42,26 @@ func init() {
 	db.MEDIADB.AutoMigrate(&MediaUser{})
 }
 
-func MkerMediaUser(platform, uid, cover, name string) *MediaUser {
-	var mu *MediaUser
+func MkerMediaUser(platform, uid, cover, name, proxy string) *MediaUser {
+	mu := new(MediaUser)
 	if err := db.MEDIADB.Model(&MediaUser{}).Where("platform = ? and uuid = ?", platform, uid).First(mu).Error; err != nil {
+		exts := "png"
+		dl := downloader.NewDownloader(proxy,  func(percent float64) {})
+		if ext, err := dl.GetUrlFileExt(cover); err == nil{
+			exts = ext
+		}
+
+		dest := fmt.Sprintf("avatar/%s.%s", funcs.Md5String(cover), exts)
+		fullPath := filepath.Join(config.MEDIAROOT, dest)
+		dirRoot := filepath.Dir(fullPath)
+		if _, err := os.Stat(dirRoot); err != nil{
+			os.MkdirAll(dirRoot, os.ModePerm)
+		}
 		mu.Cover = cover
+
+		if err := dl.Download(cover, fullPath); err == nil{
+			mu.Cover = dest
+		}
 		mu.Name = name
 		mu.Platform = platform
 		mu.Uuid = uid
