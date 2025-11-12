@@ -341,6 +341,24 @@ func RandomMAC(prefix string) string {
 		mac[0], mac[1], mac[2], mac[3], mac[4], mac[5])
 }
 
+//  打开目录
+func OpenDir(path string) error {
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+		case "windows":
+			cmd = exec.Command("explorer", path)
+		case "darwin": // macOS
+			cmd = exec.Command("open", path)
+		case "linux":
+			cmd = exec.Command("xdg-open", path) // Linux 下通常使用 xdg-open
+		default:
+			return fmt.Errorf("unsupported platform")
+	}
+
+	return cmd.Start()
+}
+
 const (
 	_          = iota
 	KB float64 = 1 << (10 * iota)

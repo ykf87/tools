@@ -199,7 +199,7 @@ func List(c *gin.Context) {
 	flen := len(files)
 	total := flen + dirlen
 	tf, _ := strconv.ParseFloat(fmt.Sprintf("%d", total), 64)
-	lf, _ := strconv.ParseFloat(fmt.Sprintf("%d", ddt.Limit), 64)
+	lf, _ := strconv.ParseFloat(fmt.Sprintf("%d", limits), 64)
 	pages := int(math.Ceil(tf / lf))
 
 	rp := map[string]any{"pages": pages, "limit": limits, "list": lists, "total": total, "dirs": dirlen, "fils": flen, "baseurl": config.FullPath(config.MEDIAROOT), "prevpath": ddt.Path}
@@ -456,6 +456,7 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path str
 		dbk.Size = funcs.FormatFileSize(md.Size)
 		dbk.Name = fullFn
 		dbk.Platform = md.Platform
+		dbk.Url = fmt.Sprintf("%s%s", config.MediaUrl, fullFn)
 
 		tms := strings.Split(fullFn, ".")
 		if len(tms) > 1 {
@@ -469,4 +470,53 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path str
 	} else if len(parseRes.Images) > 0 { // 下载图片
 
 	}
+}
+
+type mkdirStruct struct {
+	Name string `json:"name" form:"name"`		 // 目录名称
+	Path     string  `json:"path" form:"path"`           // 下载路径
+}
+func Mkdir(c *gin.Context){
+	dt := new(mkdirStruct)
+	if err := c.ShouldBind(dt); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	fullPath := filepath.Join(config.MEDIAROOT, dt.Path, dt.Name)
+	f, err := os.Stat(fullPath)
+
+	if err != nil{
+		if err := os.MkdirAll(fullPath, os.ModePerm); err != nil{
+			response.Error(c, http.StatusBadRequest, err.Error(), nil)
+			return
+		}
+	}else if f.IsDir() == false{
+		response.Error(c, 500, "已存在同名文件,无法创建", nil)
+		return
+	}
+	response.Success(c, nil, "Success")
+}
+
+func OpenDir(c *gin.Context){
+	dt := new(mkdirStruct)
+	if err := c.ShouldBind(dt); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	fullPath := filepath.Join(config.MEDIAROOT, dt.Path, dt.Name)
+	fmt.Println(fullPath, "----")
+	f, err := os.Stat(fullPath)
+	if err != nil{
+		response.Error(c, 404, "目录不存在", nil)
+		return
+	}
+	if f.IsDir() == false{
+		response.Error(c, 500, "不是有效的目录", nil)
+		return
+	}
+
+	funcs.OpenDir(fullPath)
+	response.Success(c, nil, "Success")
 }

@@ -83,7 +83,11 @@ func router() {
 	spiderGroup := AuthRoutes.Group("spider")
 	{
 		spiderVideoGroup := spiderGroup.Group("video")
-		spiderVideoGroup.POST("", down.List)
-		spiderVideoGroup.POST("down", down.Download)
+		{
+			spiderVideoGroup.POST("", down.List)
+			spiderVideoGroup.POST("down", down.Download)
+			spiderVideoGroup.POST("mkdir", down.Mkdir)
+			spiderVideoGroup.POST("open", down.OpenDir)
+		}
 	}
 }
