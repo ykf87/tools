@@ -25,7 +25,7 @@ type MediaUser struct {
 type Media struct {
 	Id       int64     `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
 	Path     string    `json:"path" gorm:"index;default:null" form:"path"` // 相对于存储根目录的纯路径
-	Name     string    `json:"name" gorm:"default:null" form:"name"`       // 真实文件名称,不含路径
+	Name     string    `json:"name" gorm:"default:null;index" form:"name"`       // 真实文件名称,不含路径
 	Title    string    `json:"title" gorm:"default:null" form:"title"`     // 显示的标题
 	Md5      string    `json:"md5" gorm:"uniqueIndex"`
 	Platform string    `json:"platform" gorm:"index;default:null" form:"platform"`
@@ -120,4 +120,36 @@ func (this *Media) Save(tx *gorm.DB) error {
 		this.Addtime = time.Now()
 		return tx.Create(this).Error
 	}
+}
+
+func GetMediasUserFromName(names []string) map[string]*MediaUser{
+	var mmus []*Media
+
+	resp := make(map[string]*MediaUser)
+	if err := db.MEDIADB.Model(&Media{}).Where("name in ?", names).Find(&mmus).Error; err == nil{
+		var ids []int64
+		// idNames := make(map[int64]string)
+		for _, v := range mmus{
+			if v.UserId > 0{
+				ids = append(ids, v.UserId)
+				// idNames[v.UserId] = v.Name
+			}
+		}
+
+		var mmuus []*MediaUser
+		if len(ids) > 0{
+			db.MEDIADB.Model(&MediaUser{}).Where("id in ?", ids).Find(&mmuus)
+			sdsd := make(map[int64]*MediaUser)
+			for _, v := range mmuus{
+				sdsd[v.Id] = v
+			}
+
+			for _, v := range mmus{
+				if vvu, ok := sdsd[v.UserId]; ok{
+					resp[v.Name] = vvu
+				}
+			}
+		}
+	}
+	return resp
 }

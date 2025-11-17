@@ -77,6 +77,7 @@ type Pms struct {
 	DownErrMsg string  `json:"down_err_msg"` // 下载错误信息
 	Platform   string  `json:"platform"`     // 下载的平台
 	Cover      string  `json:"cover"`        // 封面
+	User *medias.MediaUser `json:"user" gorm:"-"`
 }
 type ByTimerDesc []*Pms
 
@@ -118,6 +119,7 @@ func List(c *gin.Context) {
 
 	var dirs []*Pms
 	var files []*Pms
+	var dbFinderNames []string
 	for _, v := range fls {
 		nm := v.Name()
 		if nm == "." || nm == ".." {
@@ -167,9 +169,13 @@ func List(c *gin.Context) {
 				t.Size = funcs.FormatFileSize(v.Size())
 				// t.Size = fmt.Sprintf("%.2f M", float64(v.Size())/1048576.0)
 				files = append(files, t)
+				dbFinderNames = append(dbFinderNames, t.Name)
 			}
 		}
 	}
+
+	mus := medias.GetMediasUserFromName(dbFinderNames)
+
 	start := (ddt.Page - 1) * ddt.Limit
 
 	var lists []*Pms
@@ -187,6 +193,10 @@ func List(c *gin.Context) {
 	dirlen := len(dirs)
 	sort.Sort(ByTimerDesc(files))
 	for k, v := range files {
+		if mv, ok := mus[v.Name]; ok{
+			v.Platform = mv.Platform
+			v.User = mv
+		}
 		if dirlen+k >= start {
 			lists = append(lists, v)
 			ddt.Limit--
@@ -202,7 +212,7 @@ func List(c *gin.Context) {
 	lf, _ := strconv.ParseFloat(fmt.Sprintf("%d", limits), 64)
 	pages := int(math.Ceil(tf / lf))
 
-	rp := map[string]any{"pages": pages, "limit": limits, "list": lists, "total": total, "dirs": dirlen, "fils": flen, "baseurl": config.FullPath(config.MEDIAROOT), "prevpath": ddt.Path}
+	rp := map[string]any{"pages": pages, "limit": limits, "list": lists, "total": total, "dirs": dirlen, "fils": flen, "baseurl": config.FullPath(config.MEDIAROOT), "prevpath": ddt.Path, "prevurl": config.MediaUrl}
 	response.Success(c, rp, "Success")
 }
 
@@ -364,9 +374,10 @@ func Download(c *gin.Context) {
 				return
 			}
 			rsrow.Cover = parseRes.CoverUrl
+			rsrow.Platform = parseRes.Platform
 
 			if dt.AutoDown == true {
-				go requestDown(proxy, parseRes, urlmd5, dt.Path, user.Id)
+				go requestDown(proxy, parseRes, urlmd5, dt.Path, ul, user.Id, parseRes.CoverUrl)
 			}
 
 			// downs = append(downs, parseRes)
@@ -377,7 +388,7 @@ func Download(c *gin.Context) {
 	response.Success(c, rps, strings.Join(errs, "\n"))
 }
 
-func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path string, uid int64) {
+func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vurl string, uid int64, cover string) {
 	if parseRes.VideoUrl != "" {
 		var fullFn string
 		fn := urlmd5
@@ -388,6 +399,9 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path str
 			dbk.Fmt = fmt.Sprintf("%.2f%%", percent)
 			dbk.Num = percent
 			dbk.Dir = false
+			dbk.Cover = cover
+			dbk.Name = urlmd5
+			dbk.Platform = parseRes.Platform
 
 			ws.SentBus(uid, "video-download", dbk, "")
 		})
@@ -418,6 +432,7 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path str
 			dbk.Num = 0
 			dbk.Dir = false
 			dbk.Status = -1
+			dbk.Name = fullFn
 			dbk.DownErrMsg = err.Error()
 
 			ws.SentBus(uid, "video-download", dbk, "")
@@ -437,7 +452,7 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path str
 		md.Name = fullFn
 		md.Path = path
 		md.Platform = parseRes.Platform
-		md.Url = parseRes.VideoUrl
+		md.Url = vurl
 		md.Title = parseRes.Title
 
 		if parseRes.Author.Uid != ""{
@@ -456,7 +471,12 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path str
 		dbk.Size = funcs.FormatFileSize(md.Size)
 		dbk.Name = fullFn
 		dbk.Platform = md.Platform
-		dbk.Url = fmt.Sprintf("%s%s", config.MediaUrl, fullFn)
+		dbk.Url = fmt.Sprintf("%s/%s", config.MediaUrl, filepath.Join(path, fullFn))
+
+		rrs := medias.GetMediasUserFromName([]string{fullFn})
+		if vvs, ok := rrs[fullFn]; ok{
+			dbk.User = vvs
+		}
 
 		tms := strings.Split(fullFn, ".")
 		if len(tms) > 1 {

@@ -91,7 +91,6 @@ func Start(port int) {
 
 // 允许跨域中间件
 func Corss() gin.HandlerFunc {
-	fmt.Println("------------------------------------------------")
 	return cors.New(cors.Config{
 		AllowOrigins: []string{"*"},                                       // 允许所有来源
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}, // 允许所有方法

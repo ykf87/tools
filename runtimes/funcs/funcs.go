@@ -213,6 +213,7 @@ func SysType() string {
 
 // 获取本机中局域网的ip
 func GetLocalIP() (string, error) {
+	return "127.0.0.1", nil
 	// 获取所有网卡的地址
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
