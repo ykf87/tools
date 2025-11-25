@@ -35,6 +35,7 @@ func SentBus(uid int64, tp string, content any, group string) {
 	dt.Type = tp
 	dt.UserId = uid
 	dt.Content = content
+	dt.Group = group
 
 	dt.Send()
 }
@@ -81,6 +82,9 @@ func AddGroup(name string, conn *ws.Conn) {
 			lss = append(lss, conn)
 			ConnsGroup.Store(name, lss)
 		}
+	}else{
+		newls := []*ws.Conn{conn}
+		ConnsGroup.Store(name, newls)
 	}
 }
 

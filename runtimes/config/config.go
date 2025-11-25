@@ -1,10 +1,15 @@
 package config
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+	"tools/runtimes/funcs"
+	"tools/runtimes/requests"
+	"encoding/json"
 )
 
 const (
@@ -19,6 +24,7 @@ const (
 	PROXYMINPORT = 100                         // 代理最小的端口号
 	BROWSERCACHE = SYSROOT + "/browsers/cache" // 浏览器缓存
 	MEDIAROOT    = DATAROOT + "/media"         // 媒体文件路径
+	SERVERDOMAIN = "http://127.0.0.1:20250/"	// 服务端的地址
 )
 
 var RuningRoot string
@@ -102,4 +108,42 @@ func FullPath(pathName ...string) string {
 		return full // 出错就返回 Join 的结果
 	}
 	return abs
+}
+
+// 从远程获取版本信息
+type Versions struct{
+	Id int64 `json:"id"`
+	Code string `json:"code"`
+	CodeNum int64 `json:"code_num"`
+	Title string `json:"title"`
+	Desc string `json:"desc"`
+	Content string `json:"content"`
+	Os string `json:"os"`
+	Released int `json:"released"`
+	Addtime int64 `json:"addtime"`
+	ReleaseTime int64 `json:"release_time"`
+}
+type VersionResp struct{
+	Code int `json:"code"`
+	Data []*Versions `json:"data"`
+	Msg string `json:"msg"`
+}
+
+var VersionResps *VersionResp
+func GetVersions() *VersionResp{
+	VersionResps = new(VersionResp)
+	if r, err := requests.New(&requests.Config{Timeout:time.Second * 10}); err == nil{
+		if str, err := r.Get(fmt.Sprint(SERVERDOMAIN, "versions"), map[string]string{
+			"version": VERSION,
+			"version_code": fmt.Sprintf("%d", VERSIONCODE),
+			"uuid": funcs.Uuid(),
+		}); err == nil{
+			// fmt.Println(str)
+			 rsp := new(VersionResp)
+			if err := json.Unmarshal([]byte(str), rsp); err == nil{
+				VersionResps = rsp
+			}
+		}
+	}
+	return VersionResps
 }

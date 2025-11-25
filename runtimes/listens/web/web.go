@@ -14,6 +14,7 @@ import (
 	"tools/runtimes/db/admins"
 	"tools/runtimes/funcs"
 	"tools/runtimes/i18n"
+	"tools/runtimes/listens/ws"
 	"tools/runtimes/logs"
 	"tools/runtimes/response"
 
@@ -68,6 +69,16 @@ func Start(port int) {
 
 	go func() {
 		webUrl(NetIp, RunPort, WebPort)
+	}()
+
+	go func(){
+		for{
+			vs := config.GetVersions()
+			if vs.Code == 200 && len(vs.Data) > 0{
+				ws.SentBus(0, "version", vs.Data, "admin")
+			}
+			time.Sleep(time.Hour*1)
+		}
 	}()
 
 	WebUrl = fmt.Sprintf("http://%s:%d", NetIp, WebPort)

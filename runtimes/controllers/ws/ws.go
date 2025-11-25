@@ -3,7 +3,7 @@ package ws
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"strings"
 	"tools/runtimes/config"
 	"tools/runtimes/db/admins"
 	"tools/runtimes/eventbus"
@@ -22,7 +22,8 @@ func init() {
 	eventbus.Bus.Subscribe("ws", func(data interface{}) {
 		if dt, ok := data.(*ws.SentWsStruct); ok {
 			obj := map[string]any{"type": dt.Type, "data": dt.Content}
-			if brt, err := json.Marshal(obj); err == nil {
+			brt, err := json.Marshal(obj)
+			if err == nil {
 				if dt.UserId > 0 {
 					ws.SentMsg(dt.UserId, brt)
 				} else if dt.Group != "" {
@@ -45,7 +46,18 @@ func WsHandler(c *gin.Context) {
 		return
 	}
 
-	ws.SentMsg(user.Id, []byte(fmt.Sprintf(`{"type":"version", "data":"%s"}`, config.VERSION)))
+	// ws.SentMsg(user.Id, []byte(fmt.Sprintf(`{"type":"version", "data":"%s"}`, config.VERSION)))
+
+	if user.Group != ""{
+		for _, v := range strings.Split(user.Group, ","){
+			ws.AddGroup(v, conn)
+		}
+		if strings.Contains(user.Group, "admin") == true{
+			if config.VersionResps != nil && config.VersionResps.Code == 200 && len(config.VersionResps.Data) > 0{
+				ws.SentBus(0, "version", config.VersionResps.Data, "admin")
+			}
+		}
+	}
 	eventbus.Bus.Publish("ws", map[string]any{"aaa": 1111})
 	for {
 		p, err := conn.ReadMessage()

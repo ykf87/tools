@@ -2,7 +2,7 @@
 /data
 /logs
 /tools
-/tools.exe
+/*.exe*
 /.web
 /.DS_Store
 /.db

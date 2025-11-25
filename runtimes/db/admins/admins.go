@@ -21,6 +21,7 @@ type Admin struct {
 	Timer    int64  `json:"timer" gorm:"type:int(64)" parse:"-"`
 	Main     int    `json:"main" gorm:"type:tinyint(1);index"`
 	Jwt      string `json:"-" gorm:"-" parse:"-"`
+	Group string `json:"group" gorm:"default:null"`
 }
 
 func init() {
@@ -35,6 +36,7 @@ func init() {
 			Password: "",
 			Status:   1,
 			Main:     1,
+			Group: "admin",
 		}
 		adm.Save(nil)
 	}
