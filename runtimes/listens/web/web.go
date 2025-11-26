@@ -17,6 +17,7 @@ import (
 	"tools/runtimes/listens/ws"
 	"tools/runtimes/logs"
 	"tools/runtimes/response"
+	"tools/runtimes/services"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
@@ -73,7 +74,7 @@ func Start(port int) {
 
 	go func(){
 		for{
-			vs := config.GetVersions()
+			vs := services.GetVersions()
 			if vs.Code == 200 && len(vs.Data) > 0{
 				ws.SentBus(0, "version", vs.Data, "admin")
 			}

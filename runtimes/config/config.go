@@ -24,7 +24,7 @@ const (
 	PROXYMINPORT = 100                         // 代理最小的端口号
 	BROWSERCACHE = SYSROOT + "/browsers/cache" // 浏览器缓存
 	MEDIAROOT    = DATAROOT + "/media"         // 媒体文件路径
-	SERVERDOMAIN = "http://127.0.0.1:20250/"	// 服务端的地址
+	SERVERDOMAIN = "http://127.0.0.1:20250/server/"	// 服务端的地址
 )
 
 var RuningRoot string
@@ -133,12 +133,8 @@ var VersionResps *VersionResp
 func GetVersions() *VersionResp{
 	VersionResps = new(VersionResp)
 	if r, err := requests.New(&requests.Config{Timeout:time.Second * 10}); err == nil{
-		if str, err := r.Get(fmt.Sprint(SERVERDOMAIN, "versions"), map[string]string{
-			"version": VERSION,
-			"version_code": fmt.Sprintf("%d", VERSIONCODE),
-			"uuid": funcs.Uuid(),
-		}); err == nil{
-			// fmt.Println(str)
+		hd :=  funcs.ServerHeader(VERSION, VERSIONCODE)
+		if str, err := r.Get(fmt.Sprint(SERVERDOMAIN, "versions"), hd);err == nil{
 			 rsp := new(VersionResp)
 			if err := json.Unmarshal([]byte(str), rsp); err == nil{
 				VersionResps = rsp

@@ -342,6 +342,13 @@ func RandomMAC(prefix string) string {
 		mac[0], mac[1], mac[2], mac[3], mac[4], mac[5])
 }
 
+// 生成随机字符串
+func NewNonce() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return fmt.Sprintf("%x", b)
+}
+
 //  打开目录
 func OpenDir(path string) error {
 	var cmd *exec.Cmd

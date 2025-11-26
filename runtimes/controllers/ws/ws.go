@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"strings"
-	"tools/runtimes/config"
 	"tools/runtimes/db/admins"
 	"tools/runtimes/eventbus"
 	"tools/runtimes/listens/ws"
+	"tools/runtimes/services"
 
 	"github.com/gin-gonic/gin"
 )
@@ -53,8 +53,8 @@ func WsHandler(c *gin.Context) {
 			ws.AddGroup(v, conn)
 		}
 		if strings.Contains(user.Group, "admin") == true{
-			if config.VersionResps != nil && config.VersionResps.Code == 200 && len(config.VersionResps.Data) > 0{
-				ws.SentBus(0, "version", config.VersionResps.Data, "admin")
+			if services.VersionResps != nil && services.VersionResps.Code == 200 && len(services.VersionResps.Data) > 0{
+				ws.SentBus(0, "version", services.VersionResps.Data, "admin")
 			}
 		}
 	}

@@ -43,11 +43,11 @@ func AesEncryptCBC(orig string) string {
 	cryted := make([]byte, len(origData))
 
 	blockMode.CryptBlocks(cryted, origData)
-	return base64.StdEncoding.EncodeToString(cryted)
+	return base64.StdEncoding.EncodeToString(cryted)//RawURLEncoding 将加密字符串转成url支持的格式,替换StdEncoding
 }
 
 func AesDecryptCBC(cryted string) string {
-	crytedByte, err := base64.StdEncoding.DecodeString(cryted)
+	crytedByte, err := base64.StdEncoding.DecodeString(cryted)//RawURLEncoding 将加密字符串转成url支持的格式,替换StdEncoding
 	if err != nil || len(crytedByte) <= 0 {
 		return cryted
 	}
