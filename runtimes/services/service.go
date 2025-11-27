@@ -29,13 +29,8 @@ type VersionResp struct{
 }
 var VersionResps *VersionResp
 
-// func init(){// 这段代码在web.go中执行
-// 	for{
-// 		GetVersions()
-// 		time.Sleep(time.Hour)
-// 	}
-// }
 
+// 从服务端获取版本信息
 func GetVersions() *VersionResp{
 	VersionResps = new(VersionResp)
 	if r, err := requests.New(&requests.Config{Timeout:time.Second * 30}); err == nil{
@@ -48,4 +43,24 @@ func GetVersions() *VersionResp{
 		}
 	}
 	return VersionResps
+}
+
+type ServerResp struct{
+	Code int `json:"code"`
+	Data any `json:"data"`
+	Msg string `json:"msg"`
+}
+
+// 从服务端获取订阅代理
+func GerProxySub(suburl string) (*ServerResp, error){
+	rsp := new(ServerResp)
+	if r, err := requests.New(&requests.Config{Timeout:time.Second * 30}); err == nil{
+		hd :=  funcs.ServerHeader(config.VERSION, config.VERSIONCODE)
+		if str, err := r.Get(suburl, hd);err == nil{
+			if err := json.Unmarshal([]byte(str), rsp); err != nil{
+				return nil, err
+			}
+		}
+	}
+	return rsp, nil
 }

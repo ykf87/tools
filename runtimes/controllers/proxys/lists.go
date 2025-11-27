@@ -3,6 +3,7 @@ package proxys
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"tools/runtimes/db"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/i18n"
@@ -119,25 +120,30 @@ func GetRow(c *gin.Context) {
 
 // 启动
 func Start(c *gin.Context) {
-	id := c.Param("id")
-	pc := proxys.GetById(id)
-	if pc != nil && pc.Id > 0 {
-		if _, err := pc.Start(false); err != nil {
-			response.Error(c, http.StatusOK, err.Error(), nil)
-			return
+	ids := c.Param("id")
+	for _, id := range strings.Split(ids, ","){
+		pc := proxys.GetById(id)
+		if pc != nil && pc.Id > 0 {
+			if _, err := pc.Start(false); err != nil {
+				response.Error(c, http.StatusOK, err.Error(), nil)
+				return
+			}
 		}
 	}
+
 	response.Success(c, nil, "Success")
 }
 
-// 启动
+// 停止
 func Stop(c *gin.Context) {
-	id := c.Param("id")
-	pc := proxys.GetById(id)
-	if pc != nil && pc.Id > 0 {
-		if err := pc.Stop(true); err != nil {
-			response.Error(c, http.StatusOK, err.Error(), nil)
-			return
+	ids := c.Param("id")
+	for _, id := range strings.Split(ids, ","){
+		pc := proxys.GetById(id)
+		if pc != nil && pc.Id > 0 {
+			if err := pc.Stop(true); err != nil {
+				response.Error(c, http.StatusOK, err.Error(), nil)
+				return
+			}
 		}
 	}
 	response.Success(c, nil, "Success")

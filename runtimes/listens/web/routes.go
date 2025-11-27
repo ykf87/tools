@@ -49,6 +49,7 @@ func router() {
 		proxyGroup.POST("start/:id", proxys.Start)
 		proxyGroup.POST("stop/:id", proxys.Stop)
 		proxyGroup.POST("ping/:id", proxys.Ping)
+		proxyGroup.POST("subscription", proxys.Subscription)
 		// proxyGroup.POST("local/:id", proxys.Local)
 	}
 

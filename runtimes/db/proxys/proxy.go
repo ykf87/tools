@@ -32,6 +32,7 @@ type Proxy struct { // 如果有修改字段,需要更新Save方法
 	Transfer   string   `json:"transfer" gorm:"default:null" form:"transfer"`       // 有些代理需要中转,无法直连.目的是解决有的好的ip在国外无法通过国内直连,可以是proxy的id或者具体配置
 	AutoRun    int      `json:"auto_run" gorm:"default:0;index" form:"auto_run"`    // 系统启动跟随启动
 	Encrypt    int      `json:"encrypt" gorm:"index;type:tinyint(1);default:0"`     // 配置是否加密,服务端拿到的是加密的,防止被用于别处
+	Private int `json:"private" gorm:"index;default:0;type:tinyint(1)"`// 是否是私有的
 	Tags       []string `json:"tags" gorm:"-" form:"tags"`                          // 标签列表,不写入数据库,仅在添加和修改时使用
 	IsRuning   int      `json:"is_runing" gorm:"-" form:"-"`                        // 是否启动
 	ListerAddr string   `json:"lister_addr" gorm:"-" form:"-"`                      // 监听地址
