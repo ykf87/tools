@@ -19,5 +19,8 @@ func Subscription(c *gin.Context){
 		return
 	}
 
-	response.Success(c, proxys, "success")
+	response.Success(c, gin.H{
+		"url": suburl,
+		"list": proxys,
+	}, "success")
 }

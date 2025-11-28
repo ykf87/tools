@@ -85,7 +85,6 @@ func Local(c *gin.Context) {
 		}
 	}
 	response.Success(c, nil, "")
-	return
 }
 
 // 批量获取地区

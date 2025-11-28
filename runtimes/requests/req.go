@@ -64,44 +64,44 @@ func New(cfg *Config) (*Client, error) {
 	return &Client{httpClient: client}, nil
 }
 
-func (c *Client) Get(url string, headers map[string]string) (string, error) {
+func (c *Client) Get(url string, headers map[string]string) ([]byte, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		return "", errors.New("http error: " + resp.Status)
+		return nil, errors.New("http error: " + resp.Status)
 	}
 	body, err := io.ReadAll(resp.Body)
-	return string(body), err
+	return body, err
 }
 
-func (c *Client) Post(url string, body []byte, headers map[string]string) (string, error) {
+func (c *Client) Post(url string, body []byte, headers map[string]string) ([]byte, error) {
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		return "", errors.New("http error: " + resp.Status)
+		return nil, errors.New("http error: " + resp.Status)
 	}
 	respBody, err := io.ReadAll(resp.Body)
-	return string(respBody), err
+	return respBody, err
 }

@@ -288,27 +288,32 @@ func BatchAdd(c *gin.Context) {
 
 // 延迟
 func Ping(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
+	ids := c.Param("id")
+	if ids == "" {
 		response.Error(c, http.StatusBadRequest, i18n.T("Error"), nil)
 		return
 	}
-	pc := proxys.GetById(id)
-	if pc != nil && pc.Id > 0 {
-		pxc, err := proxy.Client(pc.GetConfig(), "", 0)
-		if err != nil {
-			response.Error(c, http.StatusBadRequest, i18n.T("Error"), nil)
-			return
+
+	rspmp := make(map[int64]map[string]int64)
+	for _, id := range strings.Split(ids, ","){
+		pc := proxys.GetById(id)
+		if pc != nil && pc.Id > 0 {
+			pxc, err := proxy.Client(pc.GetConfig(), "", 0)
+			if err != nil {
+				response.Error(c, http.StatusBadRequest, i18n.T("Error"), nil)
+				return
+			}
+			mmp, err := pxc.Delay([]string{"https://www.google.com"})
+			if err != nil {
+				response.Error(c, http.StatusBadRequest, i18n.T("Error"), nil)
+				return
+			}
+			// response.Success(c, mmp, "")
+			// return
+			rspmp[pc.Id] = mmp
 		}
-		mmp, err := pxc.Delay([]string{"https://www.google.com"})
-		if err != nil {
-			response.Error(c, http.StatusBadRequest, i18n.T("Error"), nil)
-			return
-		}
-		response.Success(c, mmp, "")
-		return
 	}
-	response.Error(c, http.StatusBadRequest, "", nil)
+	response.Error(c, http.StatusOK, "success", rspmp)
 }
 
 // 批量修改

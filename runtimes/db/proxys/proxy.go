@@ -1,6 +1,8 @@
 package proxys
 
 import (
+	"errors"
+	"time"
 	"tools/runtimes/aess"
 	"tools/runtimes/db"
 	"tools/runtimes/db/tag"
@@ -24,15 +26,18 @@ type Proxy struct { // 如果有修改字段,需要更新Save方法
 	Timezone   string   `json:"timezone" gorm:"default:null;"`                      // 代理的时区
 	Lang       string   `json:"lang" gorm:"default:null"`                           // 代理所在地区使用的语言
 	Subscribe  int64    `json:"subscribe" gorm:"index;default:0" form:"subscribe"`  // 订阅的id,订阅的代理额外管理
+	SubName string `json:"sub_name" gorm:"default:null"` // 订阅的名称
 	Port       int      `json:"port" gorm:"index;default:0" form:"port"`            // 指定的端口,不存在则随机使用空余端口
 	Config     string   `json:"config" gorm:"not null;" form:"config"`              // 代理信息,可以是vmess,vless等,也可以是http代理等
-	ConfigMd5  string   `json:"config_md5" gorm:"uniqueIndex;not null"`             // 配置的md5,用于去重
+	ConfigMd5  string   `json:"config_md5" gorm:"index;not null"`             // 配置的md5,用于去重
 	Username   string   `json:"username" gorm:"default:null;index" form:"username"` // 有些http代理等需要用户名
 	Password   string   `json:"password" gorm:"default:null" form:"password"`       // 对应的密码
 	Transfer   string   `json:"transfer" gorm:"default:null" form:"transfer"`       // 有些代理需要中转,无法直连.目的是解决有的好的ip在国外无法通过国内直连,可以是proxy的id或者具体配置
 	AutoRun    int      `json:"auto_run" gorm:"default:0;index" form:"auto_run"`    // 系统启动跟随启动
 	Encrypt    int      `json:"encrypt" gorm:"index;type:tinyint(1);default:0"`     // 配置是否加密,服务端拿到的是加密的,防止被用于别处
 	Private int `json:"private" gorm:"index;default:0;type:tinyint(1)"`// 是否是私有的
+	Deleted int `json:"deleted" gorm:"index;type:tinyint(1);default:0"` // 是否无效
+	Addtime int64 `json:"addtime" gorm:"index;default:0"`	// 添加事件
 	Tags       []string `json:"tags" gorm:"-" form:"tags"`                          // 标签列表,不写入数据库,仅在添加和修改时使用
 	IsRuning   int      `json:"is_runing" gorm:"-" form:"-"`                        // 是否启动
 	ListerAddr string   `json:"lister_addr" gorm:"-" form:"-"`                      // 监听地址
@@ -79,18 +84,26 @@ func (this *Proxy) Save(tx *gorm.DB) error {
 				"timezone":  this.Timezone,
 				"subscribe": this.Subscribe,
 				"config":    this.Config,
+				"config_md5": this.ConfigMd5,
 				"username":  this.Username,
 				"password":  this.Password,
 				"transfer":  this.Transfer,
 				"auto_run":  this.AutoRun,
 				"port":      this.Port,
+				"private": this.Private,
+				"encrypt": this.Encrypt,
+				"deleted": this.Deleted,
 			}).Error
 		if err != nil {
 			return err
 		}
+		if this.Deleted == 1{
+			this.Stop(true)
+		}
 		eventbus.Bus.Publish("proxy_change", this)
 		return nil
 	} else {
+		this.Addtime = time.Now().Unix()
 		return tx.Create(this).Error
 	}
 }
@@ -114,6 +127,9 @@ func (this *Proxy) GetTransfer() string {
 // 启动配置的代理
 // keep 是否守护代理
 func (this *Proxy) Start(keep bool) (*proxy.ProxyConfig, error) {
+	if this.Deleted == 1{
+		return nil, errors.New("代理已废弃或删除")
+	}
 	p, err := proxy.Client(this.GetConfig(), "", this.Port, this.GetTransfer())
 	if err != nil {
 		return nil, err
