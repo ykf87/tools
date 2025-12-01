@@ -26,6 +26,7 @@ func router() {
 		userGroup.GET("ws", ws.WsHandler)
 		userGroup.GET("info", user.Info)
 		userGroup.GET("lists", user.Lists)
+		userGroup.POST("repwd", user.RePassword)
 	}
 
 	superUser := userGroup.Use(SuperAdminMiddleware)
