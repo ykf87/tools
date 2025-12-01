@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"strings"
+	"tools/runtimes/config"
 	"tools/runtimes/db/admins"
 	"tools/runtimes/eventbus"
 	"tools/runtimes/listens/ws"
@@ -54,11 +55,26 @@ func WsHandler(c *gin.Context) {
 		}
 		if strings.Contains(user.Group, "admin") == true{
 			if services.VersionResps != nil && services.VersionResps.Code == 200 && len(services.VersionResps.Data) > 0{
-				ws.SentBus(0, "version", services.VersionResps.Data, "admin")
+				rsps := gin.H{
+					"code": config.VERSION,
+					"code_number": config.VERSIONCODE,
+					"versions": services.VersionResps.Data,
+				}
+				for _, v := range services.VersionResps.Data{
+					if v.CodeNum == config.VERSIONCODE{
+						rsps["title"] 	= v.Title
+						rsps["released"] 	= v.Released
+						rsps["desc"]	= v.Desc
+						rsps["content"] = v.Content
+						rsps["released_time"] = v.ReleaseTime
+						break
+					}
+				}
+				ws.SentBus(0, "version", rsps, "admin")
 			}
 		}
 	}
-	eventbus.Bus.Publish("ws", map[string]any{"aaa": 1111})
+	// eventbus.Bus.Publish("ws", map[string]any{"aaa": 1111})
 	for {
 		p, err := conn.ReadMessage()
 		if err != nil {
