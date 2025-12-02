@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"os"
@@ -9,22 +10,22 @@ import (
 	"time"
 	"tools/runtimes/funcs"
 	"tools/runtimes/requests"
-	"encoding/json"
 )
 
 const (
-	LOGROOT      = "logs"                      // 日志目录
-	CACHEROOT    = "cache"                     // 缓存目录
-	DATAROOT     = "data"                      // 媒体文件路径
-	WEBROOT      = ".web"                      // 网页端文件路径,开头是.的默认隐藏
-	SYSROOT      = ".sys"                      // 系统存储的文件
-	DBFILE       = SYSROOT + "/.db"            // 数据库文件
-	VERSION      = "1.0.0"                     // 字符串版本
-	VERSIONCODE  = 100                         // 整数版本
-	PROXYMINPORT = 100                         // 代理最小的端口号
-	BROWSERCACHE = SYSROOT + "/browsers/cache" // 浏览器缓存
-	MEDIAROOT    = DATAROOT + "/media"         // 媒体文件路径
-	SERVERDOMAIN = "http://127.0.0.1:20250/server/"	// 服务端的地址
+	LOGROOT      = "logs"                           // 日志目录
+	CACHEROOT    = "cache"                          // 缓存目录
+	DATAROOT     = "data"                           // 媒体文件路径
+	WEBROOT      = ".web"                           // 网页端文件路径,开头是.的默认隐藏
+	SYSROOT      = ".sys"                           // 系统存储的文件
+	DBFILE       = SYSROOT + "/.db"                 // 数据库文件
+	VERSION      = "1.0.0"                          // 字符串版本
+	VERSIONCODE  = 100                              // 整数版本
+	PROXYMINPORT = 100                              // 代理最小的端口号
+	BROWSERCACHE = SYSROOT + "/browsers/cache"      // 浏览器缓存
+	MEDIAROOT    = DATAROOT + "/media"              // 媒体文件路径
+	SERVERDOMAIN = "http://127.0.0.1:20250/server/" // 服务端的地址
+	SERVERWS     = "ws://127.0.0.1:20250/server/ws" // 服务端ws连接地址
 )
 
 var RuningRoot string
@@ -111,32 +112,33 @@ func FullPath(pathName ...string) string {
 }
 
 // 从远程获取版本信息
-type Versions struct{
-	Id int64 `json:"id"`
-	Code string `json:"code"`
-	CodeNum int64 `json:"code_num"`
-	Title string `json:"title"`
-	Desc string `json:"desc"`
-	Content string `json:"content"`
-	Os string `json:"os"`
-	Released int `json:"released"`
-	Addtime int64 `json:"addtime"`
-	ReleaseTime int64 `json:"release_time"`
+type Versions struct {
+	Id          int64  `json:"id"`
+	Code        string `json:"code"`
+	CodeNum     int64  `json:"code_num"`
+	Title       string `json:"title"`
+	Desc        string `json:"desc"`
+	Content     string `json:"content"`
+	Os          string `json:"os"`
+	Released    int    `json:"released"`
+	Addtime     int64  `json:"addtime"`
+	ReleaseTime int64  `json:"release_time"`
 }
-type VersionResp struct{
-	Code int `json:"code"`
+type VersionResp struct {
+	Code int         `json:"code"`
 	Data []*Versions `json:"data"`
-	Msg string `json:"msg"`
+	Msg  string      `json:"msg"`
 }
 
 var VersionResps *VersionResp
-func GetVersions() *VersionResp{
+
+func GetVersions() *VersionResp {
 	VersionResps = new(VersionResp)
-	if r, err := requests.New(&requests.Config{Timeout:time.Second * 10}); err == nil{
-		hd :=  funcs.ServerHeader(VERSION, VERSIONCODE)
-		if str, err := r.Get(fmt.Sprint(SERVERDOMAIN, "versions"), hd);err == nil{
-			 rsp := new(VersionResp)
-			if err := json.Unmarshal([]byte(str), rsp); err == nil{
+	if r, err := requests.New(&requests.Config{Timeout: time.Second * 10}); err == nil {
+		hd := funcs.ServerHeader(VERSION, VERSIONCODE)
+		if str, err := r.Get(fmt.Sprint(SERVERDOMAIN, "versions"), hd); err == nil {
+			rsp := new(VersionResp)
+			if err := json.Unmarshal([]byte(str), rsp); err == nil {
 				VersionResps = rsp
 			}
 		}

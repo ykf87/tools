@@ -82,7 +82,7 @@ func AddGroup(name string, conn *ws.Conn) {
 			lss = append(lss, conn)
 			ConnsGroup.Store(name, lss)
 		}
-	}else{
+	} else {
 		newls := []*ws.Conn{conn}
 		ConnsGroup.Store(name, newls)
 	}
