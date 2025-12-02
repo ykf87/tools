@@ -48,27 +48,32 @@ func (s *Store) Enqueue(topic, payload string, delay time.Duration) (int64, erro
 }
 
 func (s *Store) FetchPending(topic string) (*Mq, error) {
-	var msg Mq
+	var msgs []Mq
 	tx := s.db.Begin()
 	if err := tx.
 		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Where("topic = ? AND status = ? AND available_at <= ?", topic, "pending", time.Now()).
 		Order("id ASC").
-		First(&msg).Error; err != nil {
+		Find(&msgs).Error; err != nil {
 		tx.Rollback()
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
 		return nil, err
 	}
+	if len(msgs) > 0 {
+		msg := msgs[0]
 
-	msg.Status = "processing"
-	if err := tx.Save(&msg).Error; err != nil {
-		tx.Rollback()
-		return nil, err
+		msg.Status = "processing"
+		if err := tx.Save(&msg).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		tx.Commit()
+		return &msg, nil
 	}
-	tx.Commit()
-	return &msg, nil
+	tx.Rollback()
+	return nil, errors.New("error")
 }
 
 func (s *Store) MarkDone(id int64) error {
