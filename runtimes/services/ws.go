@@ -2,14 +2,13 @@
 package services
 
 import (
-	"errors"
 	"fmt"
+	"log"
 	"net/http"
-	"net/url"
-	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/funcs"
 	"tools/runtimes/logs"
+	"tools/runtimes/ws"
 
 	"github.com/gorilla/websocket"
 )
@@ -21,79 +20,47 @@ type Client struct {
 	Conn    *websocket.Conn
 }
 
+var WSClient *ws.Client
+
 func init() {
-	// dialer := websocket.Dialer{
-	// 	Proxy: http.ProxyFromEnvironment,
-	// }
+	hd := http.Header{}
+	for k, v := range funcs.ServerHeader(config.VERSION, config.VERSIONCODE) {
+		hd.Set(k, v)
+	}
 
-	// // 构造header
-	// hd := funcs.ServerHeader(config.VERSION, config.VERSIONCODE)
-	// header := http.Header{}
-	// for k, v := range hd {
-	// 	header.Set(k, v)
-	// }
+	WSClient = ws.New(config.SERVERWS, nil, ws.EventHandler{
+		OnOpen: func() {
+			fmt.Println("服务连接成功")
+			// WSClient.Send([]byte("ping"))
+		},
+		OnError: func(err error) {
+			logs.Error("服务端ws错误:" + err.Error())
+			fmt.Println("连接错误了:", err.Error())
+		},
+		OnClose:   func() { fmt.Println("关闭连接") },
+		OnMessage: readMessage,
+		ConnHead: func() http.Header {
+			hd := http.Header{}
+			for k, v := range funcs.ServerHeader(config.VERSION, config.VERSIONCODE) {
+				hd.Set(k, v)
+			}
+			return hd
+		},
+	})
+	WSClient.Start()
 
-	// //发起连接
-	// conn, _, err := dialer.Dial(config.SERVERWS, header)
-	// if err != nil {
-	// 	logs.Error(err.Error())
-	// 	return
-	// }
-	// fmt.Println("ws连接成功!!!!")
-	// // defer conn.Close()
-
-	// // 接收消息
+	// 以下是测试代码-----------
 	// go func() {
-	// 	defer conn.Close()
 	// 	for {
-	// 		_, msg, err := conn.ReadMessage()
-	// 		if err != nil {
-	// 			break
-	// 		}
-	// 		fmt.Println(string(msg))
+	// 		time.Sleep(time.Second * 5)
+	// 		fmt.Println("发送消息")
+	// 		WSClient.Send([]byte(`{"tp":"test","data":"sdfsdfkfsdkf"}`))
 	// 	}
 	// }()
-	cli := &Client{
-		Url:     config.SERVERWS,
-		Headers: funcs.ServerHeader(config.VERSION, config.VERSIONCODE),
-	}
-	if err := cli.Connect(); err != nil {
-		logs.Error(err.Error())
-	}
 }
 
-// 发起连接
-func (this *Client) Connect() error {
-	if this.Url == "" {
-		return errors.New("url不能为空!")
-	}
-	var proxy *url.URL
-	if this.Proxy != "" {
-		if proxyURL, err := url.Parse(this.Proxy); err == nil {
-			proxy = proxyURL
-		}
-	}
-	dialer := websocket.Dialer{
-		Proxy:            http.ProxyURL(proxy),
-		HandshakeTimeout: 10 * time.Second,
-	}
+// 读取消息
+func readMessage(messageType int, message []byte) {
+	log.Println(messageType, string(message))
 
-	header := http.Header{}
-	for k, v := range this.Headers {
-		header.Set(k, v)
-	}
-
-	conn, _, err := dialer.Dial(this.Url, header)
-	if err != nil {
-		return err
-	}
-	this.Conn = conn
-
-	go this.listen()
-	return nil
-}
-
-// 监听ws并且断线重连、心跳等
-func (this *Client) listen() {
-	fmt.Println("监听---")
 }
