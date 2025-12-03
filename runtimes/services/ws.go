@@ -3,14 +3,15 @@ package services
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"tools/runtimes/config"
+	"tools/runtimes/eventbus"
 	"tools/runtimes/funcs"
 	"tools/runtimes/logs"
 	"tools/runtimes/ws"
 
 	"github.com/gorilla/websocket"
+	"github.com/tidwall/gjson"
 )
 
 type Client struct {
@@ -30,12 +31,11 @@ func init() {
 
 	WSClient = ws.New(config.SERVERWS, nil, ws.EventHandler{
 		OnOpen: func() {
-			fmt.Println("服务连接成功")
+			// fmt.Println("服务连接成功")
 			// WSClient.Send([]byte("ping"))
 		},
 		OnError: func(err error) {
 			logs.Error("服务端ws错误:" + err.Error())
-			fmt.Println("连接错误了:", err.Error())
 		},
 		OnClose:   func() { fmt.Println("关闭连接") },
 		OnMessage: readMessage,
@@ -61,6 +61,8 @@ func init() {
 
 // 读取消息
 func readMessage(messageType int, message []byte) {
-	log.Println(messageType, string(message))
-
+	if messageType != websocket.PingMessage {
+		msg := gjson.ParseBytes(message)
+		eventbus.Bus.Publish(msg.Get("tp").String(), msg.Get("data").String())
+	}
 }
