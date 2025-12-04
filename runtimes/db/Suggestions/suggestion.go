@@ -1,8 +1,11 @@
 package suggestions
 
 import (
+	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
+
+	"gorm.io/gorm"
 )
 
 type SuggCate struct {
@@ -30,6 +33,56 @@ func init() {
 	db.DB.AutoMigrate(&SuggCate{})
 	db.DB.AutoMigrate(&Suggestion{})
 	db.DB.AutoMigrate(&SuggMessage{})
+}
+
+func (this *SuggCate) Save(tx *gorm.DB) error {
+	if tx == nil {
+		tx = db.DB
+	}
+
+	if this.Id > 0 {
+		return tx.Model(&SuggCate{}).Where("id = ?", this.Id).Updates(map[string]any{
+			"name": this.Name,
+		}).Error
+	} else {
+		return tx.Create(this).Error
+	}
+}
+
+func (this *Suggestion) Save(tx *gorm.DB) error {
+	if tx == nil {
+		tx = db.DB
+	}
+
+	if this.Id > 0 {
+		return tx.Model(&Suggestion{}).Where("id = ?", this.Id).Updates(map[string]any{
+			"title":          this.Title,
+			"content":        this.Content,
+			"cate_id":        this.CateId,
+			"read_time":      this.ReadTime,
+			"last_back_time": this.LastBackTime,
+		}).Error
+	} else {
+		this.Addtime = time.Now().Unix()
+		return tx.Create(this).Error
+	}
+}
+
+func (this *SuggMessage) Save(tx *gorm.DB) error {
+	if tx == nil {
+		tx = db.DB
+	}
+
+	if this.Id > 0 {
+		return tx.Model(&SuggMessage{}).Where("id = ?", this.Id).Updates(map[string]any{
+			"sugg_id": this.SuggId,
+			"content": this.Content,
+			"rule":    this.Rule,
+		}).Error
+	} else {
+		this.Addtime = time.Now().Unix()
+		return tx.Create(this).Error
+	}
 }
 
 // 将服务器返回的建议分类同步到本地

@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
+	"tools/runtimes/config"
 
 	"golang.org/x/net/proxy"
 )
@@ -65,6 +68,9 @@ func New(cfg *Config) (*Client, error) {
 }
 
 func (c *Client) Get(url string, headers map[string]string) ([]byte, error) {
+	if strings.Contains(url, config.SERVERDOMAIN) == false {
+		url = fmt.Sprint(config.SERVERDOMAIN, url)
+	}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -86,6 +92,9 @@ func (c *Client) Get(url string, headers map[string]string) ([]byte, error) {
 }
 
 func (c *Client) Post(url string, body []byte, headers map[string]string) ([]byte, error) {
+	if strings.Contains(url, config.SERVERDOMAIN) == false {
+		url = fmt.Sprint(config.SERVERDOMAIN, url)
+	}
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, err

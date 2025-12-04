@@ -95,4 +95,9 @@ func router() {
 			spiderVideoGroup.POST("open", down.OpenDir)
 		}
 	}
+
+	suggGroup := AuthRoutes.Group("sugg")
+	{
+		suggGroup.POST("add", suggs.AddSuggestion)
+	}
 }
