@@ -1,16 +1,15 @@
 package config
 
 import (
-	"encoding/json"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
-	"tools/runtimes/funcs"
-	"tools/runtimes/requests"
+
+	jsoniter "github.com/json-iterator/go"
 )
+
+var Json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 const (
 	LOGROOT      = "logs"                           // 日志目录
@@ -111,37 +110,27 @@ func FullPath(pathName ...string) string {
 	return abs
 }
 
-// 从远程获取版本信息
-type Versions struct {
-	Id          int64  `json:"id"`
-	Code        string `json:"code"`
-	CodeNum     int64  `json:"code_num"`
-	Title       string `json:"title"`
-	Desc        string `json:"desc"`
-	Content     string `json:"content"`
-	Os          string `json:"os"`
-	Released    int    `json:"released"`
-	Addtime     int64  `json:"addtime"`
-	ReleaseTime int64  `json:"release_time"`
-}
-type VersionResp struct {
-	Code int         `json:"code"`
-	Data []*Versions `json:"data"`
-	Msg  string      `json:"msg"`
+type Version struct {
+	Id          int64  `json:"id" gorm:"primaryKey;autoIncrement"`
+	Code        string `json:"code" gorm:"uniqueIndex;not null"`    // 版本编码
+	CodeNum     int64  `json:"code_num" gorm:"index;default:0"`     // 版本纯数字
+	Title       string `json:"title" gorm:"index;default:null"`     // 标题
+	Desc        string `json:"desc" gorm:"default:null"`            // 版本简介
+	Content     string `json:"content" gorm:"default:null"`         // 版本详情
+	Os          string `json:"os" gorm:"index;default:null"`        // 支持的系统
+	Released    int    `json:"released" gorm:"index;default:0"`     // 是否发布
+	Addtime     int64  `json:"addtime" gorm:"index;default:0"`      // 添加时间
+	ReleaseTime int64  `json:"release_time" gorm:"index;default:0"` // 发布时间
 }
 
-var VersionResps *VersionResp
+var Versions []*Version
 
-func GetVersions() *VersionResp {
-	VersionResps = new(VersionResp)
-	if r, err := requests.New(&requests.Config{Timeout: time.Second * 10}); err == nil {
-		hd := funcs.ServerHeader(VERSION, VERSIONCODE)
-		if str, err := r.Get(fmt.Sprint(SERVERDOMAIN, "versions"), hd); err == nil {
-			rsp := new(VersionResp)
-			if err := json.Unmarshal([]byte(str), rsp); err == nil {
-				VersionResps = rsp
-			}
+// 从服务端获取的大于等于当前版本的版本信息列表
+func VersionsFromServer(vs string) error {
+	if vs != "" {
+		if err := Json.Unmarshal([]byte(vs), &Versions); err != nil {
+			return err
 		}
 	}
-	return VersionResps
+	return nil
 }

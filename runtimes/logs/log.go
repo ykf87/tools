@@ -6,7 +6,7 @@ import (
 	"time"
 	"tools/runtimes/config"
 
-	"github.com/lestrrat-go/file-rotatelogs"
+	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
 )

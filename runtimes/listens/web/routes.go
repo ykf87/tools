@@ -3,6 +3,7 @@ package web
 import (
 	"tools/runtimes/controllers/browsers"
 	"tools/runtimes/controllers/proxys"
+	"tools/runtimes/controllers/suggs"
 	"tools/runtimes/controllers/tags"
 	"tools/runtimes/controllers/user"
 	"tools/runtimes/controllers/video/down"
@@ -18,6 +19,7 @@ func router() {
 	})
 	ROUTER.Static("/data", DataPath)
 	ROUTER.POST("/auth/login", user.Login)
+	ROUTER.POST("sugg_cate", suggs.SuggCate)
 	AuthRoutes := ROUTER
 	AuthRoutes.Use(AuthMiddleware)
 

@@ -1,6 +1,7 @@
 package suggestions
 
 import (
+	"tools/runtimes/config"
 	"tools/runtimes/db"
 )
 
@@ -29,4 +30,24 @@ func init() {
 	db.DB.AutoMigrate(&SuggCate{})
 	db.DB.AutoMigrate(&Suggestion{})
 	db.DB.AutoMigrate(&SuggMessage{})
+}
+
+// 将服务器返回的建议分类同步到本地
+func UpSuggCateFromServer(str string) {
+	if str == "" {
+		return
+	}
+	var serverSugcts []*SuggCate
+	if err := config.Json.Unmarshal([]byte(str), &serverSugcts); err == nil {
+		db.DB.Migrator().DropTable(&SuggCate{})
+		db.DB.AutoMigrate(&SuggCate{})
+		db.DB.Create(serverSugcts)
+	}
+}
+
+// 获取建议分类
+func GetSuggCates() []*SuggCate {
+	var sugs []*SuggCate
+	db.DB.Model(&SuggCate{}).Order("id asc").Find(&sugs)
+	return sugs
 }

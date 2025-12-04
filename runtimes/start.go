@@ -2,9 +2,16 @@
 package runtimes
 
 import (
+	"fmt"
 	"os"
+	"time"
 	"tools/runtimes/config"
+	suggestions "tools/runtimes/db/Suggestions"
 	"tools/runtimes/funcs"
+	"tools/runtimes/logs"
+	"tools/runtimes/requests"
+
+	"github.com/tidwall/gjson"
 )
 
 func init() {
@@ -18,6 +25,22 @@ func init() {
 			}
 			if v.IsHide == true {
 				funcs.HiddenDir(full)
+			}
+		}
+	}
+
+	GetVersions()
+}
+
+// 如果有什么参数需要在开始初始化的时候获取,在此次添加
+func GetVersions() {
+	if r, err := requests.New(&requests.Config{Timeout: time.Second * 10}); err == nil {
+		hd := funcs.ServerHeader(config.VERSION, config.VERSIONCODE)
+		if respbt, err := r.Get(fmt.Sprint(config.SERVERDOMAIN, "start"), hd); err == nil {
+			gs := gjson.ParseBytes(respbt)
+			suggestions.UpSuggCateFromServer(gs.Get("sugg_cate").String())
+			if err := config.VersionsFromServer(gs.Get("versions").String()); err != nil {
+				logs.Error(err.Error())
 			}
 		}
 	}

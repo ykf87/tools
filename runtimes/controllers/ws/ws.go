@@ -20,7 +20,7 @@ func init() {
 	pingBytes = []byte("ping")
 	pongBytes = []byte("pong")
 
-	eventbus.Bus.Subscribe("ws", func(data interface{}) {
+	eventbus.Bus.Subscribe("ws", func(data any) {
 		if dt, ok := data.(*ws.SentWsStruct); ok {
 			obj := map[string]any{"type": dt.Type, "data": dt.Content}
 			brt, err := json.Marshal(obj)
@@ -49,22 +49,22 @@ func WsHandler(c *gin.Context) {
 
 	// ws.SentMsg(user.Id, []byte(fmt.Sprintf(`{"type":"version", "data":"%s"}`, config.VERSION)))
 
-	if user.Group != ""{
-		for _, v := range strings.Split(user.Group, ","){
+	if user.Group != "" {
+		for _, v := range strings.Split(user.Group, ",") {
 			ws.AddGroup(v, conn)
 		}
-		if strings.Contains(user.Group, "admin") == true{
-			if services.VersionResps != nil && services.VersionResps.Code == 200 && len(services.VersionResps.Data) > 0{
+		if strings.Contains(user.Group, "admin") == true {
+			if services.VersionResps != nil && services.VersionResps.Code == 200 && len(services.VersionResps.Data) > 0 {
 				rsps := gin.H{
-					"code": config.VERSION,
+					"code":        config.VERSION,
 					"code_number": config.VERSIONCODE,
-					"versions": services.VersionResps.Data,
+					"versions":    services.VersionResps.Data,
 				}
-				for _, v := range services.VersionResps.Data{
-					if v.CodeNum == config.VERSIONCODE{
-						rsps["title"] 	= v.Title
-						rsps["released"] 	= v.Released
-						rsps["desc"]	= v.Desc
+				for _, v := range services.VersionResps.Data {
+					if v.CodeNum == config.VERSIONCODE {
+						rsps["title"] = v.Title
+						rsps["released"] = v.Released
+						rsps["desc"] = v.Desc
 						rsps["content"] = v.Content
 						rsps["released_time"] = v.ReleaseTime
 						break
