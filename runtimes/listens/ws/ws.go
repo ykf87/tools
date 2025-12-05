@@ -99,3 +99,13 @@ func SentGroup(name string, data []byte) error {
 	}
 	return nil
 }
+
+// 广播消息
+func Broadcost(data []byte) {
+	CONNS.Range(func(k, v any) bool {
+		if conn, ok := v.(*ws.Conn); ok {
+			conn.WriteMessage(data)
+		}
+		return true
+	})
+}

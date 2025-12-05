@@ -17,7 +17,7 @@ const (
 	DATAROOT     = "data"                           // 媒体文件路径
 	WEBROOT      = ".web"                           // 网页端文件路径,开头是.的默认隐藏
 	SYSROOT      = ".sys"                           // 系统存储的文件
-	DBFILE       = SYSROOT + "/.db"                 // 数据库文件
+	DBFILE       = ".db"                            // 数据库文件
 	VERSION      = "1.0.0"                          // 字符串版本
 	VERSIONCODE  = 100                              // 整数版本
 	PROXYMINPORT = 100                              // 代理最小的端口号

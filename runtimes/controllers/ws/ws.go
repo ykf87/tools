@@ -29,6 +29,8 @@ func init() {
 					ws.SentMsg(dt.UserId, brt)
 				} else if dt.Group != "" {
 					ws.SentGroup(dt.Group, brt)
+				} else {
+					ws.Broadcost(brt)
 				}
 			}
 		}

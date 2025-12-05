@@ -3,7 +3,6 @@ package ws
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"sync"
@@ -122,11 +121,11 @@ func (c *Client) connectLoop() {
 			if c.handler.OnError != nil {
 				c.handler.OnError(err)
 			}
-			log.Println("[wsclient] 连接失败:", err)
+			// log.Println("[wsclient] 连接失败:", err)
 
 			retries++
 			if c.cfg.MaxRetry != -1 && retries > c.cfg.MaxRetry {
-				log.Println("[wsclient] 达到最大重连次数，停止重连")
+				// log.Println("[wsclient] 达到最大重连次数，停止重连")
 				return
 			}
 

@@ -7,7 +7,6 @@ import (
 	"tools/runtimes/config"
 	"tools/runtimes/eventbus"
 	"tools/runtimes/funcs"
-	"tools/runtimes/logs"
 	"tools/runtimes/ws"
 
 	"github.com/gorilla/websocket"
@@ -35,7 +34,7 @@ func init() {
 			// WSClient.Send([]byte("ping"))
 		},
 		OnError: func(err error) {
-			logs.Error("服务端ws错误:" + err.Error())
+			// logs.Error("服务端ws错误:" + err.Error())
 		},
 		OnClose:   func() { fmt.Println("关闭连接") },
 		OnMessage: readMessage,
