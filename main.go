@@ -31,8 +31,8 @@ GOAMD64=v1 会生成兼容 较老 CPU/OS 的二进制，避免新 PE 头特性�
 对于 Windows 10 64 位，通常完全可以运行。
 
 2️⃣ 使用 -ldflags "-s -w" 减小文件并关闭调试信息
-go build -ldflags "-s -w" -o tools.exe main.go
-go build -ldflags "-s -w" -o tools.exe main.go
+go build -ldflags "-s -w" -o tools.exe
+go build -ldflags "-s -w" -o tools.exe
 减少某些安全软件误报的可能。
 **/
 

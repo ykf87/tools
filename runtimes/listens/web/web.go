@@ -72,13 +72,13 @@ func Start(port int) {
 		webUrl(NetIp, RunPort, WebPort)
 	}()
 
-	go func(){
-		for{
+	go func() {
+		for {
 			vs := services.GetVersions()
-			if vs.Code == 200 && len(vs.Data) > 0{
+			if vs.Code == 200 && len(vs.Data) > 0 {
 				ws.SentBus(0, "version", vs.Data, "admin")
 			}
-			time.Sleep(time.Hour*1)
+			time.Sleep(time.Hour * 1)
 		}
 	}()
 
@@ -91,14 +91,17 @@ func Start(port int) {
 
 	config.MediaUrl = fmt.Sprintf("http://%s:%d/media", NetIp, RunPort)
 
-	for {
-		select {
-		case <-ctx.Done():
-			fmt.Printf("web服务退出中...\n")
-			time.Sleep(time.Second)
-			return
-		}
-	}
+	<-ctx.Done()
+	fmt.Println("web服务退出中...")
+	time.Sleep(time.Second)
+	// for {
+	// 	select {
+	// 	case <-ctx.Done():
+	// 		fmt.Printf("web服务退出中...\n")
+	// 		time.Sleep(time.Second)
+	// 		return
+	// 	}
+	// }
 }
 
 // 允许跨域中间件
@@ -213,6 +216,11 @@ func isWebSocket(c *gin.Context) bool {
 
 // 用户鉴权
 func AuthMiddleware(c *gin.Context) {
+	if config.MainStatus != 1 {
+		response.Error(c, http.StatusUnauthorized, config.MainStatusMsg, nil)
+		c.Abort()
+		return
+	}
 	token := c.GetHeader("Authorization")
 	if token == "" && isWebSocket(c) {
 		token = c.Query("token")

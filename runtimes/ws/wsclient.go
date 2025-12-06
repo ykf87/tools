@@ -44,6 +44,10 @@ type Client struct {
 }
 
 func New(addr string, cfg *Config, handler EventHandler) *Client {
+	// pc, file, line, ok := runtime.Caller(1)
+	// if ok {
+	// 	fmt.Printf("Called from %s:%d (%s)\n", file, line, runtime.FuncForPC(pc).Name())
+	// }
 	def := Config{
 		RetryInterval: 3 * time.Second,
 		MaxRetry:      -1,

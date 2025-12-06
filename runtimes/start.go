@@ -38,9 +38,15 @@ func GetVersions() {
 		hd := funcs.ServerHeader(config.VERSION, config.VERSIONCODE)
 		if respbt, err := r.Get(fmt.Sprint(config.SERVERDOMAIN, "start"), hd); err == nil {
 			gs := gjson.ParseBytes(respbt)
-			suggestions.UpSuggCateFromServer(gs.Get("sugg_cate").String())
-			if err := config.VersionsFromServer(gs.Get("versions").String()); err != nil {
-				logs.Error(err.Error())
+			if gs.Get("code").Int() != 200 {
+				config.MainStatus = 0
+				config.MainStatusMsg = gs.Get("msg").String()
+			} else {
+				gsd := gs.Get("data")
+				suggestions.UpSuggCateFromServer(gsd.Get("sugg_cate").String())
+				if err := config.VersionsFromServer(gsd.Get("versions").String()); err != nil {
+					logs.Error(err.Error())
+				}
 			}
 		}
 	}
