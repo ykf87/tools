@@ -22,11 +22,12 @@ type Suggestion struct {
 	LastBackTime int64  `json:"last_back_time" gorm:"index;default:0"`        // 最后一次服务端反馈的时间
 }
 type SuggMessage struct { //对意见和建议内容进行再度讨论的内容
-	Id      int64  `json:"id" gorm:"primaryKey;autoIncrement"`
-	SuggId  int64  `json:"sugg_id" gorm:"index;not null"`
-	Addtime int64  `json:"addtime" gorm:"index;default:0"`
-	Content string `json:"content" gorm:"not null"`                    // 内容
-	Rule    int    `json:"rule" gorm:"type:tinyint(1);index;not null"` // 内容角色,0为客户端,1为服务端回答
+	Id       int64  `json:"id" gorm:"primaryKey;autoIncrement"`
+	SuggId   int64  `json:"sugg_id" gorm:"index;not null"`
+	Addtime  int64  `json:"addtime" gorm:"index;default:0"`
+	Content  string `json:"content" gorm:"not null"`                    // 内容
+	Rule     int    `json:"rule" gorm:"type:tinyint(1);index;not null"` // 内容角色,0为客户端,1为服务端回答
+	Readtime int64  `json:"readtime" gorm:"index;default:0"`            // 对应的角色查看时间
 }
 
 func init() {
@@ -75,9 +76,10 @@ func (this *SuggMessage) Save(tx *gorm.DB) error {
 
 	if this.Id > 0 {
 		return tx.Model(&SuggMessage{}).Where("id = ?", this.Id).Updates(map[string]any{
-			"sugg_id": this.SuggId,
-			"content": this.Content,
-			"rule":    this.Rule,
+			"sugg_id":  this.SuggId,
+			"content":  this.Content,
+			"rule":     this.Rule,
+			"readtime": this.Readtime,
 		}).Error
 	} else {
 		this.Addtime = time.Now().Unix()
