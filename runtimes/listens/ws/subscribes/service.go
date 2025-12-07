@@ -1,4 +1,5 @@
-package ws
+// 服务端发送来的ws消息的处理
+package subscribes
 
 import (
 	"fmt"
@@ -19,26 +20,28 @@ type Uuid struct {
 }
 
 func init() {
-	// 版本信息通过api定时获取,不使用ws发送.原因是api的功能事先写好了,懒得改
-	// eventbus.Bus.Subscribe("version", func(data any){
+	cguuid()
+	sugg()
+}
 
-	// })
-
-	// 意见或建议回复内容
-	eventbus.Bus.Subscribe("sugge_cate", func(data any) {
-		fmt.Println(data, "-----sugge_cate")
-	})
-
-	// 服务端uuid状态改变收到的消息
+// uuid 状态改变事件
+func cguuid() {
 	eventbus.Bus.Subscribe("uuid_status_change", func(data any) {
 		if dtstr, ok := data.(string); ok {
 			uid := new(Uuid)
 			if err := config.Json.Unmarshal([]byte(dtstr), uid); err == nil {
 				if uid.Id > 0 {
-					config.MainStatus = uid.Status
+					config.MainStatus = uid.Status // 此状态如果不为1,在web请求的中间件中执行拦截
 					config.MainStatusMsg = uid.StatusMsg
 				}
 			}
 		}
+	})
+}
+
+// 意见或建议回复内容
+func sugg() {
+	eventbus.Bus.Subscribe("sugge_cate", func(data any) {
+		fmt.Println(data, "-----sugge_cate")
 	})
 }

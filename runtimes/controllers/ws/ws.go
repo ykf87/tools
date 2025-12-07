@@ -2,11 +2,9 @@ package ws
 
 import (
 	"bytes"
-	"encoding/json"
 	"strings"
 	"tools/runtimes/config"
 	"tools/runtimes/db/admins"
-	"tools/runtimes/eventbus"
 	"tools/runtimes/listens/ws"
 	"tools/runtimes/services"
 
@@ -20,21 +18,21 @@ func init() {
 	pingBytes = []byte("ping")
 	pongBytes = []byte("pong")
 
-	eventbus.Bus.Subscribe("ws", func(data any) {
-		if dt, ok := data.(*ws.SentWsStruct); ok {
-			obj := map[string]any{"type": dt.Type, "data": dt.Content}
-			brt, err := json.Marshal(obj)
-			if err == nil {
-				if dt.UserId > 0 {
-					ws.SentMsg(dt.UserId, brt)
-				} else if dt.Group != "" {
-					ws.SentGroup(dt.Group, brt)
-				} else {
-					ws.Broadcost(brt)
-				}
-			}
-		}
-	})
+	// eventbus.Bus.Subscribe("ws", func(data any) {
+	// 	if dt, ok := data.(*ws.SentWsStruct); ok {
+	// 		obj := map[string]any{"type": dt.Type, "data": dt.Content}
+	// 		brt, err := json.Marshal(obj)
+	// 		if err == nil {
+	// 			if dt.UserId > 0 {
+	// 				ws.SentMsg(dt.UserId, brt)
+	// 			} else if dt.Group != "" {
+	// 				ws.SentGroup(dt.Group, brt)
+	// 			} else {
+	// 				ws.Broadcost(brt)
+	// 			}
+	// 		}
+	// 	}
+	// })
 }
 
 func WsHandler(c *gin.Context) {

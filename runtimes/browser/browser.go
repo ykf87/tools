@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 	"tools/runtimes/config"
-	"tools/runtimes/eventbus"
 	"tools/runtimes/funcs"
 
 	json "github.com/json-iterator/go"
@@ -39,11 +38,11 @@ func init() {
 		panic("-------")
 	}
 
-	eventbus.Bus.Subscribe("browser-close", func(dt any) {
-		if bu, ok := dt.(*User); ok {
-			Running.Delete(bu.Id)
-		}
-	})
+	// eventbus.Bus.Subscribe("browser-close", func(dt any) {
+	// 	if bu, ok := dt.(*User); ok {
+	// 		Running.Delete(bu.Id)
+	// 	}
+	// })
 }
 
 func NewBrowser(lang, timezone string, id int64) *User {
