@@ -46,7 +46,7 @@ func (this *Information) Save(tx *gorm.DB) error {
 		this.Addtime = time.Now().Unix()
 		err = tx.Create(this).Error
 		if err == nil {
-			go ws.SentBus(this.AdminId, "notify", this, "")
+			go ws.SentBus(this.AdminId, "information", this, "")
 		}
 	}
 	return err

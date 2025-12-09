@@ -4,6 +4,7 @@ package subscribes
 import (
 	"fmt"
 	"tools/runtimes/config"
+	suggestions "tools/runtimes/db/Suggestions"
 	"tools/runtimes/db/messages"
 	"tools/runtimes/eventbus"
 )
@@ -23,6 +24,7 @@ type Uuid struct {
 func init() {
 	cguuid()
 	sugg()
+	serverInfor()
 }
 
 // uuid 状态改变事件
@@ -48,38 +50,28 @@ func cguuid() {
 						msg.Content = uid.StatusMsg
 					}
 					msg.Send()
-
-					// sw := new(ws.SentWsStruct)
-					// sw.Type = "message"
-					// tp := "error"
-					// msg := "账号状态异常"
-					// if uid.StatusMsg != "" {
-					// 	msg = uid.StatusMsg
-					// }
-					// obj := map[string]any{
-					// 	"title":   "账号状态通知",
-					// 	"content": msg,
-					// 	// "meta":      time.Now().Format("2006-01-02 15:04:05"),
-					// 	"duration": 10000,
-					// 	// "closeable": true,
-					// }
-					// if uid.Status == 1 {
-					// 	tp = "success"
-					// 	obj["content"] = "账号已恢复"
-					// 	// obj["closeable"] = true
-					// }
-					// obj["type"] = tp
-					// sw.Content = obj
-					// sw.Send()
 				}
 			}
 		}
 	})
 }
 
-// 意见或建议回复内容
+// 意见或建议分类
 func sugg() {
 	eventbus.Bus.Subscribe("sugge_cate", func(data any) {
+		if dtstr, ok := data.(string); ok {
+			var suc *suggestions.SuggCate
+			if err := config.Json.Unmarshal([]byte(dtstr), suc); err == nil {
+				suc.Save(nil)
+			}
+		}
+
+	})
+}
+
+// 服务端消息通知
+func serverInfor() {
+	eventbus.Bus.Subscribe("information", func(data any) {
 		fmt.Println(data, "-----sugge_cate")
 	})
 }
