@@ -4,6 +4,7 @@ package subscribes
 import (
 	"fmt"
 	"tools/runtimes/config"
+	"tools/runtimes/db/messages"
 	"tools/runtimes/eventbus"
 )
 
@@ -29,10 +30,47 @@ func cguuid() {
 	eventbus.Bus.Subscribe("uuid_status_change", func(data any) {
 		if dtstr, ok := data.(string); ok {
 			uid := new(Uuid)
+
 			if err := config.Json.Unmarshal([]byte(dtstr), uid); err == nil {
 				if uid.Id > 0 {
 					config.MainStatus = uid.Status // 此状态如果不为1,在web请求的中间件中执行拦截
 					config.MainStatusMsg = uid.StatusMsg
+					msg := new(messages.Message)
+					msg.Duration = 10000
+					if uid.Status == 1 {
+						msg.Content = "账号已恢复"
+						msg.Type = "success"
+					} else {
+						msg.Type = "error"
+						if uid.StatusMsg == "" {
+							uid.StatusMsg = "账号状态异常"
+						}
+						msg.Content = uid.StatusMsg
+					}
+					msg.Send()
+
+					// sw := new(ws.SentWsStruct)
+					// sw.Type = "message"
+					// tp := "error"
+					// msg := "账号状态异常"
+					// if uid.StatusMsg != "" {
+					// 	msg = uid.StatusMsg
+					// }
+					// obj := map[string]any{
+					// 	"title":   "账号状态通知",
+					// 	"content": msg,
+					// 	// "meta":      time.Now().Format("2006-01-02 15:04:05"),
+					// 	"duration": 10000,
+					// 	// "closeable": true,
+					// }
+					// if uid.Status == 1 {
+					// 	tp = "success"
+					// 	obj["content"] = "账号已恢复"
+					// 	// obj["closeable"] = true
+					// }
+					// obj["type"] = tp
+					// sw.Content = obj
+					// sw.Send()
 				}
 			}
 		}

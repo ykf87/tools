@@ -30,7 +30,7 @@ func init() {
 
 	WSClient = ws.New(config.SERVERWS, nil, ws.EventHandler{
 		OnOpen: func() {
-			// fmt.Println("服务连接成功")
+			fmt.Println("服务连接成功")
 			// WSClient.Send([]byte("ping"))
 		},
 		OnError: func(err error) {

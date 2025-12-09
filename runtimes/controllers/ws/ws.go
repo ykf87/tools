@@ -74,6 +74,22 @@ func WsHandler(c *gin.Context) {
 			}
 		}
 	}
+
+	// go func() {
+	// 	time.Sleep(time.Second * 10)
+	// 	fmt.Println("发送notify")
+	// 	n := new(notifies.Notify)
+	// 	n.Btn = "下载"
+	// 	n.Closeable = true
+	// 	n.Content = "测试notify"
+	// 	n.Meta = time.Now().Format("2006-01-02 15:04:05")
+	// 	n.Method = "post"
+	// 	n.Title = "测试哈哈哈哈"
+	// 	n.Type = "success"
+	// 	n.Url = "sdf"
+	// 	n.Description = "description"
+	// 	n.Send()
+	// }()
 	// eventbus.Bus.Publish("ws", map[string]any{"aaa": 1111})
 	for {
 		p, err := conn.ReadMessage()

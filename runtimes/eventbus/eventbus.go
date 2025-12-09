@@ -47,7 +47,7 @@ func (eb *EventBus) Unsubscribe(topic string, handler Handler) {
 }
 
 // Publish 发布事件
-func (eb *EventBus) Publish(topic string, data interface{}) {
+func (eb *EventBus) Publish(topic string, data any) {
 	eb.mutex.RLock()
 	defer eb.mutex.RUnlock()
 	if list, ok := eb.handlers[topic]; ok {

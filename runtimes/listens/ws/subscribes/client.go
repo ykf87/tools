@@ -4,22 +4,20 @@ package subscribes
 import (
 	"time"
 	"tools/runtimes/browser"
+	"tools/runtimes/config"
 	"tools/runtimes/db"
 	"tools/runtimes/db/clients"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/eventbus"
 	"tools/runtimes/listens/ws"
-
-	jsoniter "github.com/json-iterator/go"
 )
-
-var Json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func init() {
 	sendws()
 	message()
 	closeBrowser()
 	proxyChange()
+	notify()
 }
 
 // 注册发送到前端的websocket事件
@@ -27,7 +25,7 @@ func sendws() {
 	eventbus.Bus.Subscribe("ws", func(data any) {
 		if dt, ok := data.(*ws.SentWsStruct); ok {
 			obj := map[string]any{"type": dt.Type, "data": dt.Content}
-			brt, err := Json.Marshal(obj)
+			brt, err := config.Json.Marshal(obj)
 			if err == nil {
 				if dt.UserId > 0 {
 					ws.SentMsg(dt.UserId, brt)
@@ -44,7 +42,29 @@ func sendws() {
 // 注册前端message通知的中间件,并且发送message类型的ws消息给前端
 func message() {
 	eventbus.Bus.Subscribe("message", func(data any) {
+		if dt, ok := data.([]byte); ok {
+			ws.Broadcost(dt)
+		}
+	})
+}
 
+//	interface Notify{
+//	  type: string;
+//	  title: string;
+//	  description?: string;
+//	  content: string;
+//	  meta: string;
+//	  avatar?: string;
+//	  closeable?: boolean;
+//	  url?: string;
+//	  btn?: string;
+//	  method?:string;
+//	}
+func notify() {
+	eventbus.Bus.Subscribe("notify", func(data any) {
+		if dt, ok := data.([]byte); ok {
+			ws.Broadcost(dt)
+		}
 	})
 }
 
