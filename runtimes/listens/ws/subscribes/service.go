@@ -1,4 +1,4 @@
-// 服务端发送来的ws消息的处理
+// 接收服务端发送来的ws消息的处理
 package subscribes
 
 import (
@@ -25,11 +25,12 @@ func init() {
 	cguuid()
 	sugg()
 	serverInfor()
+	serverNotify()
 }
 
 // uuid 状态改变事件
 func cguuid() {
-	eventbus.Bus.Subscribe("uuid_status_change", func(data any) {
+	eventbus.Bus.Subscribe("server_uuid_status_change", func(data any) {
 		if dtstr, ok := data.(string); ok {
 			uid := new(Uuid)
 
@@ -58,20 +59,31 @@ func cguuid() {
 
 // 意见或建议分类
 func sugg() {
-	eventbus.Bus.Subscribe("sugge_cate", func(data any) {
+	eventbus.Bus.Subscribe("server_sugge_cate", func(data any) {
 		if dtstr, ok := data.(string); ok {
 			var suc *suggestions.SuggCate
 			if err := config.Json.Unmarshal([]byte(dtstr), suc); err == nil {
 				suc.Save(nil)
 			}
 		}
-
 	})
 }
 
-// 服务端消息通知
+// 接收服务端消息通知
 func serverInfor() {
-	eventbus.Bus.Subscribe("information", func(data any) {
+	eventbus.Bus.Subscribe("server_information", func(data any) {
 		fmt.Println(data, "-----sugge_cate")
+	})
+}
+
+// 接收服务端发来的通知 notify
+func serverNotify() {
+	eventbus.Bus.Subscribe("server_notify", func(data any) {
+		if dtstr, ok := data.(string); ok {
+			var suc *suggestions.SuggCate
+			if err := config.Json.Unmarshal([]byte(dtstr), suc); err == nil {
+				suc.Save(nil)
+			}
+		}
 	})
 }
