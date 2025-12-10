@@ -7,6 +7,7 @@ import (
 	"tools/runtimes/config"
 	"tools/runtimes/db"
 	"tools/runtimes/db/clients"
+	"tools/runtimes/db/information"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/eventbus"
 	"tools/runtimes/listens/ws"
@@ -100,6 +101,22 @@ func proxyChange() {
 					"proxy_name": proxy.Name,
 				})
 			}()
+		}
+	})
+}
+
+// 发送消息通知给客户端
+func sendInformation() {
+	eventbus.Bus.Subscribe("information", func(dt any) {
+		if info, ok := dt.(*information.Information); ok {
+			obj := map[string]any{"type": "information", "data": info}
+			if btt, err := config.Json.Marshal(obj); err == nil {
+				if info.AdminId > 0 {
+					ws.SentMsg(info.AdminId, btt)
+				} else {
+					ws.Broadcost(btt)
+				}
+			}
 		}
 	})
 }

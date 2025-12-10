@@ -2,6 +2,7 @@ package web
 
 import (
 	"tools/runtimes/controllers/browsers"
+	"tools/runtimes/controllers/infor"
 	"tools/runtimes/controllers/proxys"
 	"tools/runtimes/controllers/suggs"
 	"tools/runtimes/controllers/tags"
@@ -99,5 +100,11 @@ func router() {
 	suggGroup := AuthRoutes.Group("sugg")
 	{
 		suggGroup.POST("add", suggs.AddSuggestion)
+	}
+
+	// 消息通知
+	inforGroup := AuthRoutes.Group("infor")
+	{
+		inforGroup.GET("tabs", infor.GetTabs)
 	}
 }
