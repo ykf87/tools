@@ -110,7 +110,7 @@ func GetInforTabs(uid int64) []TabStru {
 	return tabstru
 }
 
-// 获取通知总数
+// 获取消息总数
 func GetInfomationsTotal(adminid int64, tab string) int64 {
 	var total int64
 	db.DB.Model(&Information{}).
@@ -137,4 +137,28 @@ func GetInfomation(page, limit int, adminid int64, tab string) []*Information {
 		Offset((page - 1) * limit).Limit(limit).
 		Find(&nfs)
 	return nfs
+}
+
+// 获取未读消息
+func GetNotRead(uid int64, tab string, page, limit int) []*Information {
+	model := db.DB.Model(&Information{})
+	if uid > 0 {
+		model.Where("admin_id = 0 or admin_id = ?", uid)
+	} else {
+		model.Where("admin_id = 0")
+	}
+	if tab != "" {
+		model.Where("tab = ?", tab)
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = DEFLIMIT
+	}
+
+	var list []*Information
+	model.Offset((page - 1) * limit).Limit(limit).Order("id desc").Find(&list)
+	return list
 }

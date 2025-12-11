@@ -106,5 +106,6 @@ func router() {
 	inforGroup := AuthRoutes.Group("infor")
 	{
 		inforGroup.GET("tabs", infor.GetTabs)
+		inforGroup.GET("notread", infor.NotRead)
 	}
 }

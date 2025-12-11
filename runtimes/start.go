@@ -7,6 +7,7 @@ import (
 	"time"
 	"tools/runtimes/config"
 	suggestions "tools/runtimes/db/Suggestions"
+	"tools/runtimes/db/clients"
 	"tools/runtimes/funcs"
 	"tools/runtimes/logs"
 	"tools/runtimes/requests"
@@ -46,6 +47,9 @@ func GetVersions() {
 				suggestions.UpSuggCateFromServer(gsd.Get("sugg_cate").String())
 				if err := config.VersionsFromServer(gsd.Get("versions").String()); err != nil {
 					logs.Error(err.Error())
+				}
+				if gsd.Get("phone_max").Int() > 0 {
+					clients.MaxPhoneNum = gsd.Get("phone_max").Int()
 				}
 			}
 		}
