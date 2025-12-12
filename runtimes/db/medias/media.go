@@ -25,7 +25,7 @@ type MediaUser struct {
 type Media struct {
 	Id       int64     `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
 	Path     string    `json:"path" gorm:"index;default:null" form:"path"` // 相对于存储根目录的纯路径
-	Name     string    `json:"name" gorm:"default:null;index" form:"name"`       // 真实文件名称,不含路径
+	Name     string    `json:"name" gorm:"default:null;index" form:"name"` // 真实文件名称,不含路径
 	Title    string    `json:"title" gorm:"default:null" form:"title"`     // 显示的标题
 	Md5      string    `json:"md5" gorm:"uniqueIndex"`
 	Platform string    `json:"platform" gorm:"index;default:null" form:"platform"`
@@ -46,20 +46,20 @@ func MkerMediaUser(platform, uid, cover, name, proxy string) *MediaUser {
 	mu := new(MediaUser)
 	if err := db.MEDIADB.Model(&MediaUser{}).Where("platform = ? and uuid = ?", platform, uid).First(mu).Error; err != nil {
 		exts := "png"
-		dl := downloader.NewDownloader(proxy,  func(percent float64) {})
-		if ext, err := dl.GetUrlFileExt(cover); err == nil{
+		dl := downloader.NewDownloader(proxy, func(percent float64, downloaded, total int64) {}, nil)
+		if ext, err := dl.GetUrlFileExt(cover); err == nil {
 			exts = ext
 		}
 
 		dest := fmt.Sprintf("avatar/%s.%s", funcs.Md5String(cover), exts)
 		fullPath := filepath.Join(config.MEDIAROOT, dest)
 		dirRoot := filepath.Dir(fullPath)
-		if _, err := os.Stat(dirRoot); err != nil{
+		if _, err := os.Stat(dirRoot); err != nil {
 			os.MkdirAll(dirRoot, os.ModePerm)
 		}
 		mu.Cover = cover
 
-		if err := dl.Download(cover, fullPath); err == nil{
+		if err := dl.Download(cover, fullPath); err == nil {
 			mu.Cover = dest
 		}
 		mu.Name = name
@@ -122,30 +122,30 @@ func (this *Media) Save(tx *gorm.DB) error {
 	}
 }
 
-func GetMediasUserFromName(names []string) map[string]*MediaUser{
+func GetMediasUserFromName(names []string) map[string]*MediaUser {
 	var mmus []*Media
 
 	resp := make(map[string]*MediaUser)
-	if err := db.MEDIADB.Model(&Media{}).Where("name in ?", names).Find(&mmus).Error; err == nil{
+	if err := db.MEDIADB.Model(&Media{}).Where("name in ?", names).Find(&mmus).Error; err == nil {
 		var ids []int64
 		// idNames := make(map[int64]string)
-		for _, v := range mmus{
-			if v.UserId > 0{
+		for _, v := range mmus {
+			if v.UserId > 0 {
 				ids = append(ids, v.UserId)
 				// idNames[v.UserId] = v.Name
 			}
 		}
 
 		var mmuus []*MediaUser
-		if len(ids) > 0{
+		if len(ids) > 0 {
 			db.MEDIADB.Model(&MediaUser{}).Where("id in ?", ids).Find(&mmuus)
 			sdsd := make(map[int64]*MediaUser)
-			for _, v := range mmuus{
+			for _, v := range mmuus {
 				sdsd[v.Id] = v
 			}
 
-			for _, v := range mmus{
-				if vvu, ok := sdsd[v.UserId]; ok{
+			for _, v := range mmus {
+				if vvu, ok := sdsd[v.UserId]; ok {
 					resp[v.Name] = vvu
 				}
 			}

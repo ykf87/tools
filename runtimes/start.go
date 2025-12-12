@@ -3,7 +3,6 @@ package runtimes
 
 import (
 	"fmt"
-	"os"
 	"time"
 	"tools/runtimes/config"
 	suggestions "tools/runtimes/db/Suggestions"
@@ -17,18 +16,6 @@ import (
 
 func init() {
 	config.RuningRoot = funcs.RunnerPath()
-
-	for _, v := range config.Mkdirs {
-		full := config.FullPath(v.DirName)
-		if _, err := os.Stat(full); err != nil {
-			if err := os.MkdirAll(full, v.Mode); err != nil {
-				panic(err)
-			}
-			if v.IsHide == true {
-				funcs.HiddenDir(full)
-			}
-		}
-	}
 
 	GetVersions()
 }

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"tools/runtimes/funcs"
 
 	jsoniter "github.com/json-iterator/go"
 )
@@ -87,6 +88,20 @@ var Mkdirs = map[string]*mkdirStruct{
 		Mode:    os.ModePerm,
 		IsHide:  false,
 	},
+}
+
+func init() {
+	for _, v := range Mkdirs {
+		full := FullPath(v.DirName)
+		if _, err := os.Stat(full); err != nil {
+			if err := os.MkdirAll(full, v.Mode); err != nil {
+				panic(err)
+			}
+			if v.IsHide == true {
+				funcs.HiddenDir(full)
+			}
+		}
+	}
 }
 
 func FullPath(pathName ...string) string {

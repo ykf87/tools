@@ -61,23 +61,23 @@ type ListDataStruct struct {
 }
 
 type Pms struct {
-	Name       string  `json:"name"`         // 文件名称
-	Path       string  `json:"path"`         // 路径名称
-	FullName   string  `json:"full_name"`    // 运行目录下的相对路径
-	Url        string  `json:"url"`          // 链接地址
-	Timer      int64   `json:"timer"`        // 最后更新时间
-	Dir        bool    `json:"dir"`          // 是否是目录
-	Ext        string  `json:"ext"`          // 文件后缀
-	Size       string  `json:"size"`         // 文件大小
-	Mime       string  `json:"mime"`         // 文件类型
-	Fmt        string  `json:"fmt"`          // 下载百分比字符串
-	Num        float64 `json:"num"`          // 下载进度数字,100为下载完成
-	DownFile   string  `json:"down_file"`    // md5内容,下载地址的md5
-	Status     int     `json:"status"`       // 下载状态
-	DownErrMsg string  `json:"down_err_msg"` // 下载错误信息
-	Platform   string  `json:"platform"`     // 下载的平台
-	Cover      string  `json:"cover"`        // 封面
-	User *medias.MediaUser `json:"user" gorm:"-"`
+	Name       string            `json:"name"`         // 文件名称
+	Path       string            `json:"path"`         // 路径名称
+	FullName   string            `json:"full_name"`    // 运行目录下的相对路径
+	Url        string            `json:"url"`          // 链接地址
+	Timer      int64             `json:"timer"`        // 最后更新时间
+	Dir        bool              `json:"dir"`          // 是否是目录
+	Ext        string            `json:"ext"`          // 文件后缀
+	Size       string            `json:"size"`         // 文件大小
+	Mime       string            `json:"mime"`         // 文件类型
+	Fmt        string            `json:"fmt"`          // 下载百分比字符串
+	Num        float64           `json:"num"`          // 下载进度数字,100为下载完成
+	DownFile   string            `json:"down_file"`    // md5内容,下载地址的md5
+	Status     int               `json:"status"`       // 下载状态
+	DownErrMsg string            `json:"down_err_msg"` // 下载错误信息
+	Platform   string            `json:"platform"`     // 下载的平台
+	Cover      string            `json:"cover"`        // 封面
+	User       *medias.MediaUser `json:"user" gorm:"-"`
 }
 type ByTimerDesc []*Pms
 
@@ -193,7 +193,7 @@ func List(c *gin.Context) {
 	dirlen := len(dirs)
 	sort.Sort(ByTimerDesc(files))
 	for k, v := range files {
-		if mv, ok := mus[v.Name]; ok{
+		if mv, ok := mus[v.Name]; ok {
 			v.Platform = mv.Platform
 			v.User = mv
 		}
@@ -392,7 +392,7 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vu
 	if parseRes.VideoUrl != "" {
 		var fullFn string
 		fn := urlmd5
-		d := downloader.NewDownloader(proxy, func(percent float64) {
+		d := downloader.NewDownloader(proxy, func(percent float64, downloaded, total int64) {
 			fmt.Printf("\r下载进度: %.2f%%", percent)
 			dbk := new(Pms)
 			dbk.DownFile = urlmd5
@@ -404,7 +404,7 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vu
 			dbk.Platform = parseRes.Platform
 
 			ws.SentBus(uid, "video-download", dbk, "")
-		})
+		}, nil)
 
 		ext, err := d.GetUrlFileExt(parseRes.VideoUrl)
 		if err != nil {
@@ -455,7 +455,7 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vu
 		md.Url = vurl
 		md.Title = parseRes.Title
 
-		if parseRes.Author.Uid != ""{
+		if parseRes.Author.Uid != "" {
 			mu := medias.MkerMediaUser(parseRes.Platform, parseRes.Author.Uid, parseRes.Author.Avatar, parseRes.Author.Name, proxy)
 			md.UserId = mu.Id
 		}
@@ -474,7 +474,7 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vu
 		dbk.Url = fmt.Sprintf("%s/%s", config.MediaUrl, filepath.Join(path, fullFn))
 
 		rrs := medias.GetMediasUserFromName([]string{fullFn})
-		if vvs, ok := rrs[fullFn]; ok{
+		if vvs, ok := rrs[fullFn]; ok {
 			dbk.User = vvs
 		}
 
@@ -493,10 +493,11 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vu
 }
 
 type mkdirStruct struct {
-	Name string `json:"name" form:"name"`		 // 目录名称
-	Path     string  `json:"path" form:"path"`           // 下载路径
+	Name string `json:"name" form:"name"` // 目录名称
+	Path string `json:"path" form:"path"` // 下载路径
 }
-func Mkdir(c *gin.Context){
+
+func Mkdir(c *gin.Context) {
 	dt := new(mkdirStruct)
 	if err := c.ShouldBind(dt); err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
@@ -506,19 +507,19 @@ func Mkdir(c *gin.Context){
 	fullPath := filepath.Join(config.MEDIAROOT, dt.Path, dt.Name)
 	f, err := os.Stat(fullPath)
 
-	if err != nil{
-		if err := os.MkdirAll(fullPath, os.ModePerm); err != nil{
+	if err != nil {
+		if err := os.MkdirAll(fullPath, os.ModePerm); err != nil {
 			response.Error(c, http.StatusBadRequest, err.Error(), nil)
 			return
 		}
-	}else if f.IsDir() == false{
+	} else if f.IsDir() == false {
 		response.Error(c, 500, "已存在同名文件,无法创建", nil)
 		return
 	}
 	response.Success(c, nil, "Success")
 }
 
-func OpenDir(c *gin.Context){
+func OpenDir(c *gin.Context) {
 	dt := new(mkdirStruct)
 	if err := c.ShouldBind(dt); err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
@@ -528,11 +529,11 @@ func OpenDir(c *gin.Context){
 	fullPath := filepath.Join(config.MEDIAROOT, dt.Path, dt.Name)
 	fmt.Println(fullPath, "----")
 	f, err := os.Stat(fullPath)
-	if err != nil{
+	if err != nil {
 		response.Error(c, 404, "目录不存在", nil)
 		return
 	}
-	if f.IsDir() == false{
+	if f.IsDir() == false {
 		response.Error(c, 500, "不是有效的目录", nil)
 		return
 	}

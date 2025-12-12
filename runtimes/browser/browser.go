@@ -12,37 +12,88 @@ import (
 	"sync"
 	"time"
 	"tools/runtimes/config"
+	"tools/runtimes/db/messages"
+	"tools/runtimes/db/notifies"
 	"tools/runtimes/funcs"
+	"tools/runtimes/services"
 
 	json "github.com/json-iterator/go"
 )
 
 var BROWSERPATH = ""
 var BROWSERFILE = ""
+var BROWSERDOWNLOADED bool
 
 var Running sync.Map
 
 func init() {
-	needdownload := false
+	needdownload := true
 	BROWSERPATH = filepath.Join(config.SYSROOT, "browser")
+	var filename string
+	switch runtime.GOOS {
+	case "darwin":
+		filename = "VirtualBrowser.dmg"
+	default:
+		filename = "VirtualBrowser.exe"
+	}
 	if _, err := os.Stat(BROWSERPATH); err == nil {
-		bf := config.FullPath(BROWSERPATH, "VirtualBrowser.exe")
+		bf := config.FullPath(BROWSERPATH, filename)
 		if _, err := os.Stat(bf); err != nil {
 			needdownload = true
 		} else {
+			needdownload = false
 			BROWSERFILE = bf
 		}
 	}
 	if needdownload == true {
-		fmt.Println("需下载 browser...")
-		panic("-------")
+		fmt.Println("下载 browser...")
+		go DownBrowserFromServer(BROWSERPATH)
+	}
+}
+
+// 从服务端下载指纹浏览器
+func DownBrowserFromServer(saveto string) error {
+	time.Sleep(time.Second * 3)
+	nty := &notifies.Notify{
+		Type:        "error",
+		Title:       "指纹浏览器",
+		Description: "指纹浏览器下载失败",
+		Url:         config.ApiUrl + "/browser/download",
+		Btn:         "重新下载",
+		Method:      "get",
 	}
 
-	// eventbus.Bus.Subscribe("browser-close", func(dt any) {
-	// 	if bu, ok := dt.(*User); ok {
-	// 		Running.Delete(bu.Id)
-	// 	}
-	// })
+	serverBrowserName := "browser.zip"
+	downurl := fmt.Sprint(config.SERVERDOMAIN, "down?file=browser/"+serverBrowserName)
+	saveFile := filepath.Join(saveto, serverBrowserName)
+	if err := services.ServerDownload(downurl, saveFile, nil, func(perc float64, downloaded, total int64) {
+		fmt.Printf("\r下载中：%.2f%% (%s/%s)", perc, funcs.FormatFileSize(downloaded), funcs.FormatFileSize(total))
+	}); err != nil {
+		nty.Meta = time.Now().Format("2006-01-02 15:04:05")
+		nty.Content = err.Error()
+		nty.Send()
+		BROWSERDOWNLOADED = false
+		return err
+	}
+	fmt.Println("\n下载完成,开始解压......")
+	// 解压文件
+	if err := funcs.Unzip(saveFile, saveto); err != nil {
+		nty.Meta = time.Now().Format("2006-01-02 15:04:05")
+		nty.Content = err.Error()
+		nty.Send()
+		BROWSERDOWNLOADED = false
+		return err
+	}
+	fmt.Println("解压完成!")
+	os.Remove(saveFile)
+
+	msg := &messages.Message{
+		Type:    "success",
+		Content: "指纹浏览器下载成功!",
+	}
+	msg.Send()
+	BROWSERDOWNLOADED = true
+	return nil
 }
 
 func NewBrowser(lang, timezone string, id int64) *User {

@@ -21,6 +21,7 @@ func router() {
 	ROUTER.Static("/data", DataPath)
 	ROUTER.POST("/auth/login", user.Login)
 	ROUTER.POST("sugg_cate", suggs.SuggCate)
+	ROUTER.POST("browser/download", browsers.Download)
 	AuthRoutes := ROUTER
 	AuthRoutes.Use(AuthMiddleware)
 
