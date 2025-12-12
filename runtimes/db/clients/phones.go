@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 	"tools/runtimes/db"
+	"tools/runtimes/eventbus"
 	"tools/runtimes/ws"
 
 	"gorm.io/gorm"
@@ -81,4 +82,178 @@ func (t *Phone) Save(tx *gorm.DB) error {
 		err = tx.Create(t).Error
 	}
 	return err
+}
+
+// 标签操作开始-----------------------------------
+// 保存标签
+func (this *PhoneTag) Save(tx *gorm.DB) error {
+	if tx == nil {
+		tx = db.DB
+	}
+	if this.Id > 0 {
+		return tx.Model(&PhoneTag{}).Where("id = ?", this.Id).
+			Updates(map[string]any{
+				"name": this.Name,
+			}).Error
+	} else {
+		return tx.Create(this).Error
+	}
+}
+
+// 删除标签
+func (this *PhoneTag) Remove(tx *gorm.DB) error {
+	if tx == nil {
+		tx = db.DB
+	}
+	if this != nil && this.Id > 0 {
+		err := tx.Where("id = ?", this.Id).Delete(&PhoneTag{}).Error
+		if err != nil {
+			return err
+		}
+		return tx.Where("tag_id = ?", this.Id).Delete(&PhoneToTag{}).Error
+	}
+	return nil
+}
+
+// 通过id获取标签
+func GetPhoneTagsById(id any) *PhoneTag {
+	tg := new(PhoneTag)
+	db.DB.Model(&PhoneTag{}).Where("id = ?", id).First(tg)
+	return tg
+}
+
+// 通过标签名称获取对应的数组
+func GetPhoneTagsByNames(names []string, tx *gorm.DB) map[string]int64 {
+	if tx == nil {
+		tx = db.DB
+	}
+	var tgs []*PhoneTag
+	tx.Model(&PhoneTag{}).Where("name in ?", names).Find(&tgs)
+	mp := make(map[string]int64)
+	for _, v := range tgs {
+		mp[v.Name] = v.Id
+	}
+
+	var addn []*PhoneTag
+	for _, v := range names {
+		if _, ok := mp[v]; !ok {
+			addn = append(addn, &PhoneTag{Name: v})
+		}
+	}
+	if len(addn) > 0 {
+		tx.Create(&addn)
+	}
+	for _, v := range addn {
+		mp[v.Name] = v.Id
+	}
+
+	return mp
+}
+
+// 通过id获取对应的数组
+func GetPhoneTagsByIds(ids []int64) map[int64]string {
+	var tgs []*PhoneTag
+	db.DB.Model(&PhoneTag{}).Where("id in ?", ids).Find(&tgs)
+	mp := make(map[int64]string)
+	for _, v := range tgs {
+		mp[v.Id] = v.Name
+	}
+	return mp
+}
+
+// tag标签结束----------------------------------------
+//
+// 通过id获取手机设备
+func GetPhoneById(id any) (*Phone, error) {
+	b := new(Phone)
+	err := db.DB.Model(&Phone{}).Where("id = ?", id).First(b).Error
+	if err != nil {
+		return nil, err
+	}
+	return b, nil
+}
+
+// 删除某个手机设备下的tag
+func (this *Phone) RemovePhoneTags(tx *gorm.DB) error {
+	if tx == nil {
+		tx = db.DB
+	}
+	return tx.Where("phone_id = ?", this.Id).Delete(&PhoneToTag{}).Error
+}
+
+// 使用当前的tag标签完全替换已有标签
+// 使用此方法会清空已有的tag
+func (this *Phone) CoverTgs(tagsName []string, tx *gorm.DB) error {
+	if tx == nil {
+		tx = db.DB
+	}
+
+	if err := this.RemovePhoneTags(tx); err != nil {
+		return err
+	}
+
+	mp := GetPhoneTagsByNames(tagsName, tx)
+
+	var ntag []PhoneToTag
+	for _, tagg := range tagsName {
+		if tid, ok := mp[tagg]; ok {
+			ntag = append(ntag, PhoneToTag{PhoneId: this.Id, TagId: tid})
+		}
+	}
+
+	if len(ntag) > 0 {
+		if err := tx.Create(ntag).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// 设置手机设备列表的tag
+func SetPhoneTags(pcs []*Phone) {
+	if len(pcs) < 1 {
+		return
+	}
+	var ids []int64
+	for _, v := range pcs {
+		ids = append(ids, v.Id)
+	}
+
+	var pxtgs []*PhoneToTag
+	db.DB.Model(&PhoneToTag{}).Where("phone_id in ?", ids).Find(&pxtgs)
+
+	var tagids []int64
+	pcMap := make(map[int64][]int64)
+	for _, v := range pxtgs {
+		tagids = append(tagids, v.TagId)
+		pcMap[v.PhoneId] = append(pcMap[v.PhoneId], v.TagId)
+	}
+
+	ttggs := GetPhoneTagsByIds(tagids)
+
+	for _, v := range pcs {
+		if ids, ok := pcMap[v.Id]; ok {
+			for _, tid := range ids {
+				if tgname, ok := ttggs[tid]; ok {
+					v.Tags = append(v.Tags, tgname)
+				}
+			}
+		}
+	}
+}
+
+func (this *Phone) Delete() error {
+	if err := db.DB.Where("id = ?", this.Id).Delete(&Phone{}).Error; err != nil {
+		return err
+	}
+	db.DB.Where("phone_id = ?", this.Id).Delete(&PhoneToTag{})
+	// if bbs, ok := browser.Running.Load(this.Id); ok {
+	// 	if bs, ok := bbs.(*browser.User); ok {
+	// 		return bs.Close()
+	// 	}
+	// }
+
+	eventbus.Bus.Publish("phone-delete", this)
+	return nil
 }
