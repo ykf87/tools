@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -68,9 +69,10 @@ func Start(port int) {
 	// }
 	WebPort := 15558
 
-	go func() {
-		webUrl(NetIp, RunPort, WebPort)
-	}()
+	// go func() {
+	// 	webUrl(NetIp, RunPort, WebPort)
+	// }()
+	webUrl(NetIp, RunPort, WebPort)
 
 	go func() {
 		for {
@@ -84,24 +86,15 @@ func Start(port int) {
 
 	WebUrl = fmt.Sprintf("http://%s:%d", NetIp, WebPort)
 	DataPath = config.FullPath(config.DATAROOT)
-	fmt.Println("服务已启动:", WebUrl)
+	fmt.Println("\n服务已启动:", WebUrl)
 	config.WebUrl = WebUrl
-	config.MediaUrl = fmt.Sprintf("http://%s:%d/%s", NetIp, RunPort, config.DATAROOT)
+	// config.MediaUrl = fmt.Sprintf("http://%s:%d/%s", NetIp, RunPort, config.DATAROOT)
 	config.ApiUrl = fmt.Sprintf("http://%s:%d", NetIp, RunPort)
-
 	config.MediaUrl = fmt.Sprintf("http://%s:%d/media", NetIp, RunPort)
 
 	<-ctx.Done()
 	fmt.Println("web服务退出中...")
 	time.Sleep(time.Second)
-	// for {
-	// 	select {
-	// 	case <-ctx.Done():
-	// 		fmt.Printf("web服务退出中...\n")
-	// 		time.Sleep(time.Second)
-	// 		return
-	// 	}
-	// }
 }
 
 // 允许跨域中间件
@@ -135,12 +128,49 @@ func webUrl(NetIp string, port, WebPort int) {
 	webFullPath := config.FullPath(config.WEBROOT)
 	assetsFullPath := filepath.Join(webFullPath, "assets")
 
+	// 检查web的文件是否存在,不存在则下载
 	if _, err := os.Stat(assetsFullPath); err != nil {
-		fmt.Println("Downloading web files...")
+		if err := downWebFile(webFullPath); err != nil {
+			panic(err)
+		}
+		// 下载成功后替换内容
+		replaceJsFiles(assetsFullPath, NetIp, port)
 	}
 
-	var jsFiles []string
+	r := gin.Default()
+	r.Static("/", config.FullPath(config.WEBROOT))
+	r.NoRoute(func(c *gin.Context) {
+		c.File(config.FullPath(config.WEBROOT, "index.html"))
+	})
 
+	go r.Run(fmt.Sprintf(":%d", WebPort))
+}
+
+// 下载web文件
+func downWebFile(webFullPath string) error {
+	fmt.Println("Downloading web files...")
+	dfname := "/web.zip"
+	downurl := fmt.Sprint(config.SERVERDOMAIN, "down?file=versions/"+config.VERSION+dfname)
+	saveFile := webFullPath + dfname
+	if err := services.ServerDownload(downurl, saveFile, nil, func(perc float64, downloaded, total int64) {
+		fmt.Printf("\r下载中：%.2f%% (%s/%s)", perc, funcs.FormatFileSize(downloaded), funcs.FormatFileSize(total))
+	}); err != nil {
+		return err
+	}
+	fmt.Println("\n下载完成,开始解压......")
+
+	// 解压文件
+	if err := funcs.Unzip(saveFile, webFullPath); err != nil {
+		return err
+	}
+	fmt.Println("解压完成!")
+	os.Remove(saveFile)
+	return nil
+}
+
+// 替换web文件的内容
+func replaceJsFiles(assetsFullPath, NetIp string, port int) error {
+	var jsFiles []string
 	rps := []*fileReplaceReqs{
 		&fileReplaceReqs{
 			Req:        regexp.MustCompile(`VITE_SERVICE_BASE_URL:"([^"]+)"`),
@@ -172,17 +202,11 @@ func webUrl(NetIp string, port, WebPort int) {
 		return nil
 	})
 	if len(jsFiles) < 1 {
-		logs.Error("No web files!")
-		panic("No web files!")
+		return errors.New("No web files!")
+		// logs.Error("No web files!")
+		// panic("No web files!")
 	}
-
-	r := gin.Default()
-	r.Static("/", config.FullPath(config.WEBROOT))
-	r.NoRoute(func(c *gin.Context) {
-		c.File(config.FullPath(config.WEBROOT, "index.html"))
-	})
-
-	r.Run(fmt.Sprintf(":%d", WebPort))
+	return nil
 }
 
 // 替换文件内容

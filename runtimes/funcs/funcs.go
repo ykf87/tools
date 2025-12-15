@@ -196,19 +196,33 @@ func Unzip(src, dest string) error {
 
 // 获取当前的系统
 func SysType() string {
-	if runtime.GOOS == "windows" {
+	switch runtime.GOOS {
+	case "windows":
 		return "windows"
-	} else if runtime.GOOS == "darwin" {
+	case "darwin":
 		if runtime.GOARCH == "arm64" {
 			return "macm"
 		} else {
 			return "mac"
 		}
-	} else if runtime.GOOS == "linux" {
+	case "linux":
 		return "linux"
-	} else {
+	default:
 		return runtime.GOOS
 	}
+	// if runtime.GOOS == "windows" {
+	// 	return "windows"
+	// } else if runtime.GOOS == "darwin" {
+	// 	if runtime.GOARCH == "arm64" {
+	// 		return "macm"
+	// 	} else {
+	// 		return "mac"
+	// 	}
+	// } else if runtime.GOOS == "linux" {
+	// 	return "linux"
+	// } else {
+	// 	return runtime.GOOS
+	// }
 }
 
 // 获取本机中局域网的ip
@@ -349,19 +363,19 @@ func NewNonce() string {
 	return fmt.Sprintf("%x", b)
 }
 
-//  打开目录
+// 打开目录
 func OpenDir(path string) error {
 	var cmd *exec.Cmd
 
 	switch runtime.GOOS {
-		case "windows":
-			cmd = exec.Command("explorer", path)
-		case "darwin": // macOS
-			cmd = exec.Command("open", path)
-		case "linux":
-			cmd = exec.Command("xdg-open", path) // Linux 下通常使用 xdg-open
-		default:
-			return fmt.Errorf("unsupported platform")
+	case "windows":
+		cmd = exec.Command("explorer", path)
+	case "darwin": // macOS
+		cmd = exec.Command("open", path)
+	case "linux":
+		cmd = exec.Command("xdg-open", path) // Linux 下通常使用 xdg-open
+	default:
+		return fmt.Errorf("unsupported platform")
 	}
 
 	return cmd.Start()

@@ -19,11 +19,12 @@ import (
 
 // Downloader 配置
 type Downloader struct {
-	Client     *http.Client          `json:"-"`
-	OnProgress func(percent float64) `json:"-"`
-	Proxy      string                `json:"proxy"`
-	Url        string                `json:"url"`
-	Dest       string                `json:"dest"`
+	Client     *http.Client                                   `json:"-"`
+	OnProgress func(percent float64, downloaded, total int64) `json:"-"`
+	Proxy      string                                         `json:"proxy"`
+	Url        string                                         `json:"url"`
+	Dest       string                                         `json:"dest"`
+	Headers    http.Header                                    `json:"headers"`
 }
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
@@ -35,17 +36,19 @@ func init() {
 			logs.Error(err.Error() + ": downloader mq")
 			return err
 		}
-		loader := NewDownloader(rrs.Proxy, func(percent float64) {
+		loader := NewDownloader(rrs.Proxy, func(percent float64, dlownloaded, total int64) {
 			eventbus.Bus.Publish("ws", map[string]any{
-				"downloaded": percent,
+				"downloaded":    percent,
+				"downloadedInt": dlownloaded,
+				"total":         total,
 			})
-		})
+		}, nil)
 		return loader.Download(rrs.Url, rrs.Dest)
 	})
 }
 
 // NewDownloader 创建下载器
-func NewDownloader(proxy string, onProgress func(percent float64)) *Downloader {
+func NewDownloader(proxy string, onProgress func(percent float64, downloaded, total int64), headers http.Header) *Downloader {
 	client := &http.Client{}
 
 	// 设置代理
@@ -59,6 +62,7 @@ func NewDownloader(proxy string, onProgress func(percent float64)) *Downloader {
 		Client:     client,
 		Proxy:      proxy,
 		OnProgress: onProgress,
+		Headers:    headers,
 	}
 }
 
@@ -97,6 +101,10 @@ func (d *Downloader) Download(urlStr, destPath string) error {
 		req.Header.Set("Range", fmt.Sprintf("bytes=%d-", startPos))
 	}
 
+	if d.Headers != nil {
+		req.Header = d.Headers
+	}
+
 	// 发起请求
 	resp, err := d.Client.Do(req)
 	if err != nil {
@@ -131,7 +139,7 @@ func (d *Downloader) Download(urlStr, destPath string) error {
 			// 回调进度
 			if totalSize > 0 && d.OnProgress != nil {
 				percent := float64(downloaded) / float64(totalSize) * 100
-				d.OnProgress(percent)
+				d.OnProgress(percent, downloaded, totalSize)
 			}
 		}
 		if err != nil {
