@@ -16,7 +16,7 @@ type Phone struct {
 	Name        string   `json:"name" gorm:"index;not null;type:varchar(32)"`           // 自己备注的名称
 	Os          string   `json:"os" gorm:"index;default:null;type:varchar(32)"`         // 手机系统
 	Brand       string   `json:"brand" gorm:"index;default:null;type:varchar(32)"`      // 手机品牌
-	Version     string   `json:"varsion" gorm:"index;default:null;type:varchar(32)"`    // 系统的版本
+	Version     string   `json:"version" gorm:"index;default:null;type:varchar(32)"`    // 系统的版本
 	Addtime     int64    `json:"addtime" gorm:"index;default:0"`                        // 添加时间
 	Conntime    int64    `json:"conntime" gorm:"index;default:0"`                       // 上一次连接的时间
 	Proxy       int64    `json:"proxy" gorm:"index;default:0" form:"proxy"`             // 代理
