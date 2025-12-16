@@ -51,6 +51,8 @@ var WebUrl = ""
 var MediaUrl = ""
 var MainStatus = 1
 var MainStatusMsg string
+var ApiPort int
+var WebPort int
 
 var Mkdirs = map[string]*mkdirStruct{
 	"log": &mkdirStruct{

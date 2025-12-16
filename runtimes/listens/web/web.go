@@ -40,7 +40,7 @@ type fileReplaceReqs struct {
 
 func Start(port int) {
 	var err error
-	NetIp, err = funcs.GetLocalIP()
+	NetIp, err = funcs.GetLocalIP(false)
 	if err != nil {
 		panic(err)
 	}
@@ -55,6 +55,7 @@ func Start(port int) {
 	ROUTER.Use(WriteLogs)
 	ROUTER.Static("/media", config.FullPath(config.MEDIAROOT))
 	RunPort = port
+	config.ApiPort = port
 	router()
 
 	// 启动服务（放到 goroutine，不阻塞主线程）
@@ -68,6 +69,7 @@ func Start(port int) {
 	// 	panic(err)
 	// }
 	WebPort := 15558
+	config.WebPort = WebPort
 
 	// go func() {
 	// 	webUrl(NetIp, RunPort, WebPort)

@@ -8,5 +8,6 @@
 /.db
 /.sys
 /.sys/*
+/.sys/.db
 /media
 /.zed*

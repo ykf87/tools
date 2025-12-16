@@ -3,6 +3,7 @@ package web
 import (
 	"tools/runtimes/controllers/browsers"
 	"tools/runtimes/controllers/infor"
+	"tools/runtimes/controllers/phones"
 	"tools/runtimes/controllers/proxys"
 	"tools/runtimes/controllers/suggs"
 	"tools/runtimes/controllers/tags"
@@ -85,6 +86,13 @@ func router() {
 		browserGroup.POST("start/:id", browsers.Start)
 		browserGroup.POST("stop/:id", browsers.Stop)
 		browserGroup.POST("delete/:id", browsers.Delete)
+	}
+
+	clientGroup := AuthRoutes.Group("client")
+	{
+		clientGroup.GET("urls", phones.ConnUrl)
+		clientGroup.GET("ws", phones.Ws)
+		clientGroup.GET("api", phones.Api)
 	}
 
 	spiderGroup := AuthRoutes.Group("spider")

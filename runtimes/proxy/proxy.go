@@ -74,7 +74,7 @@ func Client(configStr, addr string, port int, transfers ...string) (*ProxyConfig
 	}
 
 	if addr == "" {
-		lip, _ := funcs.GetLocalIP()
+		lip, _ := funcs.GetLocalIP(true)
 		addr = lip
 	}
 
