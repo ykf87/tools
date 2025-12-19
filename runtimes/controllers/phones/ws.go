@@ -11,12 +11,12 @@ import (
 
 func Ws(c *gin.Context) {
 	deviceId := c.Query("device")
-	phone, err := clients.GetPhoneByDeviceId(deviceId)
-	if err != nil {
-		response.Error(c, http.StatusBadGateway, err.Error(), nil)
-		return
-	}
-	if phone.Id < 1 {
+	phone, _ := clients.GetPhoneByDeviceId(deviceId)
+	// if err != nil {
+	// 	response.Error(c, http.StatusBadGateway, err.Error(), nil)
+	// 	return
+	// }
+	if phone == nil || phone.Id < 1 {
 		phone = &clients.Phone{
 			DeviceId: deviceId,
 			Brand:    c.Query("brand"),
@@ -42,6 +42,7 @@ func Ws(c *gin.Context) {
 	for _, v := range phone.Tags {
 		clients.Hubs.JoinGroup(v, phone.DeviceId)
 	}
+
 	for {
 		_, err := conn.ReadMessage()
 		if err != nil {

@@ -23,6 +23,7 @@ func router() {
 	ROUTER.POST("/auth/login", user.Login)
 	ROUTER.POST("sugg_cate", suggs.SuggCate)
 	ROUTER.POST("browser/download", browsers.Download)
+	ROUTER.GET("client/ws", phones.Ws) // app连接
 	AuthRoutes := ROUTER
 	AuthRoutes.Use(AuthMiddleware)
 
@@ -91,7 +92,6 @@ func router() {
 	clientGroup := AuthRoutes.Group("client")
 	{
 		clientGroup.GET("urls", phones.ConnUrl)
-		clientGroup.GET("ws", phones.Ws)
 		clientGroup.GET("api", phones.Api)
 	}
 
