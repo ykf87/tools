@@ -22,7 +22,7 @@ var defData = map[string]*Config{
 	"autojoin": &Config{
 		Key:        "autojoin",
 		Value:      "1",
-		Remark:     "是否允许手机端自动扫码加入",
+		Remark:     "是否允许手机端扫码自动添加",
 		Removeable: 1,
 	},
 }
@@ -34,9 +34,13 @@ func init() {
 	for _, c := range lst {
 		cfgMap.Store(c.Key, c)
 	}
+
+	// 添加默认值
 	for k, v := range defData {
 		if _, ok := GetValue(k); !ok {
-			v.Save(nil)
+			if err := v.Save(nil); err == nil {
+				cfgMap.Store(v.Key, v)
+			}
 		}
 	}
 }
@@ -58,6 +62,7 @@ func (this *Config) Save(tx *gorm.DB) error {
 	}
 }
 
+// 获取某个键的值
 func GetValue(k string) (string, bool) {
 	if s, ok := cfgMap.Load(k); ok {
 		if obj, okk := s.(*Config); okk {
@@ -66,4 +71,28 @@ func GetValue(k string) (string, bool) {
 		return "", false
 	}
 	return "", false
+}
+
+// 获取某个键的实例
+func GetObject(k string) *Config {
+	if s, ok := cfgMap.Load(k); ok {
+		if obj, okk := s.(*Config); okk {
+			return obj
+		}
+		return nil
+	}
+	return nil
+}
+
+// 获取配置列表,可分页
+func GetList(page, limit int) []*Config {
+	var lst []*Config
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+	db.DB.Model(&Config{}).Order("id desc").Offset((page - 1) * limit).Limit(limit).Find(&lst)
+	return lst
 }

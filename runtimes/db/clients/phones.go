@@ -16,6 +16,8 @@ type Phone struct {
 	Id          int64    `json:"id" gorm:"primaryKey;autoIncrement"`
 	Name        string   `json:"name" gorm:"index;not null;type:varchar(32)"`           // 自己备注的名称
 	DeviceId    string   `json:"device_id" gorm:"index;type:varchar(64);not null"`      // 唯一的设备id
+	Num         int64    `json:"num" gorm:"default:0;index"`                            // 设备编号
+	AdminId     int64    `json:"admin_id" gorm:"index;not null;"`                       // 管理员编号
 	Os          string   `json:"os" gorm:"index;default:null;type:varchar(32)"`         // 手机系统
 	Brand       string   `json:"brand" gorm:"index;default:null;type:varchar(32)"`      // 手机品牌
 	Version     string   `json:"version" gorm:"index;default:null;type:varchar(32)"`    // 系统的版本
@@ -62,6 +64,8 @@ func (t *Phone) Save(tx *gorm.DB) error {
 			"name":         t.Name,
 			"os":           t.Os,
 			"brand":        t.Brand,
+			"num":          t.Num,
+			"admin_id":     t.AdminId,
 			"varsion":      t.Version,
 			"conntime":     t.Conntime,
 			"proxy":        t.Proxy,

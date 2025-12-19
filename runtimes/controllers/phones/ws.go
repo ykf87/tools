@@ -23,7 +23,7 @@ func Ws(c *gin.Context) {
 			Version:  c.Query("version"),
 			Os:       c.Query("os"),
 		}
-		if err := phone.Save(nil); err != nil { // 保存的时候需要判断是否允许自动加入,
+		if err := phone.Save(nil); err != nil {
 			response.Error(c, http.StatusBadGateway, err.Error(), nil)
 			return
 		}
