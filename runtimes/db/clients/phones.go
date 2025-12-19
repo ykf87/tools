@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 	"tools/runtimes/db"
+	"tools/runtimes/db/configs"
 	"tools/runtimes/eventbus"
 	"tools/runtimes/ws"
 
@@ -14,6 +15,7 @@ import (
 type Phone struct {
 	Id          int64    `json:"id" gorm:"primaryKey;autoIncrement"`
 	Name        string   `json:"name" gorm:"index;not null;type:varchar(32)"`           // 自己备注的名称
+	DeviceId    string   `json:"device_id" gorm:"index;type:varchar(64);not null"`      // 唯一的设备id
 	Os          string   `json:"os" gorm:"index;default:null;type:varchar(32)"`         // 手机系统
 	Brand       string   `json:"brand" gorm:"index;default:null;type:varchar(32)"`      // 手机品牌
 	Version     string   `json:"version" gorm:"index;default:null;type:varchar(32)"`    // 系统的版本
@@ -29,6 +31,7 @@ type Phone struct {
 	Tags        []string `json:"tags" gorm:"-" form:"tags"`                             // 标签
 	Connected   bool     `json:"connected" gorm:"-"`                                    // 是否连接标识
 	Conn        *ws.Conn `json:"-" gorm:"-"`                                            // 连接句柄
+	Status      int      `json:"status" gorm:"index;default:0;type:tinyint(1)"`         // 设备状态
 }
 
 var MaxPhoneNum int64 = 2 // 最大的手机设备连接数量
@@ -68,10 +71,16 @@ func (t *Phone) Save(tx *gorm.DB) error {
 			"lang":         t.Lang,
 			"timezone":     t.Timezone,
 			"ip":           t.Ip,
+			"status":       t.Status,
 		}).Error
 	} else {
+		auto, ok := configs.GetValue("autojoin")
+		if !ok || auto != "1" {
+			return errors.New("服务端关闭自动连接,请在后台打开")
+		}
+
 		var total int64
-		tx.Model(&Phone{}).Count(&total)
+		tx.Model(&Phone{}).Where("status = 1").Count(&total)
 		if total >= MaxPhoneNum {
 			errmsg := fmt.Sprintf("设备数量超出限制: %d", MaxPhoneNum)
 			return errors.New(errmsg)
@@ -210,7 +219,7 @@ func (this *Phone) CoverTgs(tagsName []string, tx *gorm.DB) error {
 	return nil
 }
 
-// 设置手机设备列表的tag
+// 设置手机设备列表的tag,调用时使用,自动将phone列表加上tag
 func SetPhoneTags(pcs []*Phone) {
 	if len(pcs) < 1 {
 		return
@@ -257,3 +266,22 @@ func (this *Phone) Delete() error {
 	eventbus.Bus.Publish("phone-delete", this)
 	return nil
 }
+
+// 通过deviceid获取设备
+func GetPhoneByDeviceId(deviceId string) (*Phone, error) {
+	b := new(Phone)
+	err := db.DB.Model(&Phone{}).Where("device_id = ?", deviceId).First(b).Error
+	if err != nil {
+		return nil, err
+	}
+	if b.Id < 1 {
+		return nil, errors.New("no phone")
+	}
+
+	db.DB.Select("phone_tags.name").Model(&PhoneTag{}).
+		Joins("right join phone_to_tags as ptt on phone_tags.id = ptt.tag_id").
+		Where("ptt.phone_id = ?", b.Id).Find(&b.Tags)
+	return b, nil
+}
+
+// 获取Phone的tags 名称
