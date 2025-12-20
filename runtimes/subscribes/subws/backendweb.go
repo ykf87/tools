@@ -1,5 +1,5 @@
 // 客户端自己的事件通知
-package subscribes
+package subws
 
 import (
 	"fmt"

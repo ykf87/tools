@@ -6,6 +6,7 @@ import (
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/logs"
+	"tools/runtimes/mq"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -23,11 +24,15 @@ var DBINIT = map[string]**gorm.DB{
 	"media.db":    &MEDIADB,
 	"task.db":     &TaskDB,
 }
+var MqClient *mq.MQ
 
 func init() {
 	for dbfile := range DBINIT {
 		*DBINIT[dbfile] = mkdb(dbfile)
 	}
+
+	MqClient = mq.New(mq.NewGormStore(MQDB), 3)
+	MqClient.Start()
 	// dbfile := config.FullPath(config.DBFILE)
 	// // dbs, err := gorm.Open(sqlite.Open(dbfile), &gorm.Config{})
 	// dbs, err := gorm.Open(sqlite.Dialector{

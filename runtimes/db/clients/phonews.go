@@ -61,7 +61,9 @@ func (this *Hub) Register(dbid int64, devid string, conn *ws.Conn) {
 // 单发给某个客户端
 func (h *Hub) SentClient(uuid string, data []byte) {
 	if c, ok := h.Clients[uuid]; ok {
-		c.Conn.WriteMessage(data)
+		if c.Conn != nil {
+			c.Conn.WriteMessage(data)
+		}
 	}
 }
 
@@ -88,7 +90,9 @@ func (h *Hub) SendToGroup(groupID string, msg []byte) {
 
 	if group, ok := h.Groups[groupID]; ok {
 		for _, client := range group {
-			client.Conn.WriteMessage(msg)
+			if client.Conn != nil {
+				client.Conn.WriteMessage(msg)
+			}
 		}
 	}
 }
@@ -102,6 +106,25 @@ func (h *Hub) Broadcast(msg []byte, fun func(*WsConn) bool) {
 		if fun != nil && fun(client) == false {
 			continue
 		}
-		client.Conn.WriteMessage(msg)
+		if client.Conn != nil {
+			client.Conn.WriteMessage(msg)
+		}
+	}
+}
+
+// 关闭某个连接
+func (h *Hub) Close(deviceId string) {
+	if cli, ok := h.Clients[deviceId]; ok {
+		for gn, ok := range cli.Groups {
+			if ok {
+				if gps, ok := h.Groups[gn]; ok {
+					if _, ok := gps[deviceId]; ok {
+						delete(h.Groups[gn], deviceId)
+					}
+				}
+			}
+		}
+		cli.Conn.Close()
+		delete(h.Clients, deviceId)
 	}
 }

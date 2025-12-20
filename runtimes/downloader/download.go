@@ -8,10 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"tools/runtimes/db/mqs"
-	"tools/runtimes/eventbus"
-	"tools/runtimes/logs"
-	"tools/runtimes/mq"
+	"tools/runtimes/config"
+	"tools/runtimes/db"
 
 	"github.com/h2non/filetype"
 	jsoniter "github.com/json-iterator/go"
@@ -30,21 +28,50 @@ type Downloader struct {
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func init() {
-	mq.MqClient.Subscribe("download", func(msg *mqs.Mq) error {
-		rrs := new(Downloader)
-		if err := json.Unmarshal([]byte(msg.Payload), rrs); err != nil {
-			logs.Error(err.Error() + ": downloader mq")
-			return err
-		}
-		loader := NewDownloader(rrs.Proxy, func(percent float64, dlownloaded, total int64) {
-			eventbus.Bus.Publish("ws", map[string]any{
-				"downloaded":    percent,
-				"downloadedInt": dlownloaded,
-				"total":         total,
-			})
-		}, nil)
-		return loader.Download(rrs.Url, rrs.Dest)
-	})
+	// db.MqClient.Register("download", func(ctx context.Context, msg *mq.Message) error {
+	// 	fmt.Println("注册 download mq---")
+	// 	rrs := new(Downloader)
+	// 	if err := json.Unmarshal([]byte(msg.Payload), rrs); err != nil {
+	// 		logs.Error(err.Error() + ": downloader mq")
+	// 		return err
+	// 	}
+	// 	loader := NewDownloader(rrs.Proxy, func(percent float64, dlownloaded, total int64) {
+	// 		// eventbus.Bus.Publish("ws", map[string]any{
+	// 		// 	"downloaded":    percent,
+	// 		// 	"downloadedInt": dlownloaded,
+	// 		// 	"total":         total,
+	// 		// })
+
+	// 		select {
+	// 		case <-ctx.Done():
+	// 			// worker 停止，安全退出回调
+	// 			return
+	// 		default:
+	// 			eventbus.Bus.Publish("ws", map[string]any{
+	// 				"downloaded":    percent,
+	// 				"downloadedInt": dlownloaded,
+	// 				"total":         total,
+	// 			})
+	// 		}
+	// 	}, nil)
+	// 	// return loader.Download(rrs.Url, rrs.Dest)
+	// 	// 任务带 ctx 超时 / 取消
+	// 	doneCh := make(chan error, 1)
+	// 	go func() {
+	// 		doneCh <- loader.Download(rrs.Url, rrs.Dest)
+	// 	}()
+
+	// 	select {
+	// 	case <-ctx.Done():
+	// 		logs.Warn("download canceled: " + rrs.Url)
+	// 		return ctx.Err()
+	// 	case err := <-doneCh:
+	// 		if err != nil {
+	// 			logs.Error("download failed: " + err.Error())
+	// 		}
+	// 		return err
+	// 	}
+	// }, 100)
 }
 
 // NewDownloader 创建下载器
@@ -154,7 +181,8 @@ func (d *Downloader) Download(urlStr, destPath string) error {
 }
 
 func Down(url, dest, proxy string) {
-	mq.MqClient.Publish("download", Downloader{Proxy: proxy, Url: url, Dest: dest}, 0)
+	pl, _ := config.Json.Marshal(Downloader{Proxy: proxy, Url: url, Dest: dest})
+	db.MqClient.Publish("download", string(pl))
 }
 
 func (d *Downloader) GetUrlFileExt(url string) (string, error) {

@@ -1,5 +1,6 @@
+package subws
+
 // 接收服务端发送来的ws消息的处理
-package subscribes
 
 import (
 	"fmt"

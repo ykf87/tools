@@ -46,12 +46,16 @@ import (
 	_ "tools/runtimes/db"
 	"tools/runtimes/listens/web"
 	_ "tools/runtimes/listens/ws/subscribes"
+	_ "tools/runtimes/subscribes/submqs"
+	_ "tools/runtimes/subscribes/subws"
+	// "tools/runtimes/mq"
 )
 
 func main() {
 	port := 19998
 	go web.Start(port)
-
+	// mq.MqClient.Start()
+	// defer mq.MqClient.Stop()
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit

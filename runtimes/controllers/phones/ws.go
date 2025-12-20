@@ -2,11 +2,14 @@ package phones
 
 import (
 	"net/http"
+	"tools/runtimes/config"
 	"tools/runtimes/db/clients"
+	"tools/runtimes/eventbus"
 	"tools/runtimes/response"
 	"tools/runtimes/ws"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 func Ws(c *gin.Context) {
@@ -42,11 +45,21 @@ func Ws(c *gin.Context) {
 	for _, v := range phone.Tags {
 		clients.Hubs.JoinGroup(v, phone.DeviceId)
 	}
+	defer clients.Hubs.Close(phone.DeviceId)
+	// clients.Hubs.SentClient()
 
 	for {
-		_, err := conn.ReadMessage()
+		msg, err := conn.ReadMessage()
 		if err != nil {
 			break
+		}
+		gs := gjson.ParseBytes(msg)
+		if gs.Get("type").String() != "" {
+			dt, _ := config.Json.Marshal(map[string]any{
+				"device_id": phone.DeviceId,
+				"data":      gs.Get("data").String(),
+			})
+			go eventbus.Bus.Publish(gs.Get("type").String(), dt)
 		}
 	}
 }

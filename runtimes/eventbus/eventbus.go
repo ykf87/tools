@@ -5,7 +5,7 @@ import (
 )
 
 // Handler 定义事件处理函数
-type Handler func(data interface{})
+type Handler func(data any)
 
 // EventBus 是事件总线
 type EventBus struct {
