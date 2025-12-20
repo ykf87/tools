@@ -45,7 +45,6 @@ import (
 	"tools/runtimes/browser"
 	_ "tools/runtimes/db"
 	"tools/runtimes/listens/web"
-	_ "tools/runtimes/listens/ws/subscribes"
 	_ "tools/runtimes/subscribes/submqs"
 	_ "tools/runtimes/subscribes/subws"
 	// "tools/runtimes/mq"
