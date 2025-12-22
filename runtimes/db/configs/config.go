@@ -14,7 +14,7 @@ type Config struct {
 	Value      string `json:"value" gorm:"default:null;"`
 	Remark     string `json:"remark" gorm:"default:null"`
 	Addtime    int64  `json:"addtime" gorm:"index;default:0"`
-	Removeable int    `json:"removeable" gorm:"index;default:0"` // 0为可删除,1为不允许删除
+	Removeable int    `json:"removeable" gorm:"index;default:1"` // 1为可删除,0为不允许删除
 }
 
 var cfgMap sync.Map
@@ -23,7 +23,13 @@ var defData = map[string]*Config{
 		Key:        "autojoin",
 		Value:      "1",
 		Remark:     "是否允许手机端扫码自动添加",
-		Removeable: 1,
+		Removeable: 0,
+	},
+	"taskremoveDay": &Config{
+		Key:        "taskremoveDay",
+		Value:      "7",
+		Remark:     "任务保留天数",
+		Removeable: 0,
 	},
 }
 

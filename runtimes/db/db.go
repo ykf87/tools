@@ -17,12 +17,14 @@ var DB *gorm.DB
 var MQDB *gorm.DB
 var MEDIADB *gorm.DB
 var TaskDB *gorm.DB
+var AppTask *gorm.DB
 
 var DBINIT = map[string]**gorm.DB{
 	config.DBFILE: &DB,
 	"mq.db":       &MQDB,
 	"media.db":    &MEDIADB,
 	"task.db":     &TaskDB,
+	"apptask.db":  &AppTask,
 }
 var MqClient *mq.MQ
 

@@ -23,7 +23,8 @@ func router() {
 	ROUTER.POST("/auth/login", user.Login)
 	ROUTER.POST("sugg_cate", suggs.SuggCate)
 	ROUTER.POST("browser/download", browsers.Download)
-	ROUTER.GET("client/ws", phones.Ws) // app连接
+	ROUTER.GET("client/ws", phones.Ws)   // app 的ws连接
+	ROUTER.GET("client/api", phones.Api) // app 的api连接
 	AuthRoutes := ROUTER
 	AuthRoutes.Use(AuthMiddleware)
 
