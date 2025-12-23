@@ -1,13 +1,19 @@
 package apptask
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type Manager struct {
-	rt   *runtimeManager
+	rt   *runtime
 	stop chan struct{}
 }
 
 func New(opt Options) *Manager {
+	if opt.Store == nil {
+		panic("apptask: Store is required")
+	}
 	if opt.TickInterval <= 0 {
 		opt.TickInterval = time.Second
 	}
@@ -17,11 +23,18 @@ func New(opt Options) *Manager {
 	}
 }
 
+func (m *Manager) BindDevice(deviceId string, d Delivery) {
+	m.rt.bindDevice(deviceId, d)
+}
+
+func (m *Manager) UnbindDevice(deviceId string) {
+	m.rt.unbindDevice(deviceId)
+}
+
 func (m *Manager) Start() {
+	fmt.Println("----- 启动apptask")
 	go func() {
 		ticker := time.NewTicker(m.rt.opt.TickInterval)
-		defer ticker.Stop()
-
 		for {
 			select {
 			case <-ticker.C:
@@ -37,6 +50,10 @@ func (m *Manager) Stop() {
 	close(m.stop)
 }
 
-func (m *Manager) AddTask(task *AppTask) {
-	m.rt.add(task)
+func (m *Manager) Report(runId int64, status int, msg string) {
+	m.rt.report(runId, status, msg)
+}
+
+func (m *Manager) ForceStop(taskId int64, operator string) error {
+	return m.rt.forceStop(taskId, operator)
 }

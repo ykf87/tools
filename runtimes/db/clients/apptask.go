@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strconv"
 	"time"
+	"tools/runtimes/apptask"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
 	"tools/runtimes/db/configs"
@@ -30,7 +31,7 @@ type AppTask struct {
 }
 
 // 由于要兼顾任务可定时执行和周期性任务,因此需要额外增加一张表存储任务执行情况
-type AppTaskMsg struct {
+type AppTaskRun struct {
 	RunId     int64  `json:"run_id" gorm:"primaryKey;autoIncrement"`
 	TaskId    int64  `json:"task_id" gorm:"index"`
 	RunStatus int    `json:"run_status" gorm:"type:tinyint(1);index;default:0"` // 运行结果状态
@@ -41,8 +42,11 @@ type AppTaskMsg struct {
 
 var dbs = db.AppTask
 
+var TaskMgr *apptask.Manager
+
 func init() {
 	dbs.AutoMigrate(&AppTask{})
+	dbs.AutoMigrate(&AppTaskRun{})
 	rmvDay := 7
 	if v, ok := configs.GetValue("taskremoveDay"); ok {
 		if vv, err := strconv.Atoi(v); err == nil {
@@ -56,6 +60,16 @@ func init() {
 			time.Sleep(time.Hour * 24)
 		}
 	}()
+
+	InitAppTask()
+}
+
+func InitAppTask() {
+	TaskMgr = apptask.New(apptask.Options{
+		Store:        NewGormTaskStore(dbs),
+		TickInterval: time.Second,
+	})
+	TaskMgr.Start()
 }
 
 func (this *AppTask) Save(tx *gorm.DB) error {
@@ -112,8 +126,8 @@ func (this *AppTask) CanRunTask() bool {
 }
 
 // 2️⃣ 是否存在“正在执行”的记录
-func (this *AppTask) GetRunningMsg() (*AppTaskMsg, error) {
-	var msg AppTaskMsg
+func (this *AppTask) GetRunningMsg() (*AppTaskRun, error) {
+	var msg AppTaskRun
 	err := dbs.
 		Where("task_id = ? AND run_status = 0", this.Id).
 		Order("run_id DESC").
@@ -126,8 +140,8 @@ func (this *AppTask) GetRunningMsg() (*AppTaskMsg, error) {
 }
 
 // 3️⃣ 创建一次执行（安全）
-func (this *AppTask) CreateRun() (*AppTaskMsg, error) {
-	msg := &AppTaskMsg{
+func (this *AppTask) CreateRun() (*AppTaskRun, error) {
+	msg := &AppTaskRun{
 		TaskId:    this.Id,
 		RunStatus: 0,
 		Exectime:  time.Now().Unix(),
@@ -149,7 +163,7 @@ func (this *AppTask) CreateRun() (*AppTaskMsg, error) {
 */
 func (task *AppTask) RunTaskLoop(
 	ctx context.Context,
-	execute func(run *AppTaskMsg) error,
+	execute func(run *AppTaskRun) error,
 ) {
 	for {
 		// 1. 是否还允许执行
@@ -171,7 +185,7 @@ func (task *AppTask) RunTaskLoop(
 				case <-ctx.Done():
 					return
 				case <-time.After(time.Second):
-					var check AppTaskMsg
+					var check AppTaskRun
 					err := dbs.First(&check, running.RunId).Error
 					if err != nil {
 						continue
@@ -203,7 +217,7 @@ func (task *AppTask) RunTaskLoop(
 		} else {
 			updates["run_status"] = 1
 		}
-		dbs.Model(&AppTaskMsg{}).
+		dbs.Model(&AppTaskRun{}).
 			Where("run_id = ?", run.RunId).
 			Updates(updates)
 

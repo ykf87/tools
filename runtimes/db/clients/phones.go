@@ -52,6 +52,7 @@ func init() {
 	db.DB.AutoMigrate(&Phone{})
 	db.DB.AutoMigrate(&PhoneTag{})
 	db.DB.AutoMigrate(&PhoneToTag{})
+
 }
 
 func (t *Phone) Save(tx *gorm.DB) error {
