@@ -37,12 +37,9 @@ func PhoneTags(c *gin.Context) {
 	model.Count(&total)
 	model = model.Order("id DESC")
 
-	if dt.Limit != -1 {
+	if dt.Limit > 0 {
 		if dt.Page < 1 {
 			dt.Page = 1
-		}
-		if dt.Limit < 1 {
-			dt.Limit = 20
 		}
 		model = model.Offset((dt.Page - 1) * dt.Limit).Limit(dt.Limit)
 	}

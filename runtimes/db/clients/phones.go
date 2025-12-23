@@ -174,6 +174,13 @@ func GetPhoneTagsByIds(ids []int64) map[int64]string {
 	return mp
 }
 
+// 获取标签列表
+func GetPhoneTags() []*PhoneTag {
+	var tgs []*PhoneTag
+	db.DB.Model(&PhoneTag{}).Find(&tgs)
+	return tgs
+}
+
 // tag标签结束----------------------------------------
 //
 // 通过id获取手机设备
