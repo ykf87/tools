@@ -32,7 +32,7 @@ type Phone struct {
 	Ip          string   `json:"ip" gorm:"default:null;"`                               // ip地址,设置了代理才有
 	Tags        []string `json:"tags" gorm:"-" form:"tags"`                             // 标签
 	Connected   bool     `json:"connected" gorm:"-"`                                    // 是否连接标识
-	Conn        *ws.Conn `json:"-" gorm:"-"`                                            // 连接句柄
+	Conn        *ws.Conn `json:"-" gorm:"-" parse:"-"`                                  // 连接句柄
 	Status      int      `json:"status" gorm:"index;default:0;type:tinyint(1)"`         // 设备状态
 }
 
@@ -286,6 +286,13 @@ func GetPhoneByDeviceId(deviceId string) (*Phone, error) {
 		Joins("right join phone_to_tags as ptt on phone_tags.id = ptt.tag_id").
 		Where("ptt.phone_id = ?", b.Id).Find(&b.Tags)
 	return b, nil
+}
+
+// 获取客户端表的总数
+func PhoneTotal() int64 {
+	var total int64
+	db.DB.Model(&Phone{}).Count(&total)
+	return total
 }
 
 // 获取Phone的tags 名称

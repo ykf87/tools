@@ -65,6 +65,11 @@ type ListStruct struct {
 	Tags    []int64 `json:"tags" form:"tags"`
 }
 
+// 获取总数
+func Total(c *gin.Context) {
+	response.Success(c, clients.PhoneTotal(), "success")
+}
+
 func List(c *gin.Context) {
 	var l ListStruct
 	if err := c.ShouldBindQuery(&l); err != nil {
@@ -91,9 +96,6 @@ func List(c *gin.Context) {
 			model = model.Joins("right join phone_to_tags on browser_id = id").Where("phone_to_tags.tag_id in ?", tagIds)
 		}
 	}
-
-	var total int64
-	model.Count(&total)
 
 	sortCol := "id"
 	sortBy := "DESC"
@@ -123,8 +125,7 @@ func List(c *gin.Context) {
 		clients.SetPhoneTags(ps)
 	}
 
-	rs := gin.H{"list": ps, "total": total}
-	rsp, _ := parses.Marshal(rs, c)
+	rsp, _ := parses.Marshal(ps, c)
 	response.Success(c, rsp, "")
 }
 

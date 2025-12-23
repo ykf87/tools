@@ -90,10 +90,16 @@ func router() {
 		browserGroup.POST("delete/:id", browsers.Delete)
 	}
 
-	clientGroup := AuthRoutes.Group("client")
+	clientGroup := AuthRoutes.Group("phones")
 	{
+		clientGroup.GET("", phones.List)
+		clientGroup.GET("total", phones.Total)
 		clientGroup.GET("urls", phones.ConnUrl)
-		clientGroup.GET("api", phones.Api)
+		clientGroup.GET("tags", phones.PhoneTags)
+		clientGroup.POST("", phones.Editer)
+		clientGroup.POST("/:id", phones.Editer)
+		clientGroup.POST("delete/:id", phones.Delete)
+		// clientGroup.GET("api", phones.Api)
 	}
 
 	spiderGroup := AuthRoutes.Group("spider")
