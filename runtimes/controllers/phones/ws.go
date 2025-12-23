@@ -47,6 +47,7 @@ func Ws(c *gin.Context) {
 	}
 	defer clients.Hubs.Close(phone.DeviceId)
 	// clients.Hubs.SentClient()
+	// clients.TaskMgr.BindDevice(phone.DeviceId, apptask.WithWS(conn))
 
 	for {
 		msg, err := conn.ReadMessage()
