@@ -52,14 +52,14 @@ func PhoneTags(c *gin.Context) {
 }
 
 type ListStruct struct {
-	Page    int     `json:"page" form:"page"`
-	Limit   int     `json:"limit" form:"limit"`
-	Q       string  `json:"q" form:"q"`
-	SortCol string  `json:"scol" form:"scol"`
-	By      string  `json:"by" form:"by"`
-	Col     string  `json:"col" form:"col"`
-	Cval    string  `json:"cval" form:"cval"`
-	Tags    []int64 `json:"tags" form:"tags"`
+	Page    int      `json:"page" form:"page"`
+	Limit   int      `json:"limit" form:"limit"`
+	Q       string   `json:"q" form:"q"`
+	SortCol string   `json:"scol" form:"scol"`
+	By      string   `json:"by" form:"by"`
+	Col     string   `json:"col" form:"col"`
+	Cval    string   `json:"cval" form:"cval"`
+	Tags    []string `json:"tags" form:"tags"`
 }
 
 // 获取总数
@@ -69,15 +69,16 @@ func Total(c *gin.Context) {
 
 func List(c *gin.Context) {
 	var l ListStruct
-	if err := c.ShouldBindQuery(&l); err != nil {
-		response.Error(c, http.StatusNotFound, i18n.T("Error"), nil)
+	if err := c.ShouldBindJSON(&l); err != nil {
+		response.Error(c, http.StatusNotFound, err.Error(), nil)
 		return
 	}
+	fmt.Println(l.Tags, l.Limit, "----", l)
 
 	model := db.DB.Model(&clients.Phone{})
 	if l.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", l.Q)
-		model = model.Where("name LIKE ? OR lang local = ? or lang = ?", qs, qs, l.Q)
+		model = model.Where("name LIKE ? or lang like ? OR local like ? or num = ? or os like ? or brand like ?", qs, qs, qs, l.Q, qs, qs)
 	}
 
 	if l.Col != "" && l.Cval != "" {
@@ -85,12 +86,13 @@ func List(c *gin.Context) {
 	}
 
 	if len(l.Tags) > 0 {
+		mtgs := clients.GetPhoneTagsByNames(l.Tags, nil)
 		var tagIds []int64
-		for _, v := range l.Tags {
+		for _, v := range mtgs {
 			tagIds = append(tagIds, v)
 		}
 		if len(tagIds) > 0 {
-			model = model.Joins("right join phone_to_tags on browser_id = id").Where("phone_to_tags.tag_id in ?", tagIds)
+			model = model.Joins("right join phone_to_tags on phone_id = id").Where("phone_to_tags.tag_id in ?", tagIds)
 		}
 	}
 

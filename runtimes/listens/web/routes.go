@@ -92,11 +92,11 @@ func router() {
 
 	clientGroup := AuthRoutes.Group("phones")
 	{
-		clientGroup.GET("", phones.List)
+		clientGroup.POST("", phones.List)
 		clientGroup.GET("total", phones.Total)
 		clientGroup.GET("urls", phones.ConnUrl)
 		clientGroup.GET("tags", phones.PhoneTags)
-		clientGroup.POST("", phones.Editer)
+		clientGroup.POST("add", phones.Editer)
 		clientGroup.POST("/:id", phones.Editer)
 		clientGroup.POST("delete/:id", phones.Delete)
 		// clientGroup.GET("api", phones.Api)
