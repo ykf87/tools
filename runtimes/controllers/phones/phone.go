@@ -75,7 +75,7 @@ func List(c *gin.Context) {
 	}
 	fmt.Println(l.Tags, l.Limit, "----", l)
 
-	model := db.DB.Model(&clients.Phone{})
+	model := db.DB.Model(&clients.Phone{}).Group("phones.id")
 	if l.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", l.Q)
 		model = model.Where("name LIKE ? or lang like ? OR local like ? or num = ? or os like ? or brand like ?", qs, qs, qs, l.Q, qs, qs)
@@ -95,6 +95,9 @@ func List(c *gin.Context) {
 			model = model.Joins("right join phone_to_tags on phone_id = id").Where("phone_to_tags.tag_id in ?", tagIds)
 		}
 	}
+
+	var total int64
+	model.Count(&total)
 
 	sortCol := "id"
 	sortBy := "DESC"
@@ -125,7 +128,7 @@ func List(c *gin.Context) {
 	}
 
 	rsp, _ := parses.Marshal(ps, c)
-	response.Success(c, rsp, "")
+	response.Success(c, gin.H{"total": total, "list": rsp}, "")
 }
 
 // 编辑
