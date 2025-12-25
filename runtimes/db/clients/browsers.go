@@ -85,7 +85,7 @@ func (this *BrowserTag) Save(tx *gorm.DB) error {
 	}
 	if this.Id > 0 {
 		return tx.Model(&BrowserTag{}).Where("id = ?", this.Id).
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"name": this.Name,
 			}).Error
 	} else {
@@ -172,7 +172,7 @@ func (this *Browser) Save(tx *gorm.DB) error {
 	}
 	if this.Id > 0 {
 		return tx.Model(&Browser{}).Where("id = ?", this.Id).
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"name":         this.Name,
 				"proxy":        this.Proxy,
 				"proxy_config": this.ProxyConfig,
@@ -266,7 +266,7 @@ func (this *Browser) Open() error {
 	var proxyUrl string
 	if this.Proxy > 0 {
 		px := proxys.GetById(this.Proxy)
-		if px != nil || px.Id > 0 {
+		if px != nil && px.Id > 0 {
 			if pc, err := px.Start(false); err == nil {
 				proxyUrl = pc.Listened()
 			}
