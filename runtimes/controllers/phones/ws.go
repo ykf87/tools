@@ -65,23 +65,42 @@ func Ws(c *gin.Context) {
 	for _, v := range phone.Tags {
 		clients.Hubs.JoinGroup(v, phone.DeviceId)
 	}
-	defer clients.Hubs.Close(phone.DeviceId)
-	// clients.Hubs.SentClient()
-	// clients.TaskMgr.BindDevice(phone.DeviceId, apptask.WithWS(conn))
 
 	clients.TaskMgr.BindDevice(phone.DeviceId, &WSDelivery{DeviceId: phone.DeviceId})
+	defer func() {
+		clients.Hubs.Close(phone.DeviceId)           // 注销hub
+		clients.TaskMgr.UnbindDevice(phone.DeviceId) // 注销任务绑定
+	}()
 	for {
 		msg, err := conn.ReadMessage()
 		if err != nil {
 			break
 		}
 		gs := gjson.ParseBytes(msg)
-		if gs.Get("type").String() != "" {
+		tp := gs.Get("type").String()
+		if tp != "" {
+			if tp == "task_result" { // 报告任务执行情况
+				go ReportTask(gs.Get("data").String(), phone.DeviceId)
+				continue
+			}
 			dt, _ := config.Json.Marshal(map[string]any{
 				"device_id": phone.DeviceId,
 				"data":      gs.Get("data").String(),
 			})
 			go eventbus.Bus.Publish(gs.Get("type").String(), dt)
 		}
+	}
+}
+
+type TaskReport struct {
+	RunId  int64  `json:"run_id"`
+	Status int    `json:"status"`
+	Msg    string `json:"msg"`
+}
+
+func ReportTask(str, deviceId string) {
+	tr := new(TaskReport)
+	if err := config.Json.Unmarshal([]byte(str), tr); err == nil {
+		clients.TaskMgr.Report(tr.RunId, tr.Status, tr.Msg)
 	}
 }
