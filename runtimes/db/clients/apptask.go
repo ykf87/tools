@@ -67,7 +67,7 @@ func init() {
 func InitAppTask() {
 	TaskMgr = apptask.New(apptask.Options{
 		Store:        NewGormTaskStore(dbs),
-		TickInterval: time.Second,
+		TickInterval: time.Second * 5,
 	})
 	TaskMgr.Start()
 }

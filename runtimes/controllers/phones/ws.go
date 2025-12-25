@@ -2,6 +2,7 @@ package phones
 
 import (
 	"net/http"
+	"tools/runtimes/apptask"
 	"tools/runtimes/config"
 	"tools/runtimes/db/clients"
 	"tools/runtimes/eventbus"
@@ -11,6 +12,25 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
+
+type WSDelivery struct {
+	DeviceId string
+}
+
+func (this *WSDelivery) Mode() string {
+	return "ws"
+}
+func (this *WSDelivery) Deliver(task *apptask.AppTask) error {
+	bt, err := config.Json.Marshal(task)
+	if err != nil {
+		return err
+	}
+	clients.Hubs.SentClient(this.DeviceId, bt)
+	return nil
+}
+func (this *WSDelivery) Pick(deviceId string) *apptask.AppTask {
+	return nil
+}
 
 func Ws(c *gin.Context) {
 	deviceId := c.Query("device")
@@ -49,6 +69,7 @@ func Ws(c *gin.Context) {
 	// clients.Hubs.SentClient()
 	// clients.TaskMgr.BindDevice(phone.DeviceId, apptask.WithWS(conn))
 
+	clients.TaskMgr.BindDevice(phone.DeviceId, &WSDelivery{DeviceId: phone.DeviceId})
 	for {
 		msg, err := conn.ReadMessage()
 		if err != nil {
