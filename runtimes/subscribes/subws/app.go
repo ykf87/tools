@@ -60,6 +60,15 @@ func connFirst() {
 			phone.Version = info.Version
 			phone.Infos = string(ifbt)
 			go phone.Save(nil)
+
+			// 发送设备编号
+			num := map[string]any{
+				"type": "devicenum",
+				"data": phone.Num,
+			}
+			bt, _ := config.Json.Marshal(num)
+			fmt.Println("发送设备编号----")
+			clients.Hubs.SentClient(phone.DeviceId, bt)
 		}
 	})
 }
