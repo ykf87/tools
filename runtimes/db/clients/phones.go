@@ -34,6 +34,8 @@ type Phone struct {
 	Connected   bool     `json:"connected" gorm:"-"`                                    // 是否连接标识
 	Conn        *ws.Conn `json:"-" gorm:"-" parse:"-"`                                  // 连接句柄
 	Status      int      `json:"status" gorm:"index;default:0;type:tinyint(1)"`         // 设备状态
+	CloseMsg    string   `json:"close_msg" gorm:"default:null"`                         // 异常提示
+	Infos       string   `json:"infos" gorm:"default:null"`                             // 存储手机端的信息,json格式
 }
 
 var MaxPhoneNum int64 = 2 // 最大的手机设备连接数量
@@ -67,7 +69,7 @@ func (t *Phone) Save(tx *gorm.DB) error {
 			"brand":        t.Brand,
 			"num":          t.Num,
 			"admin_id":     t.AdminId,
-			"varsion":      t.Version,
+			"version":      t.Version,
 			"conntime":     t.Conntime,
 			"proxy":        t.Proxy,
 			"proxy_name":   t.ProxyName,
@@ -77,7 +79,12 @@ func (t *Phone) Save(tx *gorm.DB) error {
 			"timezone":     t.Timezone,
 			"ip":           t.Ip,
 			"status":       t.Status,
+			"infos":        t.Infos,
 		}).Error
+
+		if t.Status != 1 {
+			eventbus.Bus.Publish("phone-status-change", t)
+		}
 	} else {
 		auto, ok := configs.GetValue("autojoin")
 		if !ok || auto != "1" {
