@@ -92,6 +92,7 @@ func prepareBrowser() error {
 
 	fmt.Println("下载 browser...")
 	if err := DownBrowserFromServer(BROWSERPATH); err != nil {
+		fmt.Println("browser 下载失败.", err)
 		return err
 	}
 
