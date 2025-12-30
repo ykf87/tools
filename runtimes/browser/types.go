@@ -670,6 +670,7 @@ type User struct {
 	browser     *rod.Browser `json:"-"`
 	UserId      int64        `json:"-"`
 	Cmd         *exec.Cmd    `json:"-"`
+	ListenPort  int          `json:"-"`
 }
 
 const configFileName = "virtual.dat"

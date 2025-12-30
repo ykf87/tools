@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"fmt"
 	"time"
 	"tools/runtimes/browser"
 	"tools/runtimes/db"
@@ -9,6 +10,7 @@ import (
 	"tools/runtimes/listens/ws"
 	"tools/runtimes/proxy"
 
+	"github.com/chromedp/chromedp"
 	"gorm.io/gorm"
 )
 
@@ -263,6 +265,9 @@ func SetBrowserTags(pcs []*Browser) {
 }
 
 func (this *Browser) Open() error {
+	if this.Opend == true {
+		return nil
+	}
 	var proxyUrl string
 	if this.Proxy > 0 {
 		px := proxys.GetById(this.Proxy)
@@ -287,17 +292,43 @@ func (this *Browser) Open() error {
 	this.Bs.SetScreen(this.Width, this.Height)
 	this.Bs.SetTimezone(this.Timezone)
 
-	if _, err := this.Bs.Run(); err != nil {
-		return err
-	}
-	this.Opend = true
+	// if _, err := this.Bs.Run(); err != nil {
+	// 	return err
+	// }
+	// this.Opend = true
+
+	// rrr := browser.Client(browser.BROWSERFILE, this)
+	// rrr.RunJs()
+	mgr := browser.NewManager(this.Bs.WorkDir())
+	b, _ := mgr.New(fmt.Sprintf("%d", this.Id), browser.Options{
+		ExecPath: browser.BROWSERFILE,
+		Headless: false,
+		Width:    this.Width,
+		Height:   this.Height,
+		Temp:     true,
+		Timeout:  30 * time.Second,
+		Proxy:    proxyUrl,
+	})
+	b.OnURLChange(func(url string) {
+		fmt.Println("URL:", url)
+	})
+	go func() {
+		<-b.OnClosed()
+		eventbus.Bus.Publish("browser-close", this.Bs)
+	}()
+	b.Run(
+		chromedp.Navigate("https://www.browserscan.net/"),
+	)
+
+	browser.Running.Store(this.Id, b)
 	return nil
 }
 
 func (this *Browser) Close() error {
 	if bbs, ok := browser.Running.Load(this.Id); ok {
-		if bs, ok := bbs.(*browser.User); ok {
-			return bs.Close()
+		if bs, ok := bbs.(*browser.Browser); ok {
+			bs.Close()
+			this.Opend = false
 		}
 	}
 	return nil
@@ -307,13 +338,31 @@ func (this *Browser) Delete() error {
 	if err := db.DB.Where("id = ?", this.Id).Delete(&Browser{}).Error; err != nil {
 		return err
 	}
-	db.DB.Where("browser_id = ?", this.Id).Delete(&BrowserToTag{})
-	if bbs, ok := browser.Running.Load(this.Id); ok {
-		if bs, ok := bbs.(*browser.User); ok {
-			return bs.Close()
-		}
+
+	tx := db.DB.Begin()
+	tx.Where("browser_id = ?", this.Id).Delete(&BrowserToTag{})
+	if err := this.Close(); err != nil {
+		tx.Rollback()
+		return err
 	}
+	tx.Commit()
+	// if bbs, ok := browser.Running.Load(this.Id); ok {
+	// 	if bs, ok := bbs.(*browser.User); ok {
+	// 		return bs.Close()
+	// 	}
+	// }
 
 	eventbus.Bus.Publish("browser-delete", "")
 	return nil
+}
+
+// -------------------------  以下是一个interface的实现  -------------------------------
+// 获取浏览器的id
+func (this *Browser) GetId() int64 {
+	return this.Id
+}
+
+// 获取客户端
+func (this *Browser) GetClient() *browser.User {
+	return this.Bs
 }

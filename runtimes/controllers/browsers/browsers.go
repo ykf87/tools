@@ -146,7 +146,7 @@ func Editer(c *gin.Context) {
 	id := c.Param("id")
 	var l BrowserAddData
 	if err := c.ShouldBind(&l); err != nil {
-		response.Error(c, http.StatusNotFound, i18n.T("Error"), nil)
+		response.Error(c, http.StatusNotFound, err.Error(), nil)
 		return
 	}
 

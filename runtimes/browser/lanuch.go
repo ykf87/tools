@@ -32,8 +32,13 @@ func (this *User) LanuchCmd(dataDir string) error {
 	}
 
 	// cmd := new(funcs.Command)
+	if this.ListenPort, err = funcs.FreePort(); err != nil {
+		return err
+	}
 	binName := BROWSERFILE
 	_, ccc, err := funcs.RunCommand(false, binName,
+		"--remote-debugging-address=0.0.0.0",
+		fmt.Sprintf("--remote-debugging-port=%d", this.ListenPort),
 		"--flag-switches-begin",
 		"--flag-switches-end",
 		fmt.Sprintf("--user-data-dir=%s", dataDir),
