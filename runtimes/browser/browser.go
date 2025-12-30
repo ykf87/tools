@@ -34,7 +34,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
@@ -51,10 +50,6 @@ type Browser struct {
 	onClosed    chan struct{} // ✅ 新增
 	onURLChange atomic.Value  // func(string)
 	onConsole   atomic.Value  // func([]*runtime.RemoteObject)
-}
-
-func init() {
-	println("IPAddressSpacePrivate =", network.IPAddressSpace("Private"))
 }
 
 func (b *Browser) Run(actions ...chromedp.Action) error {

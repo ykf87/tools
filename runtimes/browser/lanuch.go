@@ -1,3 +1,4 @@
+// 废弃
 package browser
 
 import (

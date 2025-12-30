@@ -79,7 +79,7 @@ func prepareBrowser() error {
 	var filename string
 	switch runtime.GOOS {
 	case "darwin":
-		filename = "VirtualBrowser.dmg"
+		filename = "VirtualBrowser.app/Contents/MacOS/VirtualBrowser"
 	default:
 		filename = "VirtualBrowser.exe"
 	}
@@ -157,7 +157,13 @@ func DownBrowserFromServer(saveto string) error {
 		Method:      "get",
 	}
 
-	serverBrowserName := "browser.zip"
+	var serverBrowserName string
+	switch runtime.GOOS {
+	case "darwin":
+		serverBrowserName = "browser-mac.zip"
+	default:
+		serverBrowserName = "browser-win.zip"
+	}
 	downurl := fmt.Sprint(config.SERVERDOMAIN, "down?file=browser/"+serverBrowserName)
 	saveFile := filepath.Join(saveto, serverBrowserName)
 
