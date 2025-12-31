@@ -3,10 +3,10 @@ package browser
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"sync"
 
+	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
 
@@ -44,7 +44,7 @@ func (m *Manager) New(id string, opt Options) (*Browser, error) {
 
 	allocOpts := make([]chromedp.ExecAllocatorOption, 0, len(chromedp.DefaultExecAllocatorOptions)+8)
 	allocOpts = append(allocOpts, chromedp.DefaultExecAllocatorOptions[:]...)
-	fmt.Println(opt.ExecPath, userDir)
+	// fmt.Println(opt.ExecPath, userDir)
 	allocOpts = append(allocOpts,
 		chromedp.ExecPath(opt.ExecPath),
 		chromedp.UserDataDir(userDir),
@@ -78,14 +78,29 @@ func (m *Manager) New(id string, opt Options) (*Browser, error) {
 		alloc:    allocCancel,
 		onClosed: make(chan struct{}),
 	}
+	b.onURLChange.Store((func(string))(nil))
+	b.onConsole.Store((func([]*runtime.RemoteObject))(nil))
 	b.watchClose()
 	go b.startEventLoop()
 
 	go func() {
 		<-ctx.Done()
-		b.Close()
+		m.remove(id)
 	}()
 
 	m.browsers[id] = b
 	return b, nil
+}
+
+func (m *Manager) remove(id string) {
+	m.mu.Lock()
+	b, ok := m.browsers[id]
+	if ok {
+		delete(m.browsers, id)
+	}
+	m.mu.Unlock()
+
+	if ok {
+		b.Close()
+	}
 }

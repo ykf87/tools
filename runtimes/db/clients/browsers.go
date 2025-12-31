@@ -309,18 +309,21 @@ func (this *Browser) Open() error {
 		Timeout:  30 * time.Second,
 		Proxy:    proxyUrl,
 	})
-	b.OnURLChange(func(url string) {
+	b.OnURLChange(func(url string) { // 当url地址改变后
 		fmt.Println("URL:", url)
 	})
 	go func() {
 		<-b.OnClosed()
 		eventbus.Bus.Publish("browser-close", this.Bs)
 	}()
-	b.Run(
-		chromedp.Navigate("https://www.browserscan.net/"),
-	)
+	if err := b.Run(
+		chromedp.Navigate("about:blank"),
+	); err != nil {
+		return err
+	}
 
 	browser.Running.Store(this.Id, b)
+	this.Opend = true
 	return nil
 }
 
@@ -333,6 +336,16 @@ func (this *Browser) Close() error {
 	}
 	return nil
 }
+
+// func Flush() {
+// 	browser.Running.Range(func(k, v any) bool {
+// 		if bb, ok := v.(*browser.Browser); ok {
+// 			bb.Close()
+// 		}
+// 		browser.Running.Delete(k)
+// 		return true
+// 	})
+// }
 
 func (this *Browser) Delete() error {
 	if err := db.DB.Where("id = ?", this.Id).Delete(&Browser{}).Error; err != nil {

@@ -559,7 +559,7 @@ func abs(x int) int {
 
 func Flush() {
 	Running.Range(func(k, v any) bool {
-		if bb, ok := v.(*User); ok {
+		if bb, ok := v.(*Browser); ok {
 			bb.Close()
 		}
 		Running.Delete(k)

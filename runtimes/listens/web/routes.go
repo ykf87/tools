@@ -7,6 +7,7 @@ import (
 	"tools/runtimes/controllers/proxys"
 	"tools/runtimes/controllers/suggs"
 	"tools/runtimes/controllers/tags"
+	"tools/runtimes/controllers/task"
 	"tools/runtimes/controllers/user"
 	"tools/runtimes/controllers/video/down"
 	"tools/runtimes/controllers/ws"
@@ -123,5 +124,11 @@ func router() {
 	{
 		inforGroup.GET("tabs", infor.GetTabs)
 		inforGroup.GET("notread", infor.NotRead)
+	}
+
+	// 任务
+	taskGroup := AuthRoutes.Group("tasks")
+	{
+		taskGroup.POST("", task.List)
 	}
 }

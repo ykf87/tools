@@ -41,6 +41,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 	_ "tools/runtimes"
 	"tools/runtimes/browser"
 	_ "tools/runtimes/db"
@@ -58,10 +59,9 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	fmt.Println("")
 
 	web.WebCloseCh()
 	browser.Flush()
-
+	time.Sleep(time.Second)
 	fmt.Println("----")
 }
