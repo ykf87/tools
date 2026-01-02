@@ -3,6 +3,7 @@ package tasks
 
 import (
 	"context"
+	"fmt"
 	"time"
 	"tools/runtimes/db"
 	"tools/runtimes/listens/ws"
@@ -40,7 +41,7 @@ type Task struct {
 	RetryMax  int    `json:"retry_max" gorm:"default:0"`                                         // 最大重试次数
 	Timeout   int64  `json:"timeout" gorm:"default:0"`                                           // 单次超时（秒）
 	Priority  int    `json:"priority" gorm:"default:0"`                                          // 优先级
-	CatchUp   bool   `json:"catch_up" gorm:"default:false"`
+	CatchUp   bool   `json:"catch_up" gorm:"default:false"`                                      // 补跑漏掉的周期
 }
 
 // 任务执行表
@@ -170,7 +171,7 @@ func GetTotalTask(groupname string, adminid int64) int64 {
 }
 
 // 获取分组的任务
-func GetTasks(page, limit int, adminid int64) []*Task {
+func GetTasks(page, limit int, query string, adminid int64) ([]*Task, int64) {
 	var tks []*Task
 	if page < 1 {
 		page = 1
@@ -179,7 +180,21 @@ func GetTasks(page, limit int, adminid int64) []*Task {
 		limit = 20
 	}
 	md := db.TaskDB.Model(&Task{}).Where("admin_id = ?", adminid)
+	if query != "" {
+		qs := fmt.Sprintf("%%%s%%", query)
+		md.Where("title like ?", qs)
+	}
+
+	var total int64
+	md.Count(&total)
 
 	md.Order("starttime DESC").Offset((page - 1) * limit).Limit(limit).Find(&tks)
-	return tks
+	return tks, total
+}
+
+// 获取tags
+func GetTags() []*TaskTag {
+	var tgs []*TaskTag
+	db.TaskDB.Model(&TaskTag{}).Find(&tgs)
+	return tgs
 }

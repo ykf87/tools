@@ -130,5 +130,7 @@ func router() {
 	taskGroup := AuthRoutes.Group("tasks")
 	{
 		taskGroup.POST("", task.List)
+		taskGroup.GET("viewbasedata", task.BaseData)
+		taskGroup.POST("ae", task.AddOrEdit)
 	}
 }
