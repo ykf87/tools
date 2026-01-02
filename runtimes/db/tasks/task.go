@@ -42,6 +42,9 @@ type Task struct {
 	Timeout   int64  `json:"timeout" gorm:"default:0"`                                           // 单次超时（秒）
 	Priority  int    `json:"priority" gorm:"default:0"`                                          // 优先级
 	CatchUp   bool   `json:"catch_up" gorm:"default:false"`                                      // 补跑漏掉的周期
+	SeNum     int    `json:"se_num" gorm:"default:2"`                                            // 同时执行的设备数量,0表示所有设备同时执行
+	DataSpec  string `json:"data_spec" gorm:"default:null"`                                      // 数据来源配置（JSON）,这种方式需要的参数
+	DataType  string `json:"data_type" gorm:"default:null"`                                      // 数据类型标识,我用哪一种“取数方式”
 }
 
 // 任务执行表
@@ -109,6 +112,8 @@ func init() {
 		},
 		func(ctx context.Context, task *Task, runID int64) error {
 			// log.Println("[run task] 执行任务:", task.ID)
+			// 此处需要先获取数据,通过 DataSpec 和 DataType 获取
+			runData := "测试数据"
 			for {
 				select {
 				case <-ctx.Done():
@@ -116,7 +121,7 @@ func init() {
 					return ctx.Err()
 				default:
 					// log.Println("----执行代码")
-					return nil
+					return execTask(ctx, task, runID, runData)
 					// doOneStep()
 				}
 			}
