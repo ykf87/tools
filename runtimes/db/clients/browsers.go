@@ -323,7 +323,8 @@ func (this *Browser) Open() error {
 		return err
 	}
 	this.Browser = b
-
+	// b.Run(chromedp.Navigate("https://www.google.com"))
+	// b.RunJs("alert('sdsd')")
 	browser.Running.Store(this.Id, b)
 	this.Opend = true
 	return nil

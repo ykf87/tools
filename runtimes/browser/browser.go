@@ -118,6 +118,7 @@ func (b *Browser) OnConsole(cb func([]*runtime.RemoteObject)) {
 	b.onConsole.Store(cb)
 }
 
-func (b *Browser) RunJs() {
-
+func (b *Browser) RunJs(js string) error {
+	var rs string
+	return b.Run(chromedp.Evaluate(js, &rs))
 }

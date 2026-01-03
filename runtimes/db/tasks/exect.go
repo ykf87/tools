@@ -40,13 +40,15 @@ func execTask(ctx context.Context, task *Task, runID int64, runData []byte) erro
 			default:
 			}
 
-			// ✅ 真正执行,其实就是执行js代码,至于数据则通过js代码再跟服务端获取
+			// ✅ 真正执行,其实就是执行js代码
+			// 至于数据则通过js代码再跟服务端获取
+			// 因此
 			switch v.DeviceType {
 			case 0: // 执行浏览器
 				bs, err := clients.GetBrowserById(v.DeviceID)
 				if err == nil {
 					if err := bs.Open(); err == nil {
-						bs.Browser.RunJs()
+						bs.Browser.RunJs("alert('sdfsdf')")
 					}
 				}
 			case 1: // 执行autojs
