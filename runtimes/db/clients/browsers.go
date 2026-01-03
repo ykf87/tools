@@ -28,9 +28,10 @@ type Browser struct {
 	Ip          string `json:"ip" gorm:"default:null;"`                               // ip地址,设置了代理才有
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
-	Tags        []string      `json:"tags" gorm:"-" form:"tags"` // 标签
-	Bs          *browser.User `json:"-" gorm:"-" form:"-"`       // 浏览器
-	Opend       bool          `json:"opend" gorm:"-" form:"-"`   // 是否启动
+	Tags        []string         `json:"tags" gorm:"-" form:"tags"` // 标签
+	Bs          *browser.User    `json:"-" gorm:"-" form:"-"`       // 浏览器
+	Browser     *browser.Browser `json:"-" gorm:"-"`                // chromedb
+	Opend       bool             `json:"opend" gorm:"-" form:"-"`   // 是否启动
 }
 
 type BrowserTag struct {
@@ -321,6 +322,7 @@ func (this *Browser) Open() error {
 	); err != nil {
 		return err
 	}
+	this.Browser = b
 
 	browser.Running.Store(this.Id, b)
 	this.Opend = true

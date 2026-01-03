@@ -113,7 +113,7 @@ func init() {
 		func(ctx context.Context, task *Task, runID int64) error {
 			// log.Println("[run task] 执行任务:", task.ID)
 			// 此处需要先获取数据,通过 DataSpec 和 DataType 获取
-			runData := "测试数据"
+			runData := []byte("测试数据")
 			for {
 				select {
 				case <-ctx.Done():

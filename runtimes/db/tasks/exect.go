@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"sync"
 	db "tools/runtimes/db"
+	"tools/runtimes/db/clients"
 )
 
-func execTask(ctx context.Context, task *Task, runID int64, runData any) error {
+func execTask(ctx context.Context, task *Task, runID int64, runData []byte) error {
 	var wg sync.WaitGroup
 
 	var sem chan struct{}
@@ -41,6 +42,20 @@ func execTask(ctx context.Context, task *Task, runID int64, runData any) error {
 			}
 
 			// ✅ 真正执行
+			switch v.DeviceType {
+			case 0:
+				bs, err := clients.GetBrowserById(v.DeviceID)
+				if err == nil {
+					if err := bs.Open(); err == nil {
+						bs.Browser.RunJs()
+					}
+				}
+			case 1:
+				phone, err := clients.GetPhoneById(v.DeviceID)
+				if err == nil {
+					clients.Hubs.SentClient(phone.DeviceId, runData)
+				}
+			}
 			fmt.Println(v.DeviceID, runID, runData)
 
 		}(v)
