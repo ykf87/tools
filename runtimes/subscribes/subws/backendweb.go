@@ -20,6 +20,7 @@ func init() {
 	closeBrowser()
 	proxyChange()
 	notify()
+	proxyPing()
 }
 
 // 注册发送到前端的websocket事件
@@ -118,6 +119,21 @@ func sendInformation() {
 				} else {
 					ws.Broadcost(btt)
 				}
+			}
+		}
+	})
+}
+
+// 代理ping结果
+func proxyPing() {
+	eventbus.Bus.Subscribe("proxy-ping", func(dt any) {
+		if info, ok := dt.(proxys.PingResp); ok {
+			mmv := map[string]any{
+				"type": "proxy-ping",
+				"data": info.Ping,
+			}
+			if msg, err := config.Json.Marshal(mmv); err == nil {
+				ws.SentMsg(info.UID, msg)
 			}
 		}
 	})

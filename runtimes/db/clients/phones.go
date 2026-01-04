@@ -31,11 +31,11 @@ type Phone struct {
 	Timezone    string   `json:"timezone" gorm:"default:null;" form:"timezone"`         // 时区
 	Ip          string   `json:"ip" gorm:"default:null;"`                               // ip地址,设置了代理才有
 	Tags        []string `json:"tags" gorm:"-" form:"tags"`                             // 标签
-	Connected   bool     `json:"connected" gorm:"-"`                                    // 是否连接标识
+	Connected   bool     `json:"connected" gorm:"-" parse:"-"`                          // 是否连接标识
 	Conn        *ws.Conn `json:"-" gorm:"-" parse:"-"`                                  // 连接句柄
 	Status      int      `json:"status" gorm:"index;default:0;type:tinyint(1)"`         // 设备状态
 	CloseMsg    string   `json:"close_msg" gorm:"default:null"`                         // 异常提示
-	Infos       string   `json:"infos" gorm:"default:null"`                             // 存储手机端的信息,json格式
+	Infos       string   `json:"infos" gorm:"default:null" parse:"-"`                   // 存储手机端的信息,json格式
 }
 
 var MaxPhoneNum int64 = 2 // 最大的手机设备连接数量
@@ -311,3 +311,29 @@ func PhoneTotal() int64 {
 }
 
 // 获取Phone的tags 名称
+
+// 获取手机别聊
+func GetAllPhones(page, limit int, query string) []*Phone {
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+	model := db.DB.Model(&Phone{}).Where("status = 1")
+	if query != "" {
+		qs := fmt.Sprintf("%%%s%%", query)
+		model.Where("name like ?", qs)
+	}
+
+	var ls []*Phone
+	model.Offset((page - 1) * limit).Limit(limit).Order("id desc").Find(&ls)
+	return ls
+}
+
+// 通过id列表获取手机列表
+func GetPhonesByIds(ids []int64) []*Phone {
+	var bs []*Phone
+	db.DB.Model(&Phone{}).Where("id in ?", ids).Find(&bs)
+	return bs
+}

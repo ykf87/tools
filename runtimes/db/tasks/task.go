@@ -27,24 +27,33 @@ var Types = []DeviceType{
 	},
 }
 
+// type deviceList struct {
+// 	ID    int64  `json:"id"`
+// 	Name  string `json:"name"`
+// 	Num   int64  `json:"num"`   // 手机端的编号
+// 	Brand string `json:"brand"` // 手机端的品牌
+// 	Local string `json:"local"` // 代理ip的国家iso
+// }
+
 // 任务表
 type Task struct {
-	ID        int64  `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
-	Title     string `json:"title" gorm:"index;not null;type:varchar(32)" form:"title"`          // 任务名称
-	Tp        int    `json:"type" gorm:"index;default:0" form:"type"`                            // 任务类型,分2种, 0-web端  1-手机端
-	Starttime int64  `json:"starttime" gorm:"index;default:0" form:"starttime" parse:"datetime"` // 任务开始时间
-	Endtime   int64  `json:"endtime" gorm:"index;default:0" form:"endtime" parse:"datetime"`     // 任务结束时间
-	Status    int    `json:"status" gorm:"type:tinyint(1);default:1;index" form:"status"`        // 任务状态, 1-可执行 0-不可执行
-	Errmsg    string `json:"errmsg" gorm:"default:null" form:"errmsg"`                           // 错误信息
-	AdminId   int64  `json:"admin_id" gorm:"index;not null"`                                     // 管理员id
-	Cycle     int64  `json:"cycle" gorm:"default:0" form:"cycle"`                                // 任务周期,单位秒,0为不重复执行,大于0表示间隔多久自动重复执行
-	RetryMax  int    `json:"retry_max" gorm:"default:0"`                                         // 最大重试次数
-	Timeout   int64  `json:"timeout" gorm:"default:0"`                                           // 单次超时（秒）
-	Priority  int    `json:"priority" gorm:"default:0"`                                          // 优先级
-	CatchUp   bool   `json:"catch_up" gorm:"default:false"`                                      // 补跑漏掉的周期
-	SeNum     int    `json:"se_num" gorm:"default:2"`                                            // 同时执行的设备数量,0表示所有设备同时执行
-	DataSpec  string `json:"data_spec" gorm:"default:null"`                                      // 数据来源配置（JSON）,这种方式需要的参数
-	DataType  string `json:"data_type" gorm:"default:null"`                                      // 数据类型标识,我用哪一种“取数方式”
+	ID        int64   `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
+	Title     string  `json:"title" gorm:"index;not null;type:varchar(32)" form:"title"`          // 任务名称
+	Tp        int     `json:"type" gorm:"index;default:0" form:"type"`                            // 任务类型,分2种, 0-web端  1-手机端
+	Starttime int64   `json:"starttime" gorm:"index;default:0" form:"starttime" parse:"datetime"` // 任务开始时间
+	Endtime   int64   `json:"endtime" gorm:"index;default:0" form:"endtime" parse:"datetime"`     // 任务结束时间
+	Status    int     `json:"status" gorm:"type:tinyint(1);default:1;index" form:"status"`        // 任务状态, 1-可执行 0-不可执行
+	Errmsg    string  `json:"errmsg" gorm:"default:null" form:"errmsg"`                           // 错误信息
+	AdminId   int64   `json:"admin_id" gorm:"index;not null"`                                     // 管理员id
+	Cycle     int64   `json:"cycle" gorm:"default:0" form:"cycle"`                                // 任务周期,单位秒,0为不重复执行,大于0表示间隔多久自动重复执行
+	RetryMax  int     `json:"retry_max" gorm:"default:0" form:"retry_max"`                        // 最大重试次数
+	Timeout   int64   `json:"timeout" gorm:"default:0" form:"timeout"`                            // 单次超时（秒）
+	Priority  int     `json:"priority" gorm:"default:0" form:"priority"`                          // 优先级
+	CatchUp   bool    `json:"catch_up" gorm:"default:false" form:"catch_up"`                      // 补跑漏掉的周期
+	SeNum     int     `json:"se_num" gorm:"default:2" form:"se_num"`                              // 同时执行的设备数量,0表示所有设备同时执行
+	DataSpec  string  `json:"data_spec" gorm:"default:null" form:"data_spec"`                     // 数据来源配置（JSON）,这种方式需要的参数
+	DataType  string  `json:"data_type" gorm:"default:null" form:"data_type"`                     // 数据类型标识,我用哪一种“取数方式”
+	Devices   []int64 `json:"devices" gorm:"-" form:"devices"`                                    // 设备列表
 }
 
 // 任务执行表
@@ -193,8 +202,27 @@ func GetTasks(page, limit int, query string, adminid int64) ([]*Task, int64) {
 	var total int64
 	md.Count(&total)
 
-	md.Order("starttime DESC").Offset((page - 1) * limit).Limit(limit).Find(&tks)
+	md.Order("starttime DESC").Offset((page - 1) * limit).Limit(limit).Debug().Find(&tks)
+
+	for _, v := range tks {
+		v.Devices = v.GetDevices()
+	}
 	return tks, total
+}
+
+// 获取任务下的设备列表
+func (this *Task) GetDevices() []int64 {
+	var dids []int64
+	db.TaskDB.Model(&TaskClients{}).Select("device_id").Where("task_id = ?", this.ID).Find(&dids)
+	return dids
+}
+
+// 删除不存在的设备
+func (this *Task) RemoveNotUsedDevices(deviceIDs []int64) error {
+	return db.TaskDB.
+		Where("task_id = ?", this.ID).
+		Where("device_id not in ? or device_type != ?", deviceIDs, this.Tp).
+		Delete(&TaskClients{}).Error
 }
 
 // 获取tags

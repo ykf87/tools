@@ -6,8 +6,10 @@ import (
 	"strings"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
+	"tools/runtimes/db/admins"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/db/tag"
+	"tools/runtimes/eventbus"
 	"tools/runtimes/funcs"
 	"tools/runtimes/i18n"
 	"tools/runtimes/logs"
@@ -286,7 +288,6 @@ func BatchAdd(c *gin.Context) {
 	response.Success(c, nil, "")
 }
 
-// 延迟
 func Ping(c *gin.Context) {
 	ids := c.Param("id")
 	if ids == "" {
@@ -294,8 +295,14 @@ func Ping(c *gin.Context) {
 		return
 	}
 
-	rspmp := make(map[int64]map[string]int64)
-	for _, id := range strings.Split(ids, ","){
+	ur, ok := c.Get("_user")
+	if !ok {
+		response.Error(c, http.StatusBadRequest, i18n.T("Login first"), nil)
+		return
+	}
+	user := ur.(*admins.Admin)
+	// rspmp := make(map[int64]map[string]int64)
+	for _, id := range strings.Split(ids, ",") {
 		pc := proxys.GetById(id)
 		if pc != nil && pc.Id > 0 {
 			pxc, err := proxy.Client(pc.GetConfig(), "", 0)
@@ -303,17 +310,35 @@ func Ping(c *gin.Context) {
 				response.Error(c, http.StatusBadRequest, i18n.T("Error"), nil)
 				return
 			}
-			mmp, err := pxc.Delay([]string{"https://www.google.com"})
-			if err != nil {
-				response.Error(c, http.StatusBadRequest, i18n.T("Error"), nil)
-				return
-			}
+
+			go func(uid, pid int64) {
+				// proxy-ping
+				mmp, err := pxc.Delay([]string{"https://www.google.com"})
+				pr := proxys.PingResp{UID: uid}
+				pr.Ping = make(map[int64]int64)
+				if err != nil {
+					// response.Error(c, http.StatusBadRequest, i18n.T("Error"), nil)
+					// return
+					pr.Ping[pid] = -1
+				} else {
+					for _, v := range mmp {
+						pr.Ping[pid] = v
+						break
+					}
+				}
+				eventbus.Bus.Publish("proxy-ping", pr)
+			}(user.Id, pc.Id)
+			// mmp, err := pxc.Delay([]string{"https://www.google.com"})
+			// if err != nil {
+			// 	response.Error(c, http.StatusBadRequest, i18n.T("Error"), nil)
+			// 	return
+			// }
 			// response.Success(c, mmp, "")
 			// return
-			rspmp[pc.Id] = mmp
+			// rspmp[pc.Id] = mmp
 		}
 	}
-	response.Error(c, http.StatusOK, "success", rspmp)
+	response.Success(c, nil, "success")
 }
 
 // 批量修改
