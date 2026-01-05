@@ -3,11 +3,12 @@ package tasks
 import (
 	"context"
 	"sync"
+	"tools/runtimes/config"
 	db "tools/runtimes/db"
 	"tools/runtimes/db/clients"
 )
 
-func execTask(ctx context.Context, task *Task, runID int64, runData []byte) error {
+func execTask(ctx context.Context, task *Task, runID int64, js string) error {
 	var wg sync.WaitGroup
 
 	var sem chan struct{}
@@ -48,13 +49,18 @@ func execTask(ctx context.Context, task *Task, runID int64, runData []byte) erro
 				bs, err := clients.GetBrowserById(v.DeviceID)
 				if err == nil {
 					if err := bs.Open(); err == nil {
-						bs.Browser.RunJs("alert('sdfsdf')")
+						bs.Browser.RunJs(js)
 					}
 				}
 			case 1: // 执行autojs
 				phone, err := clients.GetPhoneById(v.DeviceID)
 				if err == nil {
-					clients.Hubs.SentClient(phone.DeviceId, runData)
+					if dt, err := config.Json.Marshal(map[string]any{
+						"type": "runjs",
+						"data": js,
+					}); err == nil {
+						clients.Hubs.SentClient(phone.DeviceId, dt)
+					}
 				}
 			}
 			// fmt.Println(v.DeviceID, runID, runData)

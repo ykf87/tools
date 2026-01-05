@@ -4,11 +4,14 @@ package tasks
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 	"tools/runtimes/db"
+	"tools/runtimes/db/jses"
 	"tools/runtimes/listens/ws"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type DeviceType struct {
@@ -19,7 +22,7 @@ type DeviceType struct {
 var Types = []DeviceType{
 	{
 		ID:   0,
-		Name: "Web端",
+		Name: "浏览器",
 	},
 	{
 		ID:   1,
@@ -37,23 +40,27 @@ var Types = []DeviceType{
 
 // 任务表
 type Task struct {
-	ID        int64   `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
-	Title     string  `json:"title" gorm:"index;not null;type:varchar(32)" form:"title"`          // 任务名称
-	Tp        int     `json:"type" gorm:"index;default:0" form:"type"`                            // 任务类型,分2种, 0-web端  1-手机端
-	Starttime int64   `json:"starttime" gorm:"index;default:0" form:"starttime" parse:"datetime"` // 任务开始时间
-	Endtime   int64   `json:"endtime" gorm:"index;default:0" form:"endtime" parse:"datetime"`     // 任务结束时间
-	Status    int     `json:"status" gorm:"type:tinyint(1);default:1;index" form:"status"`        // 任务状态, 1-可执行 0-不可执行
-	Errmsg    string  `json:"errmsg" gorm:"default:null" form:"errmsg"`                           // 错误信息
-	AdminId   int64   `json:"admin_id" gorm:"index;not null"`                                     // 管理员id
-	Cycle     int64   `json:"cycle" gorm:"default:0" form:"cycle"`                                // 任务周期,单位秒,0为不重复执行,大于0表示间隔多久自动重复执行
-	RetryMax  int     `json:"retry_max" gorm:"default:0" form:"retry_max"`                        // 最大重试次数
-	Timeout   int64   `json:"timeout" gorm:"default:0" form:"timeout"`                            // 单次超时（秒）
-	Priority  int     `json:"priority" gorm:"default:0" form:"priority"`                          // 优先级
-	CatchUp   bool    `json:"catch_up" gorm:"default:false" form:"catch_up"`                      // 补跑漏掉的周期
-	SeNum     int     `json:"se_num" gorm:"default:2" form:"se_num"`                              // 同时执行的设备数量,0表示所有设备同时执行
-	DataSpec  string  `json:"data_spec" gorm:"default:null" form:"data_spec"`                     // 数据来源配置（JSON）,这种方式需要的参数
-	DataType  string  `json:"data_type" gorm:"default:null" form:"data_type"`                     // 数据类型标识,我用哪一种“取数方式”
-	Devices   []int64 `json:"devices" gorm:"-" form:"devices"`                                    // 设备列表
+	ID        int64    `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
+	Title     string   `json:"title" gorm:"index;not null;type:varchar(32)" form:"title"`          // 任务名称
+	Tp        int      `json:"type" gorm:"index;default:0" form:"type"`                            // 任务类型,分2种, 0-web端  1-手机端
+	Addtime   int64    `json:"addtime" gorm:"index;default:0"`                                     // 创建时间
+	Starttime int64    `json:"starttime" gorm:"index;default:0" form:"starttime" parse:"datetime"` // 任务开始时间
+	Endtime   int64    `json:"endtime" gorm:"index;default:0" form:"endtime" parse:"datetime"`     // 任务结束时间
+	Status    int      `json:"status" gorm:"type:tinyint(1);default:0;index" form:"status"`        // 任务状态, 1-可执行 0-不可执行
+	Script    int64    `json:"script" gorm:"index;not null" form:"script"`                         // 任务脚本
+	Params    string   `json:"params" gorm:"default:null" parse:"json"`                            // 脚本参数
+	Errmsg    string   `json:"errmsg" gorm:"default:null" form:"errmsg"`                           // 错误信息
+	AdminId   int64    `json:"admin_id" gorm:"index;not null"`                                     // 管理员id
+	Cycle     int64    `json:"cycle" gorm:"default:0" form:"cycle"`                                // 任务周期,单位秒,0为不重复执行,大于0表示间隔多久自动重复执行
+	RetryMax  int      `json:"retry_max" gorm:"default:0" form:"retry_max"`                        // 最大重试次数
+	Timeout   int64    `json:"timeout" gorm:"default:0" form:"timeout"`                            // 单次超时（秒）
+	Priority  int      `json:"priority" gorm:"default:0" form:"priority"`                          // 优先级
+	CatchUp   bool     `json:"catch_up" gorm:"default:false" form:"catch_up"`                      // 补跑漏掉的周期
+	SeNum     int      `json:"se_num" gorm:"default:2" form:"se_num"`                              // 同时执行的设备数量,0表示所有设备同时执行
+	DataSpec  string   `json:"data_spec" gorm:"default:null" form:"data_spec"`                     // 数据来源配置（JSON）,这种方式需要的参数
+	DataType  string   `json:"data_type" gorm:"default:null" form:"data_type"`                     // 数据类型标识,我用哪一种“取数方式”
+	Devices   []int64  `json:"devices" gorm:"-" form:"devices"`                                    // 设备列表
+	Tags      []string `json:"tags" gorm:"-" form:"tags"`                                          // 设备标签
 }
 
 // 任务执行表
@@ -83,12 +90,6 @@ type TaskClients struct {
 	DeviceType int   `json:"device_type" gorm:"primaryKey"` // 设备类型, 0-web端 1-手机端
 }
 
-// 任务标签表
-type TaskTag struct {
-	ID   int64  `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name string `json:"name" gorm:"index;not null"`
-}
-
 // 任务对于的标签表
 type TaskToTag struct {
 	TaskID int64 `json:"task_id" gorm:"primaryKey"`
@@ -105,12 +106,12 @@ type TempTask struct {
 }
 
 func init() {
-	db.TaskDB.AutoMigrate(&Task{})
-	db.TaskDB.AutoMigrate(&TaskClients{})
-	db.TaskDB.AutoMigrate(&TaskTag{})
-	db.TaskDB.AutoMigrate(&TaskToTag{})
-	db.TaskDB.AutoMigrate(&TaskRun{})
-	db.TaskDB.AutoMigrate(&TaskLog{})
+	dbs.AutoMigrate(&Task{})
+	dbs.AutoMigrate(&TaskClients{})
+	dbs.AutoMigrate(&TaskTag{})
+	dbs.AutoMigrate(&TaskToTag{})
+	dbs.AutoMigrate(&TaskRun{})
+	dbs.AutoMigrate(&TaskLog{})
 
 	// 启动任务监听
 	InitScheduler(
@@ -122,7 +123,11 @@ func init() {
 		func(ctx context.Context, task *Task, runID int64) error {
 			// log.Println("[run task] 执行任务:", task.ID)
 			// 此处需要先获取数据,通过 DataSpec 和 DataType 获取
-			runData := []byte("测试数据")
+			// runData := []byte("测试数据")
+			jsobj := jses.GetJsById(task.Script)
+			if jsobj == nil || jsobj.ID < 1 {
+				return fmt.Errorf("%s（%d） 未设置脚本", task.Title, task.ID)
+			}
 			for {
 				select {
 				case <-ctx.Done():
@@ -130,7 +135,7 @@ func init() {
 					return ctx.Err()
 				default:
 					// log.Println("----执行代码")
-					return execTask(ctx, task, runID, runData)
+					return execTask(ctx, task, runID, jsobj.Content)
 					// doOneStep()
 				}
 			}
@@ -142,8 +147,22 @@ func init() {
 
 func (this *Task) Save(tx *gorm.DB) error {
 	if tx == nil {
-		tx = db.TaskDB
+		tx = dbs
 	}
+
+	if this.Title == "" {
+		return fmt.Errorf("请填写任务标题")
+	}
+
+	if this.Status == 1 {
+		if this.Script < 1 {
+			return fmt.Errorf("请设置脚本，否则任务无法启动!")
+		}
+		if len(this.Devices) < 1 {
+			return fmt.Errorf("请设置执行客户端，否则任务无法启动!")
+		}
+	}
+
 	defer NotifyTaskChanged(this.ID)
 	if this.ID > 0 {
 		return tx.Model(&Task{}).Where("id = ?", this.ID).
@@ -162,8 +181,8 @@ func (this *Task) Save(tx *gorm.DB) error {
 				"catch_up":  this.CatchUp,
 			}).Error
 	} else {
-		if this.Starttime < 1 {
-			this.Starttime = time.Now().Unix()
+		if this.Addtime < 1 {
+			this.Addtime = time.Now().Unix()
 		}
 		err := tx.Create(this).Error
 		if err == nil {
@@ -176,14 +195,14 @@ func (this *Task) Save(tx *gorm.DB) error {
 // 获取Task
 func GetTaskById(id any) *Task {
 	tsk := new(Task)
-	db.TaskDB.Model(&Task{}).Where("id = ?", id).First(tsk)
+	dbs.Model(&Task{}).Where("id = ?", id).First(tsk)
 	return tsk
 }
 
 // 获取任务总数
 func GetTotalTask(groupname string, adminid int64) int64 {
 	var total int64
-	md := db.TaskDB.Model(&Task{}).Where("admin_id = ?", adminid)
+	md := dbs.Model(&Task{}).Where("admin_id = ?", adminid)
 	if groupname != "" {
 		md.Where("group_name = ?", groupname)
 	}
@@ -192,27 +211,54 @@ func GetTotalTask(groupname string, adminid int64) int64 {
 }
 
 // 获取分组的任务
-func GetTasks(page, limit int, query string, adminid int64) ([]*Task, int64) {
+
+func GetTasks(adminid int64, dt *db.ListFinder) ([]*Task, int64) {
 	var tks []*Task
-	if page < 1 {
-		page = 1
+	if dt.Page < 1 {
+		dt.Page = 1
 	}
-	if limit < 1 {
-		limit = 20
+	if dt.Limit < 1 {
+		dt.Limit = 20
 	}
-	md := db.TaskDB.Model(&Task{}).Where("admin_id = ?", adminid)
-	if query != "" {
-		qs := fmt.Sprintf("%%%s%%", query)
+	md := dbs.Model(&Task{}).Where("admin_id = ?", adminid)
+	if dt.Q != "" {
+		qs := fmt.Sprintf("%%%s%%", dt.Q)
 		md.Where("title like ?", qs)
+	}
+
+	if len(dt.Types) > 0 {
+		md.Where("tp in ?", dt.Types)
+	}
+
+	if len(dt.Tags) > 0 {
+		var taskids []int64
+		dbs.Model(&TaskToTag{}).Select("task_id").Where("tag_id in ?", dt.Tags).Find(&taskids)
+		if len(taskids) > 0 {
+			md.Where("id in ?", taskids)
+		}
 	}
 
 	var total int64
 	md.Count(&total)
 
-	md.Order("id DESC").Offset((page - 1) * limit).Limit(limit).Find(&tks)
+	if dt.Scol != "" && dt.By != "" {
+		var byy string
+		if strings.Contains(dt.By, "desc") {
+			byy = "desc"
+		} else {
+			byy = "asc"
+		}
+		md.Order(fmt.Sprintf("%s %s", dt.Scol, byy))
+	} else {
+		md.Order("id DESC")
+	}
+	md.Offset((dt.Page - 1) * dt.Limit).Limit(dt.Limit).Find(&tks)
 
 	for _, v := range tks {
 		v.Devices = v.GetDevices()
+		for _, zv := range v.GetTags() {
+			v.Tags = append(v.Tags, zv.Name)
+		}
 	}
 	return tks, total
 }
@@ -220,21 +266,76 @@ func GetTasks(page, limit int, query string, adminid int64) ([]*Task, int64) {
 // 获取任务下的设备列表
 func (this *Task) GetDevices() []int64 {
 	var dids []int64
-	db.TaskDB.Model(&TaskClients{}).Select("device_id").Where("task_id = ?", this.ID).Find(&dids)
+	dbs.Model(&TaskClients{}).Select("device_id").Where("task_id = ?", this.ID).Find(&dids)
 	return dids
 }
 
+// 处理设备
+func (this *Task) GenDevices() error {
+	if this.ID > 0 {
+		this.removeNotUsedDevices(this.Devices)
+	}
+
+	var dvs []*TaskClients
+	for _, v := range this.Devices {
+		dvs = append(dvs, &TaskClients{
+			TaskID:     this.ID,
+			DeviceType: this.Tp,
+			DeviceID:   v,
+		})
+	}
+	if len(dvs) > 0 {
+		return dbs.
+			Clauses(clause.OnConflict{
+				DoNothing: true,
+			}).
+			Create(&dvs).Error
+	}
+	return nil
+}
+
 // 删除不存在的设备
-func (this *Task) RemoveNotUsedDevices(deviceIDs []int64) error {
-	return db.TaskDB.
+func (this *Task) removeNotUsedDevices(deviceIDs []int64) error {
+	return dbs.
 		Where("task_id = ?", this.ID).
 		Where("device_id not in ? or device_type != ?", deviceIDs, this.Tp).
 		Delete(&TaskClients{}).Error
 }
 
-// 获取tags
-func GetTags() []*TaskTag {
-	var tgs []*TaskTag
-	db.TaskDB.Model(&TaskTag{}).Find(&tgs)
-	return tgs
+// 获取任务的tags
+func (this *Task) GetTags() []*TaskTag {
+	var ttids []int64
+	dbs.Model(&TaskToTag{}).Select("tag_id").Where("task_id = ?", this.ID).Find(&ttids)
+
+	var tags []*TaskTag
+	dbs.Model(&TaskTag{}).Where("id in ?", ttids).Find(&tags)
+	return tags
+}
+
+// 通过task添加tags
+func (this *Task) AddTags() error {
+	tgs := AddTagsBySlice(this.Tags) // 不管三七二十一,将标签在标签表内添加一遍
+	var tagIds []int64
+	for _, v := range tgs {
+		tagIds = append(tagIds, v.ID)
+	}
+
+	dbs.Where("task_id = ?", this.ID).Where("tag_id not in ?", tagIds).Delete(&TaskToTag{}) // 不管三七二十一,将对应表中不存在的标签id删除
+
+	if len(tagIds) > 0 {
+		tags := make([]*TaskToTag, 0, len(tagIds))
+		for _, tid := range tagIds {
+			tags = append(tags, &TaskToTag{
+				TaskID: this.ID,
+				TagID:  tid,
+			})
+		}
+
+		return dbs.
+			Clauses(clause.OnConflict{
+				DoNothing: true,
+			}).
+			Create(&tags).Error
+	}
+	return nil
 }

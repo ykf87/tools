@@ -19,6 +19,16 @@ var MEDIADB *gorm.DB
 var TaskDB *gorm.DB
 var AppTask *gorm.DB
 
+type ListFinder struct {
+	Page  int     `json:"page" form:"page"`
+	Limit int     `json:"limit" form:"limit"`
+	Q     string  `json:"q" form:"q"`
+	By    string  `json:"by" form:"by"`
+	Scol  string  `json:"scol" form:"scol"`
+	Tags  []int64 `json:"tags" form:"tags"`
+	Types []int64 `json:"types" form:"types"`
+}
+
 var DBINIT = map[string]**gorm.DB{
 	config.DBFILE: &DB,
 	"mq.db":       &MQDB,

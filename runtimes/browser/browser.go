@@ -31,8 +31,13 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
+	"tools/runtimes/config"
+	"tools/runtimes/i18n"
 
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
@@ -121,4 +126,51 @@ func (b *Browser) OnConsole(cb func([]*runtime.RemoteObject)) {
 func (b *Browser) RunJs(js string) error {
 	var rs string
 	return b.Run(chromedp.Evaluate(js, &rs))
+}
+
+// 从chromedp上传
+func (this *Browser) Upload(fls []string, clickNode, fileNode string) error {
+	if clickNode == "" || fileNode == "" {
+		return errors.New(i18n.T("上传数据不足"))
+	}
+
+	for i, v := range fls {
+		v = strings.ReplaceAll(v, "\\", "/")
+		if strings.Contains(v, config.MEDIAROOT) == false {
+			v = filepath.Join(config.MEDIAROOT, v)
+		}
+		if _, err := os.Stat(v); err != nil {
+			return err
+		}
+		fls[i] = v
+	}
+
+	err := this.Run(
+		chromedp.Click(clickNode),
+		chromedp.Sleep(1*time.Second),
+		chromedp.SetUploadFiles(fileNode, fls),
+	)
+	return err
+}
+
+// 输入内容
+func (this *Browser) InputTxt(text, clickNode string) error {
+	if text == "" || clickNode == "" {
+		return errors.New(i18n.T("输入数据不足"))
+	}
+
+	var backs []chromedp.Action
+	for i := len(text); i > 0; i-- {
+		backs = append(backs, chromedp.SendKeys(clickNode, "\b"))
+	}
+
+	this.Run(
+		chromedp.Click(clickNode),
+		chromedp.Sleep(time.Second*2),
+	)
+	this.Run(backs...)
+	return this.Run(
+		chromedp.Sleep(time.Second*1),
+		chromedp.SendKeys(clickNode, text, chromedp.NodeVisible),
+	)
 }

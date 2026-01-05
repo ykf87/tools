@@ -3,6 +3,7 @@ package web
 import (
 	"tools/runtimes/controllers/browsers"
 	"tools/runtimes/controllers/infor"
+	"tools/runtimes/controllers/js"
 	"tools/runtimes/controllers/phones"
 	"tools/runtimes/controllers/proxys"
 	"tools/runtimes/controllers/suggs"
@@ -133,5 +134,11 @@ func router() {
 		taskGroup.GET("viewbasedata", task.BaseData)
 		taskGroup.POST("ae", task.AddOrEdit)
 		taskGroup.GET("devices", task.TaskDevices)
+	}
+
+	// js脚本
+	jsGroup := AuthRoutes.Group("jses")
+	{
+		jsGroup.POST("", js.List)
 	}
 }

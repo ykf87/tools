@@ -13,12 +13,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type TaskData struct {
-	Page  int    `json:"page" form:"page"`
-	Limit int    `json:"limit" form:"limit"`
-	Q     string `json:"q" form:"q"`
-}
-
 func List(c *gin.Context) {
 	var user *admins.Admin
 	if u, ok := c.Get("_user"); ok {
@@ -32,12 +26,12 @@ func List(c *gin.Context) {
 		return
 	}
 
-	dt := new(TaskData)
+	dt := new(db.ListFinder)
 	if err := c.ShouldBind(dt); err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
-	list, total := tasks.GetTasks(dt.Page, dt.Limit, dt.Q, user.Id)
+	list, total := tasks.GetTasks(user.Id, dt)
 	rsp := gin.H{
 		"list":  list,
 		"total": total,
@@ -81,33 +75,18 @@ func AddOrEdit(c *gin.Context) {
 		return
 	}
 
-	if dt.Starttime > 0 {
-		dt.Starttime = dt.Starttime / 1000
-	}
-	if dt.Endtime > 0 {
-		dt.Endtime = dt.Endtime / 1000
-	}
 	dt.AdminId = user.Id
-	newDevices := dt.Devices
-
 	if err := dt.Save(nil); err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
-	if dt.ID > 0 {
-		dt.RemoveNotUsedDevices(dt.Devices)
-	}
-	var dvs []*tasks.TaskClients
-	for _, v := range newDevices {
-		dvs = append(dvs, &tasks.TaskClients{
-			TaskID:     dt.ID,
-			DeviceType: dt.Tp,
-			DeviceID:   v,
-		})
-	}
-	if len(dvs) > 0 {
-		db.TaskDB.Create(dvs)
+	// 任务设备处理
+	dt.GenDevices()
+
+	// 任务标签处理
+	if len(dt.Tags) > 0 {
+		dt.AddTags()
 	}
 	response.Success(c, dt, "")
 }
