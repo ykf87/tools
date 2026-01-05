@@ -173,6 +173,13 @@ func (this *Task) Save(tx *gorm.DB) error {
 	}
 }
 
+// 获取Task
+func GetTaskById(id any) *Task {
+	tsk := new(Task)
+	db.TaskDB.Model(&Task{}).Where("id = ?", id).First(tsk)
+	return tsk
+}
+
 // 获取任务总数
 func GetTotalTask(groupname string, adminid int64) int64 {
 	var total int64
@@ -202,7 +209,7 @@ func GetTasks(page, limit int, query string, adminid int64) ([]*Task, int64) {
 	var total int64
 	md.Count(&total)
 
-	md.Order("starttime DESC").Offset((page - 1) * limit).Limit(limit).Debug().Find(&tks)
+	md.Order("id DESC").Offset((page - 1) * limit).Limit(limit).Find(&tks)
 
 	for _, v := range tks {
 		v.Devices = v.GetDevices()

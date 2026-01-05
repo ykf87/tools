@@ -1,8 +1,8 @@
 package task
 
 import (
-	"fmt"
 	"net/http"
+	"strconv"
 	"tools/runtimes/db"
 	"tools/runtimes/db/admins"
 	"tools/runtimes/db/clients"
@@ -89,7 +89,6 @@ func AddOrEdit(c *gin.Context) {
 	}
 	dt.AdminId = user.Id
 	newDevices := dt.Devices
-	fmt.Println(dt.Devices, "-1111")
 
 	if err := dt.Save(nil); err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
@@ -107,9 +106,34 @@ func AddOrEdit(c *gin.Context) {
 			DeviceID:   v,
 		})
 	}
-	fmt.Println(dvs, "---")
 	if len(dvs) > 0 {
-		db.TaskDB.Create(dvs).Debug()
+		db.TaskDB.Create(dvs)
 	}
 	response.Success(c, dt, "")
+}
+
+// 获取任务下的设备列表
+func TaskDevices(c *gin.Context) {
+	taskId, _ := strconv.Atoi(c.Query("id"))
+	if taskId < 1 {
+		response.Error(c, http.StatusBadRequest, "错误", nil)
+		return
+	}
+
+	task := tasks.GetTaskById(taskId)
+	if task == nil || task.ID < 1 {
+		response.Error(c, http.StatusBadRequest, "错误!", nil)
+		return
+	}
+
+	dids := task.GetDevices()
+
+	var dvs any
+	switch task.Tp {
+	case 0:
+		dvs = clients.GetBrowsersByIds(dids)
+	case 1:
+		dvs = clients.GetPhonesByIds(dids)
+	}
+	response.Success(c, dvs, "")
 }

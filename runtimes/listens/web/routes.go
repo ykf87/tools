@@ -132,5 +132,6 @@ func router() {
 		taskGroup.POST("", task.List)
 		taskGroup.GET("viewbasedata", task.BaseData)
 		taskGroup.POST("ae", task.AddOrEdit)
+		taskGroup.GET("devices", task.TaskDevices)
 	}
 }
