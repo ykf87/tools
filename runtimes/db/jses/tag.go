@@ -16,3 +16,21 @@ func init() {
 	db.DB.AutoMigrate(&JsTag{})
 	db.DB.AutoMigrate(&JsToTag{})
 }
+
+// 获取脚本下的tags
+func (this *Js) GetTags() []*JsTag {
+	var ttids []int64
+	db.DB.Model(&JsToTag{}).Select("tag_id").Where("js_id = ?", this.ID).Find(&ttids)
+
+	var tags []*JsTag
+	db.DB.Model(&JsTag{}).Where("id in ?", ttids).Find(&tags)
+	return tags
+}
+
+// 获取脚本的标签列表
+func GetTags() []*JsTag {
+	var tgs []*JsTag
+
+	db.DB.Model(&JsTag{}).Find(&tgs)
+	return tgs
+}

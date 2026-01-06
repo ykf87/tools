@@ -211,7 +211,6 @@ func GetTotalTask(groupname string, adminid int64) int64 {
 }
 
 // 获取分组的任务
-
 func GetTasks(adminid int64, dt *db.ListFinder) ([]*Task, int64) {
 	var tks []*Task
 	if dt.Page < 1 {

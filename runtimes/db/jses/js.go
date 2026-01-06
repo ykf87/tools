@@ -1,21 +1,27 @@
 // 执行的js脚本,浏览器和手机端都是使用js来执行
 package jses
 
-import "tools/runtimes/db"
+import (
+	"fmt"
+	"strings"
+	"tools/runtimes/db"
+)
 
 // js脚本表,content是脚本的内容
 // replace_prev 默认是 <<
 // replace_end 默认是 >>
 type Js struct {
-	ID          int64  `json:"id" gorm:"primaryKey;autoIncrement"`
-	Code        string `json:"code" gorm:"uniqueIndex;not null"`              // 唯一标识符
-	Name        string `json:"name" gorm:"index"`                             // 名称
-	IsSys       int    `json:"is_sys" gorm:"type:tinyint(1);index;default:1"` // 是否是从服务端获取的脚本,如果从服务器获取的脚本,将使用aes加密
-	AdminID     int64  `json:"admin_id" gorm:"index;default:0"`               // 管理员id, 如果是系统的则为0,如果是用户自己写的,则对应用户的id
-	Content     string `json:"content" gorm:"not null;type:longtext"`         // 执行的脚本
-	ReplacePrev string `json:"replace_prev"`                                  // 变量替换前缀
-	ReplaceEnd  string `json:"replace_end"`                                   // 变量替换后缀
-	Icon        string `json:"icon"`                                          // 此js的图标
+	ID          int64      `json:"id" gorm:"primaryKey;autoIncrement"`
+	Code        string     `json:"code" gorm:"uniqueIndex;not null"`              // 唯一标识符
+	Name        string     `json:"name" gorm:"index"`                             // 名称
+	IsSys       int        `json:"is_sys" gorm:"type:tinyint(1);index;default:1"` // 是否是从服务端获取的脚本,如果从服务器获取的脚本,将使用aes加密,0为系统获取, 1为用户自写
+	AdminID     int64      `json:"admin_id" gorm:"index;default:0"`               // 管理员id, 如果是系统的则为0,如果是用户自己写的,则对应用户的id
+	Content     string     `json:"content" gorm:"not null;type:longtext"`         // 执行的脚本
+	ReplacePrev string     `json:"replace_prev"`                                  // 变量替换前缀
+	ReplaceEnd  string     `json:"replace_end"`                                   // 变量替换后缀
+	Icon        string     `json:"icon"`                                          // 此js的图标
+	Tags        []string   `json:"tags" gorm:"-"`                                 // 标签
+	Params      []*JsParam `json:"params" gorm:"-"`                               // 参数
 }
 
 // js内容和变量对应表
@@ -41,6 +47,12 @@ func init() {
 	db.DB.AutoMigrate(&JsParam{})
 }
 
+func (this *Js) GetParams() []*JsParam {
+	var jps []*JsParam
+	db.DB.Model(&JsParam{}).Where("js_id = ?", this.ID).Find(&jps)
+	return jps
+}
+
 // 根据脚本ID获取脚本
 func GetJsById(id int64) *Js {
 	if id < 1 {
@@ -49,4 +61,56 @@ func GetJsById(id int64) *Js {
 	jsobj := new(Js)
 	db.DB.Model(&Js{}).Where("id = ?", id).First(jsobj)
 	return jsobj
+}
+
+func GetJsList(dt *db.ListFinder) ([]*Js, int64) {
+	var tks []*Js
+	if dt.Page < 1 {
+		dt.Page = 1
+	}
+	if dt.Limit < 1 {
+		dt.Limit = 20
+	}
+	md := db.DB.Model(&Js{})
+	if dt.Q != "" {
+		qs := fmt.Sprintf("%%%s%%", dt.Q)
+		md.Where("title like ?", qs)
+	}
+
+	if len(dt.Types) > 0 {
+		md.Where("tp in ?", dt.Types)
+	}
+
+	if len(dt.Tags) > 0 {
+		var taskids []int64
+		db.DB.Model(&JsToTag{}).Select("js_id").Where("tag_id in ?", dt.Tags).Find(&taskids)
+		if len(taskids) > 0 {
+			md.Where("id in ?", taskids)
+		}
+	}
+
+	var total int64
+	md.Count(&total)
+
+	if dt.Scol != "" && dt.By != "" {
+		var byy string
+		if strings.Contains(dt.By, "desc") {
+			byy = "desc"
+		} else {
+			byy = "asc"
+		}
+		md.Order(fmt.Sprintf("%s %s", dt.Scol, byy))
+	} else {
+		md.Order("id DESC")
+	}
+	md.Offset((dt.Page - 1) * dt.Limit).Limit(dt.Limit).Debug().Find(&tks)
+
+	for _, v := range tks {
+		// v.Devices = v.GetDevices()
+		v.Params = v.GetParams()
+		for _, zv := range v.GetTags() {
+			v.Tags = append(v.Tags, zv.Name)
+		}
+	}
+	return tks, total
 }

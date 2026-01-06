@@ -140,5 +140,6 @@ func router() {
 	jsGroup := AuthRoutes.Group("jses")
 	{
 		jsGroup.POST("", js.List)
+		jsGroup.GET("tags", js.Tags)
 	}
 }
