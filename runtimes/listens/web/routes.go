@@ -141,5 +141,8 @@ func router() {
 	{
 		jsGroup.POST("", js.List)
 		jsGroup.GET("tags", js.Tags)
+		jsGroup.GET("types", js.GetTypes)
+		jsGroup.POST("delete", js.Delete)
+		jsGroup.POST("ae", js.AddOrEdit)
 	}
 }

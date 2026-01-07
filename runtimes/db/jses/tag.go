@@ -1,10 +1,14 @@
 package jses
 
-import "tools/runtimes/db"
+import (
+	"tools/runtimes/db"
+
+	"gorm.io/gorm/clause"
+)
 
 type JsTag struct {
 	ID   int64  `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name string `json:"name" gorm:"type:varchar(60);index"`
+	Name string `json:"name" gorm:"type:varchar(60);uniqueIndex"`
 }
 
 type JsToTag struct {
@@ -33,4 +37,30 @@ func GetTags() []*JsTag {
 
 	db.DB.Model(&JsTag{}).Find(&tgs)
 	return tgs
+}
+
+func GetTagsByNames(names []string) []*JsTag {
+	var tgs []*JsTag
+	db.DB.Model(&JsTag{}).Where("name in ?", names).Find(&tgs)
+	return tgs
+}
+
+// 添加标签,通过字符串数组
+func AddTagsBySlice(tagNames []string) []*JsTag {
+	ln := len(tagNames)
+	if ln > 0 {
+		tags := make([]*JsTag, 0, ln)
+		for _, name := range tagNames {
+			tags = append(tags, &JsTag{
+				Name: name,
+			})
+		}
+
+		db.DB.Clauses(clause.OnConflict{
+			DoNothing: true,
+		}).Create(&tags)
+
+		return GetTagsByNames(tagNames)
+	}
+	return nil
 }

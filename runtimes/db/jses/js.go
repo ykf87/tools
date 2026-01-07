@@ -4,7 +4,11 @@ package jses
 import (
 	"fmt"
 	"strings"
+	"time"
 	"tools/runtimes/db"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // js脚本表,content是脚本的内容
@@ -14,37 +18,51 @@ type Js struct {
 	ID          int64      `json:"id" gorm:"primaryKey;autoIncrement"`
 	Code        string     `json:"code" gorm:"uniqueIndex;not null"`              // 唯一标识符
 	Name        string     `json:"name" gorm:"index"`                             // 名称
-	IsSys       int        `json:"is_sys" gorm:"type:tinyint(1);index;default:1"` // 是否是从服务端获取的脚本,如果从服务器获取的脚本,将使用aes加密,0为系统获取, 1为用户自写
+	IsSys       int        `json:"is_sys" gorm:"type:tinyint(1);index;default:0"` // 是否是从服务端获取的脚本,如果从服务器获取的脚本,将使用aes加密,1为系统获取, 0为用户自写
 	AdminID     int64      `json:"admin_id" gorm:"index;default:0"`               // 管理员id, 如果是系统的则为0,如果是用户自己写的,则对应用户的id
 	Content     string     `json:"content" gorm:"not null;type:longtext"`         // 执行的脚本
 	ReplacePrev string     `json:"replace_prev"`                                  // 变量替换前缀
 	ReplaceEnd  string     `json:"replace_end"`                                   // 变量替换后缀
 	Icon        string     `json:"icon"`                                          // 此js的图标
+	Addtime     int64      `json:"addtime" gorm:"index;default:0"`                // 添加时间
 	Tags        []string   `json:"tags" gorm:"-"`                                 // 标签
 	Params      []*JsParam `json:"params" gorm:"-"`                               // 参数
-}
-
-// js内容和变量对应表
-// 此表仅是定规则,并不存储真实数据
-type JsParam struct {
-	JsID        int64  `json:"js_id" gorm:"not null;primaryKey"`             // Js 表ID
-	CodeName    string `json:"code_name" gorm:"not null;primaryKey"`         // 用于替换Js表的Content中的变量名称
-	Type        string `json:"type" gorm:"index;type:varchar(30); not null"` // 类型
-	Label       string `json:"label" gorm:"type:varchar(32);not null"`       // 展示的名称
-	Required    int    `json:"required" gorm:"type:tinyint(1);default:0"`    // 是否必须
-	Placeholder string `json:"placeholder" gorm:"type:varchar(150);"`        // 提示
-	Tips        string `json:"tips"`                                         // 长提示,类似说明
-	Options     string `json:"options" parse:"json"`                         // 默认的选项,json格式
-	Default     string `json:"default"`                                      // 默认值
-	Rules       string `json:"rules"`                                        // 验证规则
-	Api         string `json:"api"`                                          // 数据接口,需要是此后台支持的.此接口仅用于生成一些预设值,也就是选项的值.和task_params表的接口作用不一样
-	Method      string `json:"method"`                                       // 接口请求的方式
-	ApiParams   string `json:"api_params"`                                   // 数据接口调用时的参数
 }
 
 func init() {
 	db.DB.AutoMigrate(&Js{})
 	db.DB.AutoMigrate(&JsParam{})
+}
+
+func (this *Js) Save(tx *gorm.DB) error {
+	if tx == nil {
+		tx = db.DB
+	}
+
+	if this.Name == "" {
+		return fmt.Errorf("请填写脚本标题")
+	}
+
+	// defer NotifyTaskChanged(this.ID)
+	if this.ID > 0 {
+		return tx.Model(&Js{}).Where("id = ?", this.ID).
+			Updates(map[string]any{
+				"name":         this.Name,
+				"code":         this.Code,
+				"content":      this.Content,
+				"replace_prev": this.ReplacePrev,
+				"replace_end":  this.ReplaceEnd,
+				"icon":         this.Icon,
+				"admin_id":     this.AdminID,
+			}).Error
+	} else {
+		if this.Addtime < 1 {
+			this.Addtime = time.Now().Unix()
+		}
+		this.IsSys = 1
+		err := tx.Create(this).Error
+		return err
+	}
 }
 
 func (this *Js) GetParams() []*JsParam {
@@ -103,7 +121,7 @@ func GetJsList(dt *db.ListFinder) ([]*Js, int64) {
 	} else {
 		md.Order("id DESC")
 	}
-	md.Offset((dt.Page - 1) * dt.Limit).Limit(dt.Limit).Debug().Find(&tks)
+	md.Offset((dt.Page - 1) * dt.Limit).Limit(dt.Limit).Find(&tks)
 
 	for _, v := range tks {
 		// v.Devices = v.GetDevices()
@@ -113,4 +131,36 @@ func GetJsList(dt *db.ListFinder) ([]*Js, int64) {
 		}
 	}
 	return tks, total
+}
+
+func Delete(id any) error {
+	return db.DB.Where("id = ?", id).Delete(&Js{}).Error
+}
+
+// 通过task添加tags
+func (this *Js) AddTags() error {
+	tgs := AddTagsBySlice(this.Tags) // 不管三七二十一,将标签在标签表内添加一遍
+	var tagIds []int64
+	for _, v := range tgs {
+		tagIds = append(tagIds, v.ID)
+	}
+
+	db.DB.Where("js_id = ?", this.ID).Where("tag_id not in ?", tagIds).Delete(&JsToTag{}) // 不管三七二十一,将对应表中不存在的标签id删除
+
+	if len(tagIds) > 0 {
+		tags := make([]*JsToTag, 0, len(tagIds))
+		for _, tid := range tagIds {
+			tags = append(tags, &JsToTag{
+				JsID:  this.ID,
+				TagID: tid,
+			})
+		}
+
+		return db.DB.
+			Clauses(clause.OnConflict{
+				DoNothing: true,
+			}).
+			Create(&tags).Error
+	}
+	return nil
 }
