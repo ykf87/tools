@@ -7,6 +7,7 @@ import (
 
 // js内容和变量对应表
 // 此表仅是定规则,并不存储真实数据
+// 仅用作在编辑任务时的一些限制和数据预填
 type JsParam struct {
 	JsID         int64  `json:"js_id" gorm:"not null;primaryKey"`             // Js 表ID
 	CodeName     string `json:"code_name" gorm:"not null;primaryKey"`         // 用于替换Js表的Content中的变量名称
@@ -25,20 +26,6 @@ type JsParam struct {
 	ApiParams    string `json:"api_params"`                                   // 数据接口调用时的参数
 }
 
-type TypesStruct struct {
-	Key  string `json:"key"`
-	Name string `json:"name"`
-}
-
-var Types = []TypesStruct{
-	TypesStruct{Key: "input", Name: "文本"},
-	TypesStruct{Key: "input-number", Name: "数字"},
-	TypesStruct{Key: "textarea", Name: "长内容"},
-	TypesStruct{Key: "select", Name: "下拉选择"},
-	TypesStruct{Key: "radio", Name: "单选"},
-	TypesStruct{Key: "checkbox", Name: "多选"},
-}
-
 func (this *Js) GenParams() error {
 	db.DB.Where("js_id = ?", this.ID).Delete(&JsParam{})
 
@@ -55,4 +42,10 @@ func (this *Js) GenParams() error {
 		return db.DB.Create(this.Params).Error
 	}
 	return nil
+}
+
+func GetParamsByJsID(id any) []*JsParam {
+	var lst []*JsParam
+	db.DB.Model(&JsParam{}).Where("js_id = ?", id).Find(&lst)
+	return lst
 }

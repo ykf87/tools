@@ -29,7 +29,7 @@ func Tags(c *gin.Context) {
 }
 
 func GetTypes(c *gin.Context) {
-	response.Success(c, jses.Types, "")
+	response.Success(c, db.Types, "")
 }
 
 func Delete(c *gin.Context) {
@@ -77,4 +77,9 @@ func AddOrEdit(c *gin.Context) {
 		dt.AddTags()
 	}
 	response.Success(c, dt, "")
+}
+
+// 获取脚本需要的参数
+func Params(c *gin.Context) {
+	response.Success(c, jses.GetParamsByJsID(c.Query("id")), "")
 }

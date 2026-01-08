@@ -1,11 +1,14 @@
 package task
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"tools/runtimes/db"
 	"tools/runtimes/db/admins"
 	"tools/runtimes/db/clients"
+	"tools/runtimes/db/jses"
 	"tools/runtimes/db/tasks"
 	"tools/runtimes/parses"
 	"tools/runtimes/response"
@@ -42,6 +45,16 @@ func List(c *gin.Context) {
 
 // 后台任务列表基础数据
 func BaseData(c *gin.Context) {
+	finder := &db.ListFinder{
+		Page:  1,
+		Limit: 1000,
+		Q:     "",
+	}
+	jjs, _ := jses.GetJsList(finder)
+	for _, v := range jjs {
+		v.Name = fmt.Sprintf("%s:%s", v.Name, strings.Join(v.Tags, ","))
+	}
+
 	rsp := map[string]any{
 		"tags": tasks.GetTags(),
 		"tps":  tasks.Types,
@@ -49,6 +62,7 @@ func BaseData(c *gin.Context) {
 			"web":   clients.GetAllBrowsers(1, 20, ""),
 			"phone": clients.GetAllPhones(1, 20, ""),
 		},
+		"jss": jjs,
 	}
 
 	rrs, _ := parses.Marshal(rsp, c)

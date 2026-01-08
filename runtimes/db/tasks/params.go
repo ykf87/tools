@@ -11,3 +11,9 @@ type TaskParam struct {
 	Method   string `json:"method"`                             // 数据获取接口的调用方式
 	Params   string `json:"params"`                             // 获取数据时的参数
 }
+
+// 当前拥有的任务参数
+func (this *Task) GetParams() []*TaskParam {
+	dbs.Model(&TaskParam{}).Where("task_id = ?", this.ID).Find(&this.Params)
+	return this.Params
+}
