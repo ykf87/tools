@@ -67,7 +67,10 @@ func AddOrEdit(c *gin.Context) {
 	}
 
 	// js参数
-	dt.GenParams()
+	if err := dt.GenParams(); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
 
 	// 任务标签处理
 	if len(dt.Tags) > 0 {

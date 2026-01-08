@@ -1,5 +1,10 @@
 package jses
 
+import (
+	"fmt"
+	"tools/runtimes/db"
+)
+
 // js内容和变量对应表
 // 此表仅是定规则,并不存储真实数据
 type JsParam struct {
@@ -34,6 +39,20 @@ var Types = []TypesStruct{
 	TypesStruct{Key: "checkbox", Name: "多选"},
 }
 
-func (this *Js) GenParams() {
+func (this *Js) GenParams() error {
+	db.DB.Where("js_id = ?", this.ID).Delete(&JsParam{})
 
+	if len(this.Params) > 0 {
+		for _, v := range this.Params {
+			if v.Label == "" {
+				return fmt.Errorf("%s 的 参数名称 未设置", v.CodeName)
+			}
+			if v.Type == "" {
+				v.Type = "input"
+			}
+			v.JsID = this.ID
+		}
+		return db.DB.Create(this.Params).Error
+	}
+	return nil
 }
