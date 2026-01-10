@@ -113,6 +113,7 @@ func init() {
 	dbs.AutoMigrate(&TaskToTag{})
 	dbs.AutoMigrate(&TaskRun{})
 	dbs.AutoMigrate(&TaskLog{})
+	dbs.AutoMigrate(&TaskParam{})
 
 	// 启动任务监听
 	InitScheduler(
@@ -180,6 +181,10 @@ func (this *Task) Save(tx *gorm.DB) error {
 				"timeout":   this.Timeout,
 				"priority":  this.Priority,
 				"catch_up":  this.CatchUp,
+				"script":    this.Script,
+				"se_num":    this.SeNum,
+				"data_spec": this.DataSpec,
+				"data_type": this.DataType,
 			}).Error
 	} else {
 		if this.Addtime < 1 {
