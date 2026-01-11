@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -408,4 +409,17 @@ func FormatFileSize(size int64) string {
 	default:
 		return fmt.Sprintf("%d B", size)
 	}
+}
+
+// 正则替换内容
+func ReplaceContent(content, prefix, suffix, k, value string) string {
+	// 对前后缀进行正则安全转义
+	p := regexp.QuoteMeta(prefix)
+	s := regexp.QuoteMeta(suffix)
+
+	// 匹配：前缀 + 任意空格 + 任意内容 + 任意空格 + 后缀
+	pattern := p + `\s*` + k + `\s*` + s
+	re := regexp.MustCompile(pattern)
+
+	return re.ReplaceAllString(content, value)
 }

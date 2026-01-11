@@ -130,6 +130,12 @@ func init() {
 			if jsobj == nil || jsobj.ID < 1 {
 				return fmt.Errorf("%s（%d） 未设置脚本", task.Title, task.ID)
 			}
+			pms := task.GetParams()
+			pmmaps := make(map[string]string)
+			for _, v := range pms {
+				pmmaps[v.CodeName] = v.Value
+			}
+			jsobj.GetContent(pmmaps)
 			for {
 				select {
 				case <-ctx.Done():

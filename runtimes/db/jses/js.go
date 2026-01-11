@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 	"tools/runtimes/db"
+	"tools/runtimes/funcs"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -63,6 +64,25 @@ func (this *Js) Save(tx *gorm.DB) error {
 		err := tx.Create(this).Error
 		return err
 	}
+}
+
+// 获取js的内容
+func (this *Js) GetContent(taskParams map[string]string) string {
+	params := this.GetParams()
+	if len(params) < 1 {
+		return this.Content
+	}
+	str := this.Content
+
+	for _, v := range params {
+		val, ok := taskParams[v.CodeName]
+		if !ok {
+			continue
+		}
+		str = funcs.ReplaceContent(str, this.ReplacePrev, this.ReplaceEnd, v.CodeName, val)
+	}
+
+	return str
 }
 
 func (this *Js) GetParams() []*JsParam {
