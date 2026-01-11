@@ -26,6 +26,7 @@ import (
 	// "syscall"
 	// "github.com/lxn/win"
 	// "github.com/kbinani/screenshot"
+	"github.com/dop251/goja"
 	"github.com/google/uuid"
 )
 
@@ -422,4 +423,21 @@ func ReplaceContent(content, prefix, suffix, k, value string) string {
 	re := regexp.MustCompile(pattern)
 
 	return re.ReplaceAllString(content, value)
+}
+
+// 执行js并返回结果
+func RunJs(js string) (any, error) {
+	vm := goja.New()
+
+	result, err := vm.RunString(`
+			function add(a, b) {
+				return a + b;
+			}
+			add(2, 3);
+		`)
+
+	if err != nil {
+		return nil, err
+	}
+	return result.Export(), nil
 }
