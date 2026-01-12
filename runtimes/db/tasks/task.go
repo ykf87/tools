@@ -131,11 +131,11 @@ func init() {
 				return fmt.Errorf("%s（%d） 未设置脚本", task.Title, task.ID)
 			}
 			pms := task.GetParams()
-			pmmaps := make(map[string]string)
+			pmmaps := make(map[string]any)
 			for _, v := range pms {
 				pmmaps[v.CodeName] = v.Value
 			}
-			jsobj.GetContent(pmmaps)
+			jsstr := jsobj.GetContent(pmmaps)
 			for {
 				select {
 				case <-ctx.Done():
@@ -143,7 +143,7 @@ func init() {
 					return ctx.Err()
 				default:
 					// log.Println("----执行代码")
-					return execTask(ctx, task, runID, jsobj.Content)
+					return execTask(ctx, task, runID, jsstr)
 					// doOneStep()
 				}
 			}

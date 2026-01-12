@@ -102,6 +102,7 @@ func AddOrEdit(c *gin.Context) {
 	if len(dt.Tags) > 0 {
 		dt.AddTags()
 	}
+	fmt.Println(dt.Params, "---")
 	response.Success(c, dt, "")
 }
 

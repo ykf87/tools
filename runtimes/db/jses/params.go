@@ -20,7 +20,7 @@ type JsParam struct {
 	DownDataType *int    `json:"down_data_type"`                               // 下拉菜单的数据类型,0为预设值,1为api接口
 	Mulit        int     `json:"mulit" gorm:"default:0"`                       // 是否可多选,针对下拉菜单的
 	DefaultValue string  `json:"default"`                                      // 默认值
-	Rules        string  `json:"rules"`                                        // 验证规则
+	Rules        string  `json:"rules"`                                        // 验证规则,js的函数,并且传入输入数据,返回true为验证通过,其他返回值均视为失败.返回string为错误信息提示
 	Api          string  `json:"api"`                                          // 数据接口,需要是此后台支持的.此接口仅用于生成一些预设值,也就是选项的值.和task_params表的接口作用不一样
 	Method       string  `json:"method"`                                       // 接口请求的方式
 	ApiParams    *string `json:"api_params"`                                   // 数据接口调用时的参数
@@ -47,6 +47,6 @@ func (this *Js) GenParams() error {
 
 func GetParamsByJsID(id any) []*JsParam {
 	var lst []*JsParam
-	db.DB.Model(&JsParam{}).Where("js_id = ?", id).Find(&lst)
+	db.DB.Model(&JsParam{}).Where("js_id = ?", id).Order("required DESC").Find(&lst)
 	return lst
 }

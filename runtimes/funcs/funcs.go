@@ -413,7 +413,7 @@ func FormatFileSize(size int64) string {
 }
 
 // 正则替换内容
-func ReplaceContent(content, prefix, suffix, k, value string) string {
+func ReplaceContent(content, prefix, suffix, k string, value any) string {
 	// 对前后缀进行正则安全转义
 	p := regexp.QuoteMeta(prefix)
 	s := regexp.QuoteMeta(suffix)
@@ -422,7 +422,7 @@ func ReplaceContent(content, prefix, suffix, k, value string) string {
 	pattern := p + `\s*` + k + `\s*` + s
 	re := regexp.MustCompile(pattern)
 
-	return re.ReplaceAllString(content, value)
+	return re.ReplaceAllString(content, fmt.Sprint(value))
 }
 
 // 执行js并返回结果

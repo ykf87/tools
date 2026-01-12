@@ -30,6 +30,12 @@ type Js struct {
 	Params      []*JsParam `json:"params" gorm:"-"`                               // 参数
 }
 
+type RplsContent struct {
+	Code  string `json:"code_name"`
+	Value string `json:"value"`
+	// Api
+}
+
 func init() {
 	db.DB.AutoMigrate(&Js{})
 	db.DB.AutoMigrate(&JsParam{})
@@ -67,7 +73,7 @@ func (this *Js) Save(tx *gorm.DB) error {
 }
 
 // 获取js的内容
-func (this *Js) GetContent(taskParams map[string]string) string {
+func (this *Js) GetContent(taskParams map[string]any) string {
 	params := this.GetParams()
 	if len(params) < 1 {
 		return this.Content
