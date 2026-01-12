@@ -98,6 +98,9 @@ func AddOrEdit(c *gin.Context) {
 	// 任务设备处理
 	dt.GenDevices()
 
+	// 参数处理
+	dt.GenParams(dt.Params)
+
 	// 任务标签处理
 	if len(dt.Tags) > 0 {
 		dt.AddTags()

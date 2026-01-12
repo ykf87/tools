@@ -541,3 +541,41 @@ func OpenDir(c *gin.Context) {
 	funcs.OpenDir(fullPath)
 	response.Success(c, nil, "Success")
 }
+
+func Upload(c *gin.Context) {
+	fmt.Println("---------")
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 1,
+			"msg":  "获取文件失败",
+		})
+		return
+	}
+
+	path := c.PostForm("dir")
+
+	// 2. 保存路径
+	dst := filepath.Join(config.MEDIAROOT, path, file.Filename)
+	// dst := filepath.Join("uploads", file.Filename)
+
+	// 3. 保存文件
+	if err := c.SaveUploadedFile(file, dst); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"code": 2,
+			"msg":  "保存文件失败",
+		})
+		return
+	}
+
+	// 4. 返回结果
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"msg":  "上传成功",
+		"data": gin.H{
+			"filename": file.Filename,
+			"path":     filepath.Base(dst),
+			"size":     file.Size,
+		},
+	})
+}

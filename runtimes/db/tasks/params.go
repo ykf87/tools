@@ -1,17 +1,16 @@
 package tasks
 
+import (
+	"gorm.io/gorm/clause"
+)
+
 // 任务对应的js使用的参数的值
 // 或者他的数据调用方式
 type TaskParam struct {
-	TaskID   int64  `json:"task_id" gorm:"primaryKey;not null"`         // 任务表的id
-	JsID     int64  `json:"js_id" gorm:"primaryKey;not null"`           // js表的id
-	CodeName string `json:"code_name" gorm:"not null;"`                 // 替换js内容的键
-	DataType int    `json:"data_type" gorm:"type:tinyint(1);default:0"` // 数据的类型,是选项值还是api获取
-	Value    any    `json:"value" gorm:"default:null;type:longtext"`    // 数据
-	Api      string `json:"api"`                                        // 获取数据的接口,value和api两者需要只是存在一个,value优先级高于api
-	Method   string `json:"method"`                                     // 数据获取接口的调用方式
-	Params   string `json:"params"`                                     // 获取数据时的参数
-	ExecFunc string `json:"exec_func"`                                  // 解析结果的js代码
+	TaskID   int64  `json:"task_id" gorm:"primaryKey;not null"`      // 任务表的id
+	JsID     int64  `json:"js_id" gorm:"primaryKey;not null"`        // js表的id
+	CodeName string `json:"code_name" gorm:"primaryKey;not null;"`   // 替换js内容的键
+	Value    any    `json:"value" gorm:"default:null;type:longtext"` // 数据
 }
 
 // 当前拥有的任务参数
@@ -21,6 +20,35 @@ func (this *Task) GetParams() []*TaskParam {
 }
 
 // 设置任务参数
-func (this *Task) GenParams() {
+func (this *Task) GenParams(ps []*TaskParam) error {
+	if this.ID > 0 {
+		dbs.Where("task_id = ?", this.ID).Delete(&TaskParam{})
+	}
 
+	var pss []*TaskParam
+	for _, v := range ps {
+		v.TaskID = this.ID
+		v.JsID = this.Script
+
+		switch val := v.Value.(type) {
+		case string:
+			if val != "" {
+				pss = append(pss, v)
+			}
+		case int, int64, float64:
+			if val != 0 {
+				pss = append(pss, v)
+			}
+		}
+	}
+
+	if len(pss) > 0 {
+		return dbs.
+			Clauses(clause.OnConflict{
+				DoNothing: true,
+			}).
+			Create(&pss).Debug().Error
+	}
+
+	return nil
 }
