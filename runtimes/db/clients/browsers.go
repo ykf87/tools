@@ -2,6 +2,7 @@ package clients
 
 import (
 	"fmt"
+	"strings"
 	"time"
 	"tools/runtimes/browser"
 	"tools/runtimes/db"
@@ -312,6 +313,9 @@ func (this *Browser) Open() error {
 	})
 	b.OnURLChange(func(url string) { // 当url地址改变后
 		fmt.Println("URL:", url)
+		if !strings.Contains(url, "chrome-error") {
+			b.RunJs("")
+		}
 	})
 	go func() {
 		<-b.OnClosed()

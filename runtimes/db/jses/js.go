@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"tools/runtimes/aess"
 	"tools/runtimes/db"
 	"tools/runtimes/funcs"
 
@@ -66,7 +67,7 @@ func (this *Js) Save(tx *gorm.DB) error {
 		if this.Addtime < 1 {
 			this.Addtime = time.Now().Unix()
 		}
-		this.IsSys = 1
+		// this.IsSys = 1
 		err := tx.Create(this).Error
 		return err
 	}
@@ -79,13 +80,25 @@ func (this *Js) GetContent(taskParams map[string]any) string {
 		return this.Content
 	}
 	str := this.Content
+	if this.IsSys == 1 {
+		str = aess.AesDecryptCBC(str)
+	}
+
+	prev := "{{"
+	end := "}}"
+	if this.ReplacePrev != "" {
+		prev = this.ReplacePrev
+	}
+	if this.ReplaceEnd != "" {
+		end = this.ReplaceEnd
+	}
 
 	for _, v := range params {
 		val, ok := taskParams[v.CodeName]
 		if !ok {
 			continue
 		}
-		str = funcs.ReplaceContent(str, this.ReplacePrev, this.ReplaceEnd, v.CodeName, val)
+		str = funcs.ReplaceContent(str, prev, end, v.CodeName, val)
 	}
 
 	return str

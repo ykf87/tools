@@ -52,6 +52,7 @@ import (
 )
 
 func main() {
+	Maker()
 	port := 19998
 	go web.Start(port)
 	// mq.MqClient.Start()

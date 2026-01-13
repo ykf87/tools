@@ -29,17 +29,20 @@ func (this *Task) GenParams(ps []*TaskParam) error {
 	for _, v := range ps {
 		v.TaskID = this.ID
 		v.JsID = this.Script
-
-		switch val := v.Value.(type) {
-		case string:
-			if val != "" {
-				pss = append(pss, v)
-			}
-		case int, int64, float64:
-			if val != 0 {
-				pss = append(pss, v)
-			}
-		}
+		pss = append(pss, v)
+		// switch val := v.Value.(type) {
+		// case string:
+		// 	if val != "" {
+		// 		pss = append(pss, v)
+		// 	}
+		// case int, int64, float64:
+		// 	if val != 0 {
+		// 		pss = append(pss, v)
+		// 	}
+		// default:
+		// 	v.Value = ""
+		// 	pss = append(pss, v)
+		// }
 	}
 
 	if len(pss) > 0 {

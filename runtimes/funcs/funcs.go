@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -422,7 +423,14 @@ func ReplaceContent(content, prefix, suffix, k string, value any) string {
 	pattern := p + `\s*` + k + `\s*` + s
 	re := regexp.MustCompile(pattern)
 
-	return re.ReplaceAllString(content, fmt.Sprint(value))
+	rv := reflect.ValueOf(value)
+	if rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return ""
+		}
+		rv = rv.Elem()
+	}
+	return re.ReplaceAllString(content, fmt.Sprint(rv.Interface()))
 }
 
 // 执行js并返回结果

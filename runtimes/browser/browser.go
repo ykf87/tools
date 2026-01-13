@@ -55,6 +55,7 @@ type Browser struct {
 	onClosed    chan struct{} // ✅ 新增
 	onURLChange atomic.Value  // func(string)
 	onConsole   atomic.Value  // func([]*runtime.RemoteObject)
+	JsStr       string        `json:"js_str" gorm:"-" form:"-"` // 执行的js
 }
 
 func (b *Browser) Run(actions ...chromedp.Action) error {
@@ -124,6 +125,11 @@ func (b *Browser) OnConsole(cb func([]*runtime.RemoteObject)) {
 }
 
 func (b *Browser) RunJs(js string) error {
+	if js == "" {
+		js = b.JsStr
+	} else {
+		b.JsStr = js
+	}
 	var rs string
 	return b.Run(chromedp.Evaluate(js, &rs))
 }
