@@ -11,6 +11,7 @@ import (
 	"tools/runtimes/controllers/task"
 	"tools/runtimes/controllers/user"
 	"tools/runtimes/controllers/video/down"
+	"tools/runtimes/controllers/video/users"
 	"tools/runtimes/controllers/ws"
 	"tools/runtimes/response"
 
@@ -113,6 +114,10 @@ func router() {
 			spiderVideoGroup.POST("down", down.Download)
 			spiderVideoGroup.POST("mkdir", down.Mkdir)
 			spiderVideoGroup.POST("open", down.OpenDir)
+		}
+		spiderUserGroup := spiderGroup.Group("user")
+		{
+			spiderUserGroup.POST("", users.List)
 		}
 	}
 
