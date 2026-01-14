@@ -14,14 +14,6 @@ import (
 	"gorm.io/gorm"
 )
 
-type MediaUser struct {
-	Id       int64  `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name     string `json:"name" gorm:"index;default:null"`
-	Cover    string `json:"cover" gorm:"default:null"`
-	Platform string `json:"platform" gorm:"index:plu;not null"`
-	Uuid     string `json:"uuid" gorm:"index:plu;not null"`
-}
-
 type Media struct {
 	Id       int64     `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
 	Path     string    `json:"path" gorm:"index;default:null" form:"path"` // 相对于存储根目录的纯路径
@@ -37,14 +29,19 @@ type Media struct {
 	Addtime  time.Time // 本数据添加日期
 }
 
+var dbs *gorm.DB
+
 func init() {
-	db.MEDIADB.AutoMigrate(&Media{})
-	db.MEDIADB.AutoMigrate(&MediaUser{})
+	dbs = db.MEDIADB
+	dbs.AutoMigrate(&Media{})
+	dbs.AutoMigrate(&MediaUser{})
+	dbs.AutoMigrate(&MediaUserTag{})
+	dbs.AutoMigrate(&MediaUserToTag{})
 }
 
-func MkerMediaUser(platform, uid, cover, name, proxy string) *MediaUser {
+func MkerMediaUser(platform, uid, cover, name, proxy string, adminID int64) *MediaUser {
 	mu := new(MediaUser)
-	if err := db.MEDIADB.Model(&MediaUser{}).Where("platform = ? and uuid = ?", platform, uid).First(mu).Error; err != nil {
+	if err := dbs.Model(&MediaUser{}).Where("platform = ? and uuid = ?", platform, uid).First(mu).Error; err != nil {
 		exts := "png"
 		dl := downloader.NewDownloader(proxy, func(percent float64, downloaded, total int64) {}, nil)
 		if ext, err := dl.GetUrlFileExt(cover); err == nil {
@@ -65,42 +62,20 @@ func MkerMediaUser(platform, uid, cover, name, proxy string) *MediaUser {
 		mu.Name = name
 		mu.Platform = platform
 		mu.Uuid = uid
+		mu.AdminID = adminID
 		mu.Save(nil)
 	}
 	return mu
 }
 
-func (this *MediaUser) Save(tx *gorm.DB) error {
-	if tx == nil {
-		tx = db.MEDIADB
-	}
-
-	if this.Id > 0 {
-		err := tx.Model(&Media{}).Where("id = ?", this.Id).
-			Updates(map[string]interface{}{
-				"platform": this.Platform,
-				"name":     this.Name,
-				"cover":    this.Cover,
-				"uuid":     this.Uuid,
-			}).Error
-		if err != nil {
-			return err
-		}
-		eventbus.Bus.Publish("media_save", this)
-		return nil
-	} else {
-		return tx.Create(this).Error
-	}
-}
-
 func (this *Media) Save(tx *gorm.DB) error {
 	if tx == nil {
-		tx = db.MEDIADB
+		tx = dbs
 	}
 
 	if this.Id > 0 {
 		err := tx.Model(&Media{}).Where("id = ?", this.Id).
-			Updates(map[string]interface{}{
+			Updates(map[string]any{
 				"title":    this.Title,
 				"name":     this.Name,
 				"path":     this.Path,
@@ -126,7 +101,7 @@ func GetMediasUserFromName(names []string) map[string]*MediaUser {
 	var mmus []*Media
 
 	resp := make(map[string]*MediaUser)
-	if err := db.MEDIADB.Model(&Media{}).Where("name in ?", names).Find(&mmus).Error; err == nil {
+	if err := dbs.Model(&Media{}).Where("name in ?", names).Find(&mmus).Error; err == nil {
 		var ids []int64
 		// idNames := make(map[int64]string)
 		for _, v := range mmus {
@@ -138,7 +113,7 @@ func GetMediasUserFromName(names []string) map[string]*MediaUser {
 
 		var mmuus []*MediaUser
 		if len(ids) > 0 {
-			db.MEDIADB.Model(&MediaUser{}).Where("id in ?", ids).Find(&mmuus)
+			dbs.Model(&MediaUser{}).Where("id in ?", ids).Find(&mmuus)
 			sdsd := make(map[int64]*MediaUser)
 			for _, v := range mmuus {
 				sdsd[v.Id] = v

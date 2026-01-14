@@ -118,6 +118,9 @@ func router() {
 		spiderUserGroup := spiderGroup.Group("user")
 		{
 			spiderUserGroup.POST("", users.List)
+			spiderUserGroup.POST("tags", users.GetTags)
+			spiderUserGroup.POST("platforms", users.GetPlatforms)
+			spiderUserGroup.POST("delete", users.Delete)
 		}
 	}
 
