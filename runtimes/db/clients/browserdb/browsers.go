@@ -111,7 +111,7 @@ func (this *Browser) Open() error {
 	}
 	this.Bs = bbs
 
-	this.Bs.OnClose(func() {
+	this.Bs.OnClosed(func() {
 		this.Opend = false
 		eventbus.Bus.Publish("browser-close", this)
 	})

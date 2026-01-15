@@ -43,7 +43,7 @@ func safeCallURL(cb func(string), url string) {
 	cb(url)
 }
 
-func safeClose(cb func()) {
+func safeClosed(cb func()) {
 	defer func() { _ = recover() }()
 	cb()
 }
@@ -66,7 +66,7 @@ func (b *Browser) Close() {
 		b.survival.Store(false)
 		// 通知ws浏览器被关闭
 		if cb, ok := b.onClose.Load().(func()); ok {
-			go safeClose(cb)
+			go safeClosed(cb)
 		}
 	}
 	b.closed.Store(true)
@@ -80,7 +80,7 @@ func (b *Browser) OnURLChange(cb func(string)) {
 	b.onURLChange.Store(cb)
 }
 
-func (b *Browser) OnClose(cb func()) {
+func (b *Browser) OnClosed(cb func()) {
 	b.onClose.Store(cb)
 }
 
