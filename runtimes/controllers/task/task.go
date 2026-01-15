@@ -8,6 +8,7 @@ import (
 	"tools/runtimes/db"
 	"tools/runtimes/db/admins"
 	"tools/runtimes/db/clients"
+	"tools/runtimes/db/clients/browserdb"
 	"tools/runtimes/db/jses"
 	"tools/runtimes/db/tasks"
 	"tools/runtimes/parses"
@@ -59,7 +60,7 @@ func BaseData(c *gin.Context) {
 		"tags": tasks.GetTags(),
 		"tps":  tasks.Types,
 		"devices": map[string]any{
-			"web":   clients.GetAllBrowsers(1, 20, ""),
+			"web":   browserdb.GetAllBrowsers(1, 20, ""),
 			"phone": clients.GetAllPhones(1, 20, ""),
 		},
 		"jss": jjs,
@@ -128,7 +129,7 @@ func TaskDevices(c *gin.Context) {
 	var dvs any
 	switch task.Tp {
 	case 0:
-		dvs = clients.GetBrowsersByIds(dids)
+		dvs = browserdb.GetBrowsersByIds(dids)
 	case 1:
 		dvs = clients.GetPhonesByIds(dids)
 	}

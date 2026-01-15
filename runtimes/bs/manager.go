@@ -1,0 +1,113 @@
+package bs
+
+import (
+	"errors"
+	"sync"
+
+	rt "github.com/chromedp/cdproto/runtime"
+)
+
+// 控制器
+type Manager struct {
+	mu       sync.Mutex
+	browsers map[int64]*Browser
+	baseDir  string
+}
+
+// 临时的浏览器id
+var TempIndex int64
+
+// 新建一个浏览器组
+func NewManager(baseDir string) *Manager {
+	if baseDir == "" {
+		baseDir = BASEPATH
+	}
+	return &Manager{
+		browsers: make(map[int64]*Browser),
+		baseDir:  baseDir,
+	}
+}
+
+// 仅对控制器执行增减操作,并不启动浏览器
+func (m *Manager) New(id int64, opt Options) (*Browser, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if id < 1 {
+		TempIndex--
+		id = TempIndex
+		opt.Temp = true
+	}
+
+	if b, ok := m.browsers[id]; ok && b.survival.Load() {
+		return b, nil
+	}
+
+	if opt.ExecPath == "" {
+		execPath, err := getBrowserBinName()
+		if err != nil {
+			return nil, errors.New("chrome exec path required")
+		}
+		opt.ExecPath = execPath
+	}
+
+	if opt.UserDir == "" {
+		userDir, err := GetBrowserConfigDir(id)
+		if err != nil {
+			return nil, err
+		}
+		opt.UserDir = userDir
+	}
+	if opt.Width == 0 {
+		opt.Width = 800
+	}
+	if opt.Height == 0 {
+		opt.Height = 600
+	}
+
+	b := &Browser{
+		id:   id,
+		opts: opt,
+	}
+	b.onURLChange.Store((func(string))(nil))
+	b.onConsole.Store((func([]*rt.RemoteObject))(nil))
+
+	m.browsers[id] = b
+	return b, nil
+}
+
+func (m *Manager) Close(id int64) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	bs, ok := m.browsers[id]
+	if !ok {
+		return nil
+	}
+	if bs.survival.Load() {
+		bs.Close()
+	}
+	return nil
+}
+
+// 删除当前manager的一个浏览器
+func (m *Manager) Remove(id int64) {
+	m.mu.Lock()
+	b, ok := m.browsers[id]
+	if ok {
+		delete(m.browsers, id)
+	}
+	m.mu.Unlock()
+
+	if ok {
+		b.Close()
+	}
+}
+
+// 是否存活
+func (m *Manager) IsArride(id int64) bool {
+	if bs, ok := m.browsers[id]; ok {
+		return bs.survival.Load()
+	}
+	return false
+}

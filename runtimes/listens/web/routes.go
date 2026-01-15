@@ -121,6 +121,8 @@ func router() {
 			spiderUserGroup.POST("tags", users.GetTags)
 			spiderUserGroup.POST("platforms", users.GetPlatforms)
 			spiderUserGroup.POST("delete", users.Delete)
+			spiderUserGroup.POST("edit", users.Editer)
+			spiderUserGroup.POST("getinfo", users.GetInfo)
 		}
 	}
 

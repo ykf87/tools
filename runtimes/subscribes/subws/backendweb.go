@@ -4,14 +4,15 @@ package subws
 import (
 	"fmt"
 	"time"
-	"tools/runtimes/browser"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
-	"tools/runtimes/db/clients"
+	"tools/runtimes/db/clients/browserdb"
 	"tools/runtimes/db/information"
+	"tools/runtimes/db/notifies"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/eventbus"
 	"tools/runtimes/listens/ws"
+	"tools/runtimes/logs"
 )
 
 func init() {
@@ -52,22 +53,29 @@ func message() {
 	})
 }
 
-//	interface Notify{
-//	  type: string;
-//	  title: string;
-//	  description?: string;
-//	  content: string;
-//	  meta: string;
-//	  avatar?: string;
-//	  closeable?: boolean;
-//	  url?: string;
-//	  btn?: string;
-//	  method?:string;
-//	}
+// 消息通知
 func notify() {
 	eventbus.Bus.Subscribe("notify", func(data any) {
-		if dt, ok := data.([]byte); ok {
-			ws.Broadcost(dt)
+		if dt, ok := data.(*notifies.Notify); ok {
+			if dt.Type == "" {
+				dt.Type = "info"
+			}
+			if dt.Meta == "" {
+				dt.Meta = time.Now().Format("2006-01-02 15:04:05")
+			}
+			byteData, err := config.Json.Marshal(map[string]any{
+				"type": "notify",
+				"data": dt,
+			})
+			if err != nil {
+				logs.Error("notify data parse error:" + err.Error())
+				return
+			}
+			if dt.AdminID > 0 {
+				ws.SentMsg(dt.AdminID, byteData)
+			} else {
+				ws.Broadcost(byteData)
+			}
 		}
 	})
 }
@@ -75,12 +83,12 @@ func notify() {
 // 浏览器被关闭的事件
 func closeBrowser() {
 	eventbus.Bus.Subscribe("browser-close", func(dt any) {
-		if bu, ok := dt.(*browser.User); ok {
+		if bu, ok := dt.(*browserdb.Browser); ok {
 			if bu.Id > 0 {
-				browser.Running.Delete(bu.Id)
-				if bs, err := clients.GetBrowserById(bu.Id); err == nil {
+				// browser.Running.Delete(bu.Id)
+				if bs, err := browserdb.GetBrowserById(bu.Id); err == nil {
 					msgdata := new(ws.SentWsStruct)
-					msgdata.UserId = bu.UserId
+					msgdata.UserId = bu.AdminID
 					msgdata.Type = "browser"
 					msgdata.Content = bs
 					eventbus.Bus.Publish("ws", msgdata)
@@ -96,7 +104,7 @@ func proxyChange() {
 		if proxy, ok := dt.(*proxys.Proxy); ok {
 			go func() {
 				time.Sleep(time.Second * 1)
-				db.DB.Model(&clients.Browser{}).Where("proxy = ?", proxy.Id).Updates(map[string]any{
+				db.DB.Model(&browserdb.Browser{}).Where("proxy = ?", proxy.Id).Updates(map[string]any{
 					"local":      proxy.Local,
 					"ip":         proxy.Ip,
 					"lang":       proxy.Lang,

@@ -3,7 +3,7 @@ package phones
 import (
 	"fmt"
 	"net/http"
-	"tools/runtimes/browser"
+	"tools/runtimes/bs"
 	"tools/runtimes/db"
 	"tools/runtimes/db/clients"
 	"tools/runtimes/db/proxys"
@@ -241,12 +241,12 @@ func Editer(c *gin.Context) {
 
 // 获取语言列表
 func GetLangs(c *gin.Context) {
-	response.Success(c, browser.LangMap, "Success")
+	response.Success(c, bs.LangMap, "Success")
 }
 
 // 获取语言列表
 func GetTimezones(c *gin.Context) {
-	response.Success(c, browser.Timezones, "Success")
+	response.Success(c, bs.Timezones, "Success")
 }
 
 // 启动浏览器

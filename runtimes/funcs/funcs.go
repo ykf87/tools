@@ -449,3 +449,101 @@ func RunJs(js string) (any, error) {
 	}
 	return result.Export(), nil
 }
+
+type SaveOption struct {
+	Perm       os.FileMode             // 文件权限
+	DirPerm    os.FileMode             // 目录权限
+	Overwrite  bool                    // 是否允许覆盖
+	TempSuffix string                  // 临时文件后缀
+	Validate   func(path string) error // 写入完成后的校验
+}
+
+// 使用方式:
+// SaveFile("data/output.txt", bytes.NewReader(data))
+// SaveFile("upload/a.jpg", file)
+//
+// 保存时限制文件大小:
+// limited := io.LimitReader(r, 10<<20) // 10MB
+// SaveFile("a.bin", limited)
+//
+// 保存后做 hash 校验
+//
+//	SaveFile("data.bin", r, SaveOption{
+//		Validate: func(path string) error {
+//			f, _ := os.Open(path)
+//			defer f.Close()
+//			// 做 md5 / sha256
+//			return nil
+//		},
+//	})
+//
+// 保存 HTTP 上传文件
+// func SaveUpload(file multipart.File, dst string) error {
+// return SaveFile(dst, file)
+// }
+func SaveFile(path string, r io.Reader, opts ...SaveOption) error {
+	// 默认配置
+	opt := SaveOption{
+		Perm:       0644,
+		DirPerm:    0755,
+		Overwrite:  true,
+		TempSuffix: ".tmp",
+	}
+
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
+	// 创建目录
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, opt.DirPerm); err != nil {
+		return fmt.Errorf("create dir failed: %w", err)
+	}
+
+	// 不允许覆盖
+	if !opt.Overwrite {
+		if _, err := os.Stat(path); err == nil {
+			return fmt.Errorf("file already exists: %s", path)
+		}
+	}
+
+	// 临时文件
+	tmpPath := path + opt.TempSuffix
+	tmpFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, opt.Perm)
+	if err != nil {
+		return fmt.Errorf("create temp file failed: %w", err)
+	}
+
+	defer func() {
+		tmpFile.Close()
+		os.Remove(tmpPath)
+	}()
+
+	// 流式拷贝（高效）
+	if _, err := io.Copy(tmpFile, r); err != nil {
+		return fmt.Errorf("write temp file failed: %w", err)
+	}
+
+	// 强制刷盘（非常关键）
+	if err := tmpFile.Sync(); err != nil {
+		return fmt.Errorf("sync file failed: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("close file failed: %w", err)
+	}
+
+	// 校验（可选）
+	if opt.Validate != nil {
+		if err := opt.Validate(tmpPath); err != nil {
+			return fmt.Errorf("validate failed: %w", err)
+		}
+	}
+
+	// 原子替换
+	if err := os.Rename(tmpPath, path); err != nil {
+		return fmt.Errorf("rename failed: %w", err)
+	}
+
+	return nil
+}

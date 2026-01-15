@@ -12,17 +12,20 @@ import (
 )
 
 type MediaUser struct {
-	Id       int64    `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name     string   `json:"name" gorm:"index;default:null"`
-	Cover    string   `json:"cover" gorm:"default:null"`
-	Platform string   `json:"platform" gorm:"index:plu;not null"`
-	Uuid     string   `json:"uuid" gorm:"index:plu;not null"`
-	AdminID  int64    `json:"admin_id" gorm:"index;default:0"`
-	Addtime  int64    `json:"addtime" gorm:"default:0;index"`
-	Works    int64    `json:"works" gorm:"index;default:-1"`   // 发布作品数量
-	Fans     int64    `json:"fans" gorm:"index;default:-1"`    // 粉丝数
-	Local    string   `json:"local" gorm:"index;default:null"` // 所在地区
-	Tags     []string `json:"tags" gorm:"-"`
+	Id         int64    `json:"id" gorm:"primaryKey;autoIncrement"`
+	Name       string   `json:"name" gorm:"index;default:null"`                   // 用户名
+	Cover      string   `json:"cover" gorm:"default:null"`                        // 头像
+	Platform   string   `json:"platform" gorm:"index:plu;not null"`               // 怕太
+	Uuid       string   `json:"uuid" gorm:"index:plu;not null"`                   // 访问主页等
+	Account    string   `json:"account" gorm:"index;"`                            //例如抖音号,用于用户搜索的
+	AdminID    int64    `json:"admin_id" gorm:"index;default:0"`                  // 哪个后台用户添加的
+	Addtime    int64    `json:"addtime" gorm:"default:0;index"`                   // 添加时间
+	Works      int64    `json:"works" gorm:"index;default:-1"`                    // 发布作品数量
+	Fans       int64    `json:"fans" gorm:"index;default:-1"`                     // 粉丝数
+	Local      string   `json:"local" gorm:"index;default:null"`                  // 所在地区
+	Tags       []string `json:"tags" gorm:"-"`                                    // 标签
+	ClientType int      `json:"client_type" gorm:"int;type:tinyint(1);default:0"` // 客户端类型,0-浏览器 1-手机
+	ClientID   int64    `json:"client_id" gorm:"index;default:0"`                 // 客户端
 }
 
 type MediaUserToTag struct {

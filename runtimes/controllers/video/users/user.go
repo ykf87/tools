@@ -40,8 +40,13 @@ func List(c *gin.Context) {
 func GetTags(c *gin.Context) {
 	response.Success(c, medias.GetTags(), "")
 }
+
 func GetPlatforms(c *gin.Context) {
 	response.Success(c, medias.GetUserPlatforms(), "")
+}
+
+func Editer(c *gin.Context) {
+
 }
 
 func Delete(c *gin.Context) {

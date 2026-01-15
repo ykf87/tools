@@ -6,6 +6,7 @@ import (
 	"tools/runtimes/config"
 	db "tools/runtimes/db"
 	"tools/runtimes/db/clients"
+	"tools/runtimes/db/clients/browserdb"
 )
 
 func execTask(ctx context.Context, task *Task, runID int64, js string) error {
@@ -46,10 +47,10 @@ func execTask(ctx context.Context, task *Task, runID int64, js string) error {
 			// 因此
 			switch v.DeviceType {
 			case 0: // 执行浏览器
-				bs, err := clients.GetBrowserById(v.DeviceID)
+				bs, err := browserdb.GetBrowserById(v.DeviceID)
 				if err == nil {
 					if err := bs.Open(); err == nil {
-						bs.Browser.RunJs(js)
+						bs.Bs.RunJs(js)
 					}
 				}
 			case 1: // 执行autojs

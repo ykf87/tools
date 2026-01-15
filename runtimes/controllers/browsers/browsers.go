@@ -3,10 +3,10 @@ package browsers
 import (
 	"fmt"
 	"net/http"
-	"tools/runtimes/browser"
+	"tools/runtimes/bs"
 	"tools/runtimes/db"
 	"tools/runtimes/db/admins"
-	"tools/runtimes/db/clients"
+	"tools/runtimes/db/clients/browserdb"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/i18n"
 	"tools/runtimes/parses"
@@ -29,7 +29,7 @@ func BrowserTags(c *gin.Context) {
 		return
 	}
 
-	model := db.DB.Model(&clients.BrowserTag{})
+	model := db.DB.Model(&browserdb.BrowserTag{})
 	if dt.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", dt.Q)
 		model = model.Where("name LIKE ?", qs)
@@ -48,7 +48,7 @@ func BrowserTags(c *gin.Context) {
 		model = model.Offset((dt.Page - 1) * dt.Limit).Limit(dt.Limit)
 	}
 
-	var list []*clients.BrowserTag
+	var list []*browserdb.BrowserTag
 	model.Find(&list)
 
 	rrs, _ := parses.Marshal(list, c)
@@ -73,7 +73,7 @@ func List(c *gin.Context) {
 		return
 	}
 
-	model := db.DB.Model(&clients.Browser{})
+	model := db.DB.Model(&browserdb.Browser{})
 	if l.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", l.Q)
 		model = model.Where("name LIKE ? OR lang local = ? or lang = ?", qs, qs, l.Q)
@@ -116,12 +116,15 @@ func List(c *gin.Context) {
 		l.Limit = 10
 	}
 
-	var ps []*clients.Browser
+	var ps []*browserdb.Browser
 	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Offset((l.Page - 1) * l.Limit).Limit(l.Limit).Debug().Find(&ps)
+	for _, v := range ps {
+		v.Opend = browserdb.Mng.IsArride(v.Id)
+	}
 
 	// 处理代理标签
 	if len(ps) > 0 {
-		clients.SetBrowserTags(ps)
+		browserdb.SetBrowserTags(ps)
 	}
 
 	rs := gin.H{"list": ps, "total": total}
@@ -150,21 +153,32 @@ func Editer(c *gin.Context) {
 		return
 	}
 
+	u, ok := c.Get("_user")
+	if ok == false {
+		response.Error(c, http.StatusNotFound, i18n.T("Please login first"), nil)
+		return
+	}
+	user, ok := u.(*admins.Admin)
+	if ok != true {
+		response.Error(c, http.StatusNotFound, i18n.T("Please login first"), nil)
+		return
+	}
+
 	if l.Name == "" {
 		response.Error(c, http.StatusNotFound, i18n.T("Name can not be empty"), nil)
 		return
 	}
 
-	var browserObj *clients.Browser
+	var browserObj *browserdb.Browser
 	if id != "" {
-		bb, err := clients.GetBrowserById(id)
+		bb, err := browserdb.GetBrowserById(id)
 		if err != nil {
 			response.Error(c, http.StatusNotFound, err.Error(), nil)
 			return
 		}
 		browserObj = bb
 	} else {
-		browserObj = new(clients.Browser)
+		browserObj = new(browserdb.Browser)
 	}
 
 	changeed := false
@@ -229,6 +243,7 @@ func Editer(c *gin.Context) {
 		}
 	}
 	if changeed {
+		browserObj.AdminID = user.Id
 		if err := browserObj.Save(nil); err != nil {
 			response.Error(c, http.StatusNotFound, err.Error(), nil)
 			return
@@ -239,23 +254,19 @@ func Editer(c *gin.Context) {
 
 // 获取语言列表
 func GetLangs(c *gin.Context) {
-	response.Success(c, browser.LangMap, "Success")
+	response.Success(c, bs.LangMap, "Success")
 }
 
 // 获取语言列表
 func GetTimezones(c *gin.Context) {
-	response.Success(c, browser.Timezones, "Success")
+	response.Success(c, bs.Timezones, "Success")
 }
 
 // 启动浏览器
 func Start(c *gin.Context) {
 	id := c.Param("id")
-	bs, err := clients.GetBrowserById(id)
+	bs, err := browserdb.GetBrowserById(id)
 	if err != nil {
-		response.Error(c, http.StatusNotFound, err.Error(), nil)
-		return
-	}
-	if err := bs.Open(); err != nil {
 		response.Error(c, http.StatusNotFound, err.Error(), nil)
 		return
 	}
@@ -271,14 +282,34 @@ func Start(c *gin.Context) {
 		return
 	}
 
-	bs.Bs.UserId = user.Id
+	if bs.AdminID != user.Id {
+		response.Error(c, http.StatusNotFound, i18n.T("无法启动"), nil)
+		return
+	}
+	if err := bs.Open(); err != nil {
+		response.Error(c, http.StatusNotFound, err.Error(), nil)
+		return
+	}
+
+	// u, ok := c.Get("_user")
+	// if ok == false {
+	// 	response.Error(c, http.StatusNotFound, i18n.T("Please login first"), nil)
+	// 	return
+	// }
+	// user, ok := u.(*admins.Admin)
+	// if ok != true {
+	// 	response.Error(c, http.StatusNotFound, i18n.T("Please login first"), nil)
+	// 	return
+	// }
+
+	// bs.AdminID = user.Id
 	response.Success(c, nil, "Success")
 }
 
 // 关闭浏览器
 func Stop(c *gin.Context) {
 	id := c.Param("id")
-	bs, err := clients.GetBrowserById(id)
+	bs, err := browserdb.GetBrowserById(id)
 	if err != nil {
 		response.Error(c, http.StatusNotFound, err.Error(), nil)
 		return
@@ -294,7 +325,7 @@ func Stop(c *gin.Context) {
 // 删除浏览器
 func Delete(c *gin.Context) {
 	id := c.Param("id")
-	bs, err := clients.GetBrowserById(id)
+	bs, err := browserdb.GetBrowserById(id)
 	if err != nil {
 		response.Error(c, http.StatusNotFound, err.Error(), nil)
 		return

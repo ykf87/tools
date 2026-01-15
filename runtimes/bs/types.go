@@ -1,10 +1,13 @@
-package browser
+package bs
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"os/exec"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-rod/rod"
@@ -579,7 +582,7 @@ func (this *WebglImgStruct) Random() {
 	this.Mode = 1
 }
 
-type User struct {
+type BrowserConfigFile struct {
 	AudioContext  *AudioContextStruct `json:"audio-context"`
 	Canvas        *CanvasStruct       `json:"canvas"`
 	ChromeVersion string              `json:"chrome_version"`
@@ -672,5 +675,45 @@ type User struct {
 	Cmd         *exec.Cmd    `json:"-"`
 	ListenPort  int          `json:"-"`
 }
+
+type VirtualBrowserConfig struct {
+	Users []*BrowserConfigFile `json:"users"`
+}
+
+// 执行打开浏览器的参数
+type Options struct {
+	ExecPath  string
+	UserDir   string
+	Url       string
+	Proxy     string
+	UserAgent string
+	Timezone  string
+	Language  string
+	Headless  bool
+	Width     int
+	Height    int
+	Timeout   time.Duration
+	Temp      bool // 是否临时浏览器
+}
+
+// 浏览器
+type Browser struct {
+	id       int64
+	opts     Options
+	ctx      context.Context
+	cancel   context.CancelFunc
+	alloc    context.CancelFunc
+	once     sync.Once
+	closed   atomic.Bool
+	survival atomic.Bool
+	mu       sync.Mutex
+
+	onURLChange atomic.Value // func(string)
+	onConsole   atomic.Value // func([]*runtime.RemoteObject)
+	onClose     atomic.Value
+	JsStr       string `json:"js_str" gorm:"-" form:"-"` // 执行的js
+}
+
+var BROWSERPATH string
 
 const configFileName = "virtual.dat"

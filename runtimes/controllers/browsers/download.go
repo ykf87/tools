@@ -1,13 +1,13 @@
 package browsers
 
 import (
-	"tools/runtimes/browser"
+	"tools/runtimes/bs"
 	"tools/runtimes/response"
 
 	"github.com/gin-gonic/gin"
 )
 
 func Download(c *gin.Context) {
-	err := browser.DownBrowserFromServer(browser.BROWSERPATH)
+	err := bs.DownBrowserBinFile(bs.BROWSERPATH)
 	response.Success(c, "", err.Error())
 }
