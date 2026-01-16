@@ -23,25 +23,25 @@ func (b *Browser) OpenBrowser() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if _, err := MakeBrowserConfig(b.id, b.opts.Language, b.opts.Timezone, b.opts.Proxy); err != nil {
+	if _, err := MakeBrowserConfig(b.id, b.Opts.Language, b.Opts.Timezone, b.Opts.Proxy); err != nil {
 		return err
 	}
 	allocOpts := make([]chromedp.ExecAllocatorOption, 0, len(chromedp.DefaultExecAllocatorOptions)+8)
 	allocOpts = append(allocOpts, chromedp.DefaultExecAllocatorOptions[:]...)
 	allocOpts = append(allocOpts,
-		chromedp.ExecPath(b.opts.ExecPath),
-		chromedp.UserDataDir(b.opts.UserDir),
-		chromedp.WindowSize(b.opts.Width, b.opts.Height),
-		chromedp.Flag("headless", b.opts.Headless),
-		chromedp.Flag("disable-gpu", b.opts.Headless),
+		chromedp.ExecPath(b.Opts.ExecPath),
+		chromedp.UserDataDir(b.Opts.UserDir),
+		chromedp.WindowSize(b.Opts.Width, b.Opts.Height),
+		chromedp.Flag("headless", b.Opts.Headless),
+		chromedp.Flag("disable-gpu", b.Opts.Headless),
 		chromedp.Flag("worker-id", fmt.Sprintf("%d", b.id)),
 	)
 
-	if b.opts.Proxy != "" {
-		allocOpts = append(allocOpts, chromedp.ProxyServer(b.opts.Proxy))
+	if b.Opts.Proxy != "" {
+		allocOpts = append(allocOpts, chromedp.ProxyServer(b.Opts.Proxy))
 	}
-	if b.opts.UserAgent != "" {
-		allocOpts = append(allocOpts, chromedp.UserAgent(b.opts.UserAgent))
+	if b.Opts.UserAgent != "" {
+		allocOpts = append(allocOpts, chromedp.UserAgent(b.Opts.UserAgent))
 	}
 	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), allocOpts...)
 	ctx, cancel := chromedp.NewContext(allocCtx, chromedp.WithLogf(func(string, ...any) {}))
@@ -68,10 +68,13 @@ func (b *Browser) OpenBrowser() error {
 	b.survival.Store(true)
 
 	url := "about:blank"
-	if b.opts.Url != "" {
-		url = b.opts.Url
+	if b.Opts.Url != "" {
+		url = b.Opts.Url
 	}
-	go b.GoToUrl(url)
+	b.GoToUrl(url)
+	// if b.opts.JsStr != "" {
+	// 	b.RunJs(b.opts.JsStr)
+	// }
 
 	b.watchClose()
 	go b.startEventLoop()
@@ -87,6 +90,7 @@ func (b *Browser) GoToUrl(url string) error {
 	return chromedp.Run(
 		b.ctx,
 		chromedp.Navigate(url),
+		chromedp.WaitReady("body", chromedp.ByQuery),
 	)
 }
 
@@ -96,23 +100,31 @@ func (b *Browser) Run(actions ...chromedp.Action) error {
 	}
 
 	ctx := b.ctx
-	if b.opts.Timeout > 0 {
+	if b.Opts.Timeout > 0 {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, b.opts.Timeout)
+		ctx, cancel = context.WithTimeout(ctx, b.Opts.Timeout)
 		defer cancel()
 	}
 
 	return chromedp.Run(ctx, actions...)
 }
 
-func (b *Browser) RunJs(js string) error {
+func (b *Browser) RunJs(js string) (any, error) {
 	if js == "" {
-		js = b.JsStr
+		js = b.Opts.JsStr
 	} else {
-		b.JsStr = js
+		b.Opts.JsStr = js
 	}
-	var rs string
-	return b.Run(chromedp.Evaluate(js, &rs))
+	var rs any
+	if js != "" {
+		if err := b.Run(chromedp.Evaluate(js, &rs)); err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, fmt.Errorf("js is empty")
+	}
+
+	return rs, nil
 }
 
 // 从chromedp上传

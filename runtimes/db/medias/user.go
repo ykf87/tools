@@ -6,7 +6,6 @@ import (
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
-	"tools/runtimes/eventbus"
 
 	"gorm.io/gorm"
 )
@@ -44,17 +43,20 @@ func (this *MediaUser) Save(tx *gorm.DB) error {
 	}
 
 	if this.Id > 0 {
-		err := tx.Model(&Media{}).Where("id = ?", this.Id).
+		err := tx.Model(&MediaUser{}).Where("id = ?", this.Id).
 			Updates(map[string]any{
 				"platform": this.Platform,
 				"name":     this.Name,
 				"cover":    this.Cover,
 				"uuid":     this.Uuid,
+				"fans":     this.Fans,
+				"works":    this.Works,
+				"local":    this.Local,
 			}).Error
 		if err != nil {
 			return err
 		}
-		eventbus.Bus.Publish("media_save", this)
+		// eventbus.Bus.Publish("media_save", this)
 		return nil
 	} else {
 		this.Addtime = time.Now().Unix()
@@ -73,7 +75,7 @@ func (this *MediaUser) GetTags() []*MediaUserTag {
 
 func (this *MediaUser) GetClients() []map[int]int64 {
 	var rows []*MediaUserToClient
-	dbs.Model(&MediaUserToClient{}).Where("media_user = ?", this.Id).Find(&rows)
+	dbs.Model(&MediaUserToClient{}).Where("m_uid = ?", this.Id).Find(&rows)
 	for _, v := range rows {
 		this.Clients = append(this.Clients, map[int]int64{
 			v.ClientType: v.ClientID,
@@ -83,11 +85,9 @@ func (this *MediaUser) GetClients() []map[int]int64 {
 }
 
 // 补全媒体用户的tag和客户端
-func (this *MediaUser) commpare() {
+func (this *MediaUser) Commpare() {
 	this.GetClients()
-	if this.Cover != "" {
-		this.Cover = fmt.Sprintf("%s/%s", config.MediaUrl, this.Cover)
-	}
+
 	for _, zv := range this.GetTags() {
 		this.Tags = append(this.Tags, zv.Name)
 	}
@@ -149,7 +149,10 @@ func GetMediaUsers(adminID int64, dt *db.ListFinder) ([]*MediaUser, int64) {
 		// 	v.Tags = append(v.Tags, zv.Name)
 		// }
 		// // v.GetParams()
-		v.commpare()
+		v.Commpare()
+		if v.Cover != "" {
+			v.Cover = fmt.Sprintf("%s/%s", config.MediaUrl, v.Cover)
+		}
 	}
 	return mus, total
 }
@@ -160,6 +163,6 @@ func GetMediaUserByID(id any) *MediaUser {
 	if err := dbs.Model(&MediaUser{}).Where("id = ?", id).First(mu).Error; err != nil || mu.Id < 1 {
 		return nil
 	}
-	mu.commpare()
+	mu.Commpare()
 	return mu
 }

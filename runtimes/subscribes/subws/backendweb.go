@@ -8,6 +8,7 @@ import (
 	"tools/runtimes/db"
 	"tools/runtimes/db/clients/browserdb"
 	"tools/runtimes/db/information"
+	"tools/runtimes/db/medias"
 	"tools/runtimes/db/notifies"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/eventbus"
@@ -22,6 +23,7 @@ func init() {
 	proxyChange()
 	notify()
 	proxyPing()
+	getMediaUserInfo()
 }
 
 // 注册发送到前端的websocket事件
@@ -142,6 +144,21 @@ func proxyPing() {
 			}
 			if msg, err := config.Json.Marshal(mmv); err == nil {
 				ws.SentMsg(info.UID, msg)
+			}
+		}
+	})
+}
+
+func getMediaUserInfo() {
+	eventbus.Bus.Subscribe("media_user_info", func(dt any) {
+		if info, ok := dt.(*medias.MediaUser); ok {
+			mmv := map[string]any{
+				"type": "media_user_info",
+				"data": info,
+			}
+			if msg, err := config.Json.Marshal(mmv); err == nil {
+				// ws.SentMsg(info.UID, msg)
+				ws.Broadcost(msg)
 			}
 		}
 	})

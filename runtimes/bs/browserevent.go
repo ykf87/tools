@@ -60,8 +60,8 @@ func (b *Browser) Close() {
 		b.cancel()
 		b.alloc()
 
-		if b.opts.Temp {
-			_ = os.RemoveAll(b.opts.UserDir)
+		if b.Opts.Temp {
+			_ = os.RemoveAll(b.Opts.UserDir)
 		}
 		b.survival.Store(false)
 		// 通知ws浏览器被关闭

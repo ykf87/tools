@@ -67,7 +67,7 @@ func (m *Manager) New(id int64, opt Options) (*Browser, error) {
 
 	b := &Browser{
 		id:   id,
-		opts: opt,
+		Opts: opt,
 	}
 	b.onURLChange.Store((func(string))(nil))
 	b.onConsole.Store((func([]*rt.RemoteObject))(nil))

@@ -694,12 +694,13 @@ type Options struct {
 	Height    int
 	Timeout   time.Duration
 	Temp      bool // 是否临时浏览器
+	JsStr     string
 }
 
 // 浏览器
 type Browser struct {
 	id       int64
-	opts     Options
+	Opts     Options
 	ctx      context.Context
 	cancel   context.CancelFunc
 	alloc    context.CancelFunc
@@ -711,7 +712,6 @@ type Browser struct {
 	onURLChange atomic.Value // func(string)
 	onConsole   atomic.Value // func([]*runtime.RemoteObject)
 	onClose     atomic.Value
-	JsStr       string `json:"js_str" gorm:"-" form:"-"` // 执行的js
 }
 
 var BROWSERPATH string

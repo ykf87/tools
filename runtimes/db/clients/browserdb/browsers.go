@@ -120,8 +120,8 @@ func (this *Browser) Open() error {
 	})
 
 	this.Bs.OnURLChange(func(url string) {
-		if this.Bs.JsStr != "" {
-			this.Bs.RunJs(this.Bs.JsStr)
+		if this.Bs.Opts.JsStr != "" {
+			this.Bs.RunJs(this.Bs.Opts.JsStr)
 		}
 	})
 
