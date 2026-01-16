@@ -12,25 +12,30 @@ import (
 )
 
 type MediaUser struct {
-	Id         int64    `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name       string   `json:"name" gorm:"index;default:null"`                   // 用户名
-	Cover      string   `json:"cover" gorm:"default:null"`                        // 头像
-	Platform   string   `json:"platform" gorm:"index:plu;not null"`               // 怕太
-	Uuid       string   `json:"uuid" gorm:"index:plu;not null"`                   // 访问主页等
-	Account    string   `json:"account" gorm:"index;"`                            //例如抖音号,用于用户搜索的
-	AdminID    int64    `json:"admin_id" gorm:"index;default:0"`                  // 哪个后台用户添加的
-	Addtime    int64    `json:"addtime" gorm:"default:0;index"`                   // 添加时间
-	Works      int64    `json:"works" gorm:"index;default:-1"`                    // 发布作品数量
-	Fans       int64    `json:"fans" gorm:"index;default:-1"`                     // 粉丝数
-	Local      string   `json:"local" gorm:"index;default:null"`                  // 所在地区
-	Tags       []string `json:"tags" gorm:"-"`                                    // 标签
-	ClientType int      `json:"client_type" gorm:"int;type:tinyint(1);default:0"` // 客户端类型,0-浏览器 1-手机
-	ClientID   int64    `json:"client_id" gorm:"index;default:0"`                 // 客户端
+	Id       int64           `json:"id" gorm:"primaryKey;autoIncrement"`
+	Name     string          `json:"name" gorm:"index;default:null"`     // 用户名
+	Cover    string          `json:"cover" gorm:"default:null"`          // 头像
+	Platform string          `json:"platform" gorm:"index:plu;not null"` // 怕太
+	Uuid     string          `json:"uuid" gorm:"index:plu;not null"`     // 访问主页等
+	Account  string          `json:"account" gorm:"index;"`              //例如抖音号,用于用户搜索的
+	AdminID  int64           `json:"admin_id" gorm:"index;default:0"`    // 哪个后台用户添加的
+	Addtime  int64           `json:"addtime" gorm:"default:0;index"`     // 添加时间
+	Works    int64           `json:"works" gorm:"index;default:-1"`      // 发布作品数量
+	Fans     int64           `json:"fans" gorm:"index;default:-1"`       // 粉丝数
+	Local    string          `json:"local" gorm:"index;default:null"`    // 所在地区
+	Tags     []string        `json:"tags" gorm:"-"`                      // 标签
+	Clients  []map[int]int64 `json:"clients" gorm:"-"`                   // 使用的客户端
 }
 
 type MediaUserToTag struct {
 	UserID int64 `json:"user_id" gorm:"primaryKey;not null"`
 	TagID  int64 `json:"tag_id" gorm:"primaryKey;not null"`
+}
+
+type MediaUserToClient struct {
+	MUID       int64 `json:"media_user" gorm:"primaryKey;not null"`
+	ClientType int   `json:"client_type" gorm:"primaryKey;not null"`
+	ClientID   int64 `json:"client_id" gorm:"primaryKey;not null"`
 }
 
 func (this *MediaUser) Save(tx *gorm.DB) error {
@@ -57,6 +62,37 @@ func (this *MediaUser) Save(tx *gorm.DB) error {
 	}
 }
 
+func (this *MediaUser) GetTags() []*MediaUserTag {
+	var tagIDs []int64
+	dbs.Model(&MediaUserToTag{}).Select("tag_id").Where("user_id = ?", this.Id).Find(&tagIDs)
+
+	var tags []*MediaUserTag
+	dbs.Model(&MediaUserTag{}).Where("id in ?", tagIDs).Find(&tags)
+	return tags
+}
+
+func (this *MediaUser) GetClients() []map[int]int64 {
+	var rows []*MediaUserToClient
+	dbs.Model(&MediaUserToClient{}).Where("media_user = ?", this.Id).Find(&rows)
+	for _, v := range rows {
+		this.Clients = append(this.Clients, map[int]int64{
+			v.ClientType: v.ClientID,
+		})
+	}
+	return this.Clients
+}
+
+// 补全媒体用户的tag和客户端
+func (this *MediaUser) commpare() {
+	this.GetClients()
+	if this.Cover != "" {
+		this.Cover = fmt.Sprintf("%s/%s", config.MediaUrl, this.Cover)
+	}
+	for _, zv := range this.GetTags() {
+		this.Tags = append(this.Tags, zv.Name)
+	}
+}
+
 func GetUserPlatforms() map[string]string {
 	var pls []string
 	dbs.Model(&MediaUser{}).Select("platform").Group("platform").Find(&pls)
@@ -66,15 +102,6 @@ func GetUserPlatforms() map[string]string {
 		plsmap[v] = v
 	}
 	return plsmap
-}
-
-func (this *MediaUser) GetTags() []*MediaUserTag {
-	var tagIDs []int64
-	dbs.Model(&MediaUserToTag{}).Select("tag_id").Where("user_id = ?", this.Id).Find(&tagIDs)
-
-	var tags []*MediaUserTag
-	dbs.Model(&MediaUserTag{}).Where("id in ?", tagIDs).Find(&tags)
-	return tags
 }
 
 func GetMediaUsers(adminID int64, dt *db.ListFinder) ([]*MediaUser, int64) {
@@ -114,14 +141,25 @@ func GetMediaUsers(adminID int64, dt *db.ListFinder) ([]*MediaUser, int64) {
 	md.Order("id DESC").Offset((dt.Page - 1) * dt.Limit).Limit(dt.Limit).Find(&mus)
 
 	for _, v := range mus {
-		// v.Devices = v.GetDevices()
-		if v.Cover != "" {
-			v.Cover = fmt.Sprintf("%s/%s", config.MediaUrl, v.Cover)
-		}
-		for _, zv := range v.GetTags() {
-			v.Tags = append(v.Tags, zv.Name)
-		}
-		// v.GetParams()
+		// // v.Devices = v.GetDevices()
+		// if v.Cover != "" {
+		// 	v.Cover = fmt.Sprintf("%s/%s", config.MediaUrl, v.Cover)
+		// }
+		// for _, zv := range v.GetTags() {
+		// 	v.Tags = append(v.Tags, zv.Name)
+		// }
+		// // v.GetParams()
+		v.commpare()
 	}
 	return mus, total
+}
+
+// 根据id获取用户信息
+func GetMediaUserByID(id any) *MediaUser {
+	mu := new(MediaUser)
+	if err := dbs.Model(&MediaUser{}).Where("id = ?", id).First(mu).Error; err != nil || mu.Id < 1 {
+		return nil
+	}
+	mu.commpare()
+	return mu
 }

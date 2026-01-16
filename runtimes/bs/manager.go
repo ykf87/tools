@@ -39,7 +39,7 @@ func (m *Manager) New(id int64, opt Options) (*Browser, error) {
 		opt.Temp = true
 	}
 
-	if b, ok := m.browsers[id]; ok && b.survival.Load() {
+	if b, ok := m.browsers[id]; ok {
 		return b, nil
 	}
 

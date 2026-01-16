@@ -29,7 +29,7 @@ func (d douYin) parseVideoID(videoId string, transport *http.Transport) (*VideoP
 	if err != nil {
 		return nil, err
 	}
-
+	// fmt.Println(string(res.Body()))
 	re := regexp.MustCompile(`window._ROUTER_DATA\s*=\s*(.*?)</script>`)
 	findRes := re.FindSubmatch(res.Body())
 	if len(findRes) < 2 {
