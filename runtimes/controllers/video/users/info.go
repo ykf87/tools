@@ -3,7 +3,6 @@ package users
 import (
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 	"tools/runtimes/bs"
 	"tools/runtimes/db/medias"
@@ -16,16 +15,42 @@ import (
 )
 
 var dyinfojs = `(async () => {
+	function parseCNNumber(str) {
+	  if (!str) return -1;
+
+	  const s = String(str).replace(/\s+/g, '');
+
+	  const match = s.match(/^([\d.]+)(万|亿)?$/);
+	  if (!match) return -1;
+
+	  const num = parseFloat(match[1]);
+	  const unit = match[2];
+
+	  if (Number.isNaN(num)) return -1;
+
+	  switch (unit) {
+	    case '万':
+	      return Math.round(num * 1e4);
+	    case '亿':
+	      return Math.round(num * 1e8);
+	    default:
+	      return num;
+	  }
+	}
 	async function getFirstFollowNumber(datae2e) {
 	  const root = document.querySelector('[data-e2e="user-info"]');
-	  if (!root) return 0;
+	  if (!root) return -1;
 
 	  const nodes = root.querySelectorAll('div[data-e2e="'+datae2e+'"] > div');
 
 	  let i 	= 0;
 	  while(true){
 		for (const el of nodes) {
-		    const text = el.textContent.trim();
+		    var text = el.textContent.trim();
+		    if(text == ""){
+		    	continue
+		    }
+		    text 	= parseCNNumber(text);
 		    if (/^\d+$/.test(text)) {
 		      return Number(text);
 		    }
@@ -33,18 +58,14 @@ var dyinfojs = `(async () => {
 		if(i++ >= 10){
 			break;
 		}
-		await new Promise(r => setTimeout(r, 2000));
+		await new Promise(r => setTimeout(r, 1000));
 	  }
 
-	  return 0;
+	  return -1;
 	}
 
-	while(true){
-		if(document.querySelector('[data-e2e="user-info"]')){
-			break;
-		}
-	}
-	var resp 		= {};
+
+	var resp 			= {};
 	resp['fans'] 		= await getFirstFollowNumber("user-info-fans");
 	resp['follow'] 		= await getFirstFollowNumber("user-info-follow");
 	resp['zan'] 		= await getFirstFollowNumber("user-info-like");
@@ -64,6 +85,7 @@ var dyinfojs = `(async () => {
 	if(zuopin){
 		resp['works'] 	= Number(zuopin.textContent.trim());
 	}
+	console.log(JSON.stringify({"type":"kaka", "data":resp}));
 	return JSON.stringify({"type":"kaka", "data":resp});
 })()`
 
@@ -79,19 +101,31 @@ func GetInfo(c *gin.Context) {
 			Url:      fmt.Sprintf("https://www.douyin.com/user/%s", mu.Uuid),
 			JsStr:    dyinfojs,
 			Headless: true,
+			Timeout:  time.Duration(time.Second * 30),
 		})
 
 		brows.OnClosed(func() {
 			// eventbus.Bus.Publish("browser-close", this)
+			eventbus.Bus.Publish("media_user_info", mu)
 		})
 		brows.OnConsole(func(args []*runtime.RemoteObject) {
 			for _, arg := range args {
 				if arg.Value != nil {
-					// fmt.Println(arg.Value, "value")
-					val := strings.ReplaceAll(arg.Value.String(), "\\", "")
-					gs := gjson.Parse(val)
+					gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
 					if gs.Get("type").String() == "kaka" {
-						fmt.Println(gs.Get("data").String())
+						dt := gs.Get("data")
+						if fans := dt.Get("fans").Int(); fans > 0 {
+							mu.Fans = fans
+						}
+						if works := dt.Get("works").Int(); works > 0 {
+							mu.Works = works
+						}
+						if local := dt.Get("local").String(); local != "" {
+							mu.Local = local
+						}
+						mu.Save(nil)
+						mu.Commpare()
+						brows.Close()
 					}
 				} else if arg.Description != "" {
 					// fmt.Println(arg.Description, "description")
@@ -107,40 +141,8 @@ func GetInfo(c *gin.Context) {
 		})
 
 		brows.OpenBrowser()
-
-		go func() {
-			var i int
-			defer brows.Close()
-			for {
-				rsp, err := brows.RunJs(dyinfojs)
-				if err == nil {
-					if resstr, ok := rsp.(string); ok {
-						gs := gjson.Parse(resstr)
-						dt := gs.Get("data")
-						fmt.Println(dt.String(), "-----")
-						if fans := dt.Get("fans").Int(); fans > 0 {
-							mu.Fans = fans
-						}
-						if works := dt.Get("works").Int(); works > 0 {
-							mu.Works = works
-						}
-						if local := dt.Get("local").String(); local != "" {
-							mu.Local = local
-						}
-						mu.Save(nil)
-						mu.Commpare()
-						eventbus.Bus.Publish("media_user_info", mu)
-						break
-					}
-				}
-				time.Sleep(time.Second * 3)
-				i++
-				if i == 9 {
-					eventbus.Bus.Publish("media_user_info", mu)
-					break
-				}
-			}
-		}()
+		time.Sleep(time.Second * 1)
+		brows.RunJs(dyinfojs)
 	}
 	response.Success(c, mu, "")
 }
