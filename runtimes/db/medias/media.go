@@ -38,6 +38,7 @@ func init() {
 	dbs.AutoMigrate(&MediaUserTag{})
 	dbs.AutoMigrate(&MediaUserToTag{})
 	dbs.AutoMigrate(&MediaUserToClient{})
+	dbs.AutoMigrate(&MediaUserProxy{})
 }
 
 func MkerMediaUser(platform, uid, cover, name, proxy string, adminID int64) *MediaUser {

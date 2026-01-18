@@ -143,6 +143,13 @@ func GetInfo(c *gin.Context) {
 		brows.OpenBrowser()
 		time.Sleep(time.Second * 1)
 		brows.RunJs(dyinfojs)
+
+		go func() {
+			time.Sleep(time.Second * 30)
+			if brows.IsArrive() {
+				brows.Close()
+			}
+		}()
 	}
 	response.Success(c, mu, "")
 }

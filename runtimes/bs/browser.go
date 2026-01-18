@@ -173,3 +173,8 @@ func (this *Browser) InputTxt(text, clickNode string) error {
 		chromedp.SendKeys(clickNode, text, chromedp.NodeVisible),
 	)
 }
+
+// 当前浏览器是否存活
+func (this *Browser) IsArrive() bool {
+	return this.survival.Load() && !this.closed.Load()
+}

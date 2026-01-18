@@ -73,7 +73,6 @@ func List(c *gin.Context) {
 		response.Error(c, http.StatusNotFound, err.Error(), nil)
 		return
 	}
-	fmt.Println(l.Tags, l.Limit, "----", l)
 
 	model := db.DB.Model(&clients.Phone{}).Group("phones.id")
 	if l.Q != "" {
@@ -112,15 +111,16 @@ func List(c *gin.Context) {
 			sortBy = "DESC"
 		}
 	}
-	if l.Page < 1 {
-		l.Page = 1
-	}
-	if l.Limit < 1 {
-		l.Limit = 10
+
+	if l.Limit > 0 {
+		if l.Page < 1 {
+			l.Page = 1
+		}
+		model.Offset((l.Page - 1) * l.Limit).Limit(l.Limit)
 	}
 
 	var ps []*clients.Phone
-	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Offset((l.Page - 1) * l.Limit).Limit(l.Limit).Debug().Find(&ps)
+	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Debug().Find(&ps)
 
 	// 处理代理标签
 	if len(ps) > 0 {

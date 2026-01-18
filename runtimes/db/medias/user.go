@@ -16,7 +16,7 @@ type MediaUser struct {
 	Cover    string          `json:"cover" gorm:"default:null"`          // 头像
 	Platform string          `json:"platform" gorm:"index:plu;not null"` // 怕太
 	Uuid     string          `json:"uuid" gorm:"index:plu;not null"`     // 访问主页等
-	Account  string          `json:"account" gorm:"index;"`              //例如抖音号,用于用户搜索的
+	Account  string          `json:"account" gorm:"index;"`              // 例如抖音号,用于用户搜索的
 	AdminID  int64           `json:"admin_id" gorm:"index;default:0"`    // 哪个后台用户添加的
 	Addtime  int64           `json:"addtime" gorm:"default:0;index"`     // 添加时间
 	Works    int64           `json:"works" gorm:"index;default:-1"`      // 发布作品数量
@@ -24,6 +24,7 @@ type MediaUser struct {
 	Local    string          `json:"local" gorm:"index;default:null"`    // 所在地区
 	Tags     []string        `json:"tags" gorm:"-"`                      // 标签
 	Clients  []map[int]int64 `json:"clients" gorm:"-"`                   // 使用的客户端
+	Proxys   []int64         `json:"proxys" gorm:"-"`                    // 使用的代理列表
 }
 
 type MediaUserToTag struct {
@@ -31,10 +32,17 @@ type MediaUserToTag struct {
 	TagID  int64 `json:"tag_id" gorm:"primaryKey;not null"`
 }
 
+// 媒体用户自动获取时使用的浏览器
 type MediaUserToClient struct {
 	MUID       int64 `json:"media_user" gorm:"primaryKey;not null"`
 	ClientType int   `json:"client_type" gorm:"primaryKey;not null"`
 	ClientID   int64 `json:"client_id" gorm:"primaryKey;not null"`
+}
+
+// 媒体用户自动获取时使用的代理,设置多个代理将随机选取代理
+type MediaUserProxy struct {
+	MUID    int64 `json:"mu_id" gorm:"primaryKey;not null"`
+	ProxyID int64 `json:"proxy_id" gorm:"primaryKey;not null"`
 }
 
 func (this *MediaUser) Save(tx *gorm.DB) error {
@@ -87,10 +95,19 @@ func (this *MediaUser) GetClients() []map[int]int64 {
 // 补全媒体用户的tag和客户端
 func (this *MediaUser) Commpare() {
 	this.GetClients()
+	this.GetProxys()
 
 	for _, zv := range this.GetTags() {
 		this.Tags = append(this.Tags, zv.Name)
 	}
+}
+
+// 获取代理列表
+func (this *MediaUser) GetProxys() []int64 {
+	var ids []int64
+	dbs.Model(&MediaUserProxy{}).Select("proxy_id").Where("mu_id = ?", this.Id).Find(&ids)
+	this.Proxys = ids
+	return this.Proxys
 }
 
 func GetUserPlatforms() map[string]string {
@@ -141,14 +158,6 @@ func GetMediaUsers(adminID int64, dt *db.ListFinder) ([]*MediaUser, int64) {
 	md.Order("id DESC").Offset((dt.Page - 1) * dt.Limit).Limit(dt.Limit).Find(&mus)
 
 	for _, v := range mus {
-		// // v.Devices = v.GetDevices()
-		// if v.Cover != "" {
-		// 	v.Cover = fmt.Sprintf("%s/%s", config.MediaUrl, v.Cover)
-		// }
-		// for _, zv := range v.GetTags() {
-		// 	v.Tags = append(v.Tags, zv.Name)
-		// }
-		// // v.GetParams()
 		v.Commpare()
 		if v.Cover != "" {
 			v.Cover = fmt.Sprintf("%s/%s", config.MediaUrl, v.Cover)
