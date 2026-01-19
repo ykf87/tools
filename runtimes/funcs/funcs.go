@@ -131,7 +131,22 @@ func (c *Command) Run() error {
 }
 
 func RunCommand(wait bool, cmdName string, args ...string) (string, *exec.Cmd, error) {
+	// cmd := exec.Command(cmdName, args...)
+
+	// cmd.Env = append(os.Environ(),
+	// 	"MINIO_ROOT_USER=admin",
+	// 	"MINIO_ROOT_PASSWORD=StrongPassword123!",
+	// )
+
+	return RunCommandWithENV(wait, cmdName, nil, args...)
+}
+
+// 携带环境变量的启动
+func RunCommandWithENV(wait bool, cmdName string, fun func(*exec.Cmd), args ...string) (string, *exec.Cmd, error) {
 	cmd := exec.Command(cmdName, args...)
+	if fun != nil {
+		fun(cmd)
+	}
 
 	if wait {
 		// 等待执行完成并获取输出

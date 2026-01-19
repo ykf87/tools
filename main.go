@@ -45,6 +45,7 @@ import (
 	_ "tools/runtimes"
 	_ "tools/runtimes/db"
 	"tools/runtimes/listens/web"
+	_ "tools/runtimes/minio"
 	_ "tools/runtimes/subscribes/submqs"
 	_ "tools/runtimes/subscribes/subws"
 	// "tools/runtimes/mq"

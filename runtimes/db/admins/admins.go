@@ -7,6 +7,7 @@ import (
 	"tools/runtimes/funcs"
 	"tools/runtimes/i18n"
 
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -155,4 +156,17 @@ func DeleteAdminById(id any) error {
 	}
 
 	return db.DB.Where("id = ?", id).Delete(&Admin{}).Error
+}
+
+func GetAdminUser(c *gin.Context) (*Admin, error) {
+	var user *Admin
+	if u, ok := c.Get("_user"); ok {
+		if user, ok = u.(*Admin); !ok {
+			return nil, fmt.Errorf("Please Login")
+		}
+	}
+	if user == nil || user.Id < 1 {
+		return nil, fmt.Errorf("Please Login")
+	}
+	return user, nil
 }

@@ -42,6 +42,10 @@ func init() {
 	dbs.AutoMigrate(&MediaUserProxy{})
 }
 
+func GetDb() *gorm.DB {
+	return dbs
+}
+
 func MkerMediaUser(platform, uid, cover, name, proxy, searchID string, adminID int64) *MediaUser {
 	mu := new(MediaUser)
 	// fmt.Println(searchID, "mkuser------------------")

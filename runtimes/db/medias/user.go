@@ -23,7 +23,7 @@ type MediaUser struct {
 	Fans     int64           `json:"fans" gorm:"index;default:-1"`       // 粉丝数
 	Local    string          `json:"local" gorm:"index;default:null"`    // 所在地区
 	Tags     []string        `json:"tags" gorm:"-"`                      // 标签
-	Clients  []map[int]int64 `json:"clients" gorm:"-"`                   // 使用的客户端
+	Clients  map[int][]int64 `json:"clients" gorm:"-"`                   // 使用的客户端
 	Proxys   []int64         `json:"proxys" gorm:"-"`                    // 使用的代理列表
 }
 
@@ -87,13 +87,12 @@ func (this *MediaUser) GetTags() []*MediaUserTag {
 	return tags
 }
 
-func (this *MediaUser) GetClients() []map[int]int64 {
+func (this *MediaUser) GetClients() map[int][]int64 {
 	var rows []*MediaUserToClient
 	dbs.Model(&MediaUserToClient{}).Where("m_uid = ?", this.Id).Find(&rows)
+	this.Clients = make(map[int][]int64)
 	for _, v := range rows {
-		this.Clients = append(this.Clients, map[int]int64{
-			v.ClientType: v.ClientID,
-		})
+		this.Clients[v.ClientType] = append(this.Clients[v.ClientType], v.ClientID)
 	}
 	return this.Clients
 }
@@ -104,6 +103,7 @@ func (this *MediaUser) Commpare() {
 	this.GetProxys()
 	this.GenAvatarToHttp()
 
+	this.Tags = nil
 	for _, zv := range this.GetTags() {
 		this.Tags = append(this.Tags, zv.Name)
 	}
@@ -187,6 +187,25 @@ func GetMediaUserByID(id any) *MediaUser {
 	if err := dbs.Model(&MediaUser{}).Where("id = ?", id).First(mu).Error; err != nil || mu.Id < 1 {
 		return nil
 	}
-	mu.Commpare()
+	// mu.Commpare()
 	return mu
+}
+
+func (this *MediaUser) EmptyClient(tx *gorm.DB) error {
+	if tx == nil {
+		tx = dbs
+	}
+	return tx.Where("m_uid = ?", this.Id).Delete(&MediaUserToClient{}).Error
+}
+func (this *MediaUser) EmptyProxy(tx *gorm.DB) error {
+	if tx == nil {
+		tx = dbs
+	}
+	return tx.Where("m_uid = ?", this.Id).Delete(&MediaUserProxy{}).Error
+}
+func (this *MediaUser) EmptyTag(tx *gorm.DB) error {
+	if tx == nil {
+		tx = dbs
+	}
+	return tx.Where("user_id = ?", this.Id).Delete(&MediaUserToTag{}).Debug().Error
 }
