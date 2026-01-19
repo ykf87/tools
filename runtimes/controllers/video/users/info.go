@@ -77,7 +77,9 @@ var dyinfojs = `(async () => {
 		    try{
 		    	if (text.indexOf("IP") >= 0) {
 		    		resp['local']	= text.split("：")[1];
-			    }
+			    }else if(text.indexOf("抖音号") >= 0){
+					resp['account'] 	= text.split("：")[1];
+				}
 		    }catch(e){}
 		  }
 	}
@@ -96,59 +98,63 @@ func GetInfo(c *gin.Context) {
 	if len(mu.Clients) > 0 {
 
 	} else {
-		bbs := bs.NewManager("")
-		brows, _ := bbs.New(0, bs.Options{
-			Url:      fmt.Sprintf("https://www.douyin.com/user/%s", mu.Uuid),
-			JsStr:    dyinfojs,
-			Headless: true,
-			Timeout:  time.Duration(time.Second * 30),
-		})
-
-		brows.OnClosed(func() {
-			// eventbus.Bus.Publish("browser-close", this)
-			eventbus.Bus.Publish("media_user_info", mu)
-		})
-		brows.OnConsole(func(args []*runtime.RemoteObject) {
-			for _, arg := range args {
-				if arg.Value != nil {
-					gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
-					if gs.Get("type").String() == "kaka" {
-						dt := gs.Get("data")
-						if fans := dt.Get("fans").Int(); fans > 0 {
-							mu.Fans = fans
-						}
-						if works := dt.Get("works").Int(); works > 0 {
-							mu.Works = works
-						}
-						if local := dt.Get("local").String(); local != "" {
-							mu.Local = local
-						}
-						mu.Save(nil)
-						mu.Commpare()
-						brows.Close()
-					}
-				} else if arg.Description != "" {
-					// fmt.Println(arg.Description, "description")
-				} else {
-					// fmt.Println("[unknown console arg]")
-				}
-			}
-		})
-
-		brows.OnURLChange(func(url string) {
-			// fmt.Println("------")
-			// brows.RunJs(dyinfojs)
-		})
-
-		brows.OpenBrowser()
-		time.Sleep(time.Second * 1)
-		brows.RunJs(dyinfojs)
-
 		go func() {
-			time.Sleep(time.Second * 30)
-			if brows.IsArrive() {
-				brows.Close()
-			}
+			bbs := bs.NewManager("")
+			brows, _ := bbs.New(0, bs.Options{
+				Url:      fmt.Sprintf("https://www.douyin.com/user/%s", mu.Uuid),
+				JsStr:    dyinfojs,
+				Headless: true,
+				Timeout:  time.Duration(time.Second * 30),
+			})
+
+			brows.OnClosed(func() {
+				eventbus.Bus.Publish("media_user_info", mu)
+			})
+			brows.OnConsole(func(args []*runtime.RemoteObject) {
+				for _, arg := range args {
+					if arg.Value != nil {
+						gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
+						if gs.Get("type").String() == "kaka" {
+							dt := gs.Get("data")
+							if fans := dt.Get("fans").Int(); fans > 0 {
+								mu.Fans = fans
+							}
+							if works := dt.Get("works").Int(); works > 0 {
+								mu.Works = works
+							}
+							if local := dt.Get("local").String(); local != "" {
+								mu.Local = local
+							}
+							if account := dt.Get("account").String(); account != "" {
+								mu.Account = account
+							}
+							mu.Save(nil)
+							mu.Commpare()
+							brows.Close()
+						}
+					} else if arg.Description != "" {
+						// fmt.Println(arg.Description, "description")
+					} else {
+						// fmt.Println("[unknown console arg]")
+					}
+				}
+			})
+
+			brows.OnURLChange(func(url string) {
+				// fmt.Println("------")
+				// brows.RunJs(dyinfojs)
+			})
+
+			brows.OpenBrowser()
+			time.Sleep(time.Second * 1)
+			go brows.RunJs(dyinfojs)
+
+			go func() {
+				time.Sleep(time.Second * 30)
+				if brows.IsArrive() {
+					brows.Close()
+				}
+			}()
 		}()
 	}
 	response.Success(c, mu, "")

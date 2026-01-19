@@ -5,14 +5,19 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"tools/runtimes/db"
+	"tools/runtimes/db/clients"
+	"tools/runtimes/db/clients/browserdb"
 	"tools/runtimes/db/jses"
 	"tools/runtimes/listens/ws"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+var RunnerTasks sync.Map
 
 type DeviceType struct {
 	ID   int    `json:"id"`
@@ -40,27 +45,29 @@ var Types = []DeviceType{
 
 // 任务表
 type Task struct {
-	ID        int64        `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
-	Title     string       `json:"title" gorm:"index;not null;type:varchar(32)" form:"title"`          // 任务名称
-	Tp        int          `json:"type" gorm:"index;default:0" form:"type"`                            // 任务类型,分2种, 0-web端  1-手机端
-	Addtime   int64        `json:"addtime" gorm:"index;default:0"`                                     // 创建时间
-	Starttime int64        `json:"starttime" gorm:"index;default:0" form:"starttime" parse:"datetime"` // 任务开始时间
-	Endtime   int64        `json:"endtime" gorm:"index;default:0" form:"endtime" parse:"datetime"`     // 任务结束时间
-	Status    int          `json:"status" gorm:"type:tinyint(1);default:0;index" form:"status"`        // 任务状态, 1-可执行 0-不可执行
-	Script    int64        `json:"script" gorm:"index;not null" form:"script"`                         // 任务脚本
-	Errmsg    string       `json:"errmsg" gorm:"default:null" form:"errmsg"`                           // 错误信息
-	AdminId   int64        `json:"admin_id" gorm:"index;not null"`                                     // 管理员id
-	Cycle     int64        `json:"cycle" gorm:"default:0" form:"cycle"`                                // 任务周期,单位秒,0为不重复执行,大于0表示间隔多久自动重复执行
-	RetryMax  int          `json:"retry_max" gorm:"default:0" form:"retry_max"`                        // 最大重试次数
-	Timeout   int64        `json:"timeout" gorm:"default:0" form:"timeout"`                            // 单次超时（秒）
-	Priority  int          `json:"priority" gorm:"default:0" form:"priority"`                          // 优先级
-	CatchUp   bool         `json:"catch_up" gorm:"default:false" form:"catch_up"`                      // 补跑漏掉的周期
-	SeNum     int          `json:"se_num" gorm:"default:2" form:"se_num"`                              // 同时执行的设备数量,0表示所有设备同时执行
-	DataSpec  string       `json:"data_spec" gorm:"default:null" form:"data_spec"`                     // 数据来源配置（JSON）,这种方式需要的参数
-	DataType  string       `json:"data_type" gorm:"default:null" form:"data_type"`                     // 数据类型标识,我用哪一种“取数方式”
-	Devices   []int64      `json:"devices" gorm:"-" form:"devices"`                                    // 设备列表
-	Tags      []string     `json:"tags" gorm:"-" form:"tags"`                                          // 设备标签
-	Params    []*TaskParam `json:"params" gorm:"-" form:"params"`                                      // 参数
+	ID            int64              `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
+	Title         string             `json:"title" gorm:"index;not null;type:varchar(32)" form:"title"`          // 任务名称
+	Tp            int                `json:"type" gorm:"index;default:0" form:"type"`                            // 任务类型,分2种, 0-web端  1-手机端
+	Addtime       int64              `json:"addtime" gorm:"index;default:0"`                                     // 创建时间
+	Starttime     int64              `json:"starttime" gorm:"index;default:0" form:"starttime" parse:"datetime"` // 任务开始时间
+	Endtime       int64              `json:"endtime" gorm:"index;default:0" form:"endtime" parse:"datetime"`     // 任务结束时间
+	Status        int                `json:"status" gorm:"type:tinyint(1);default:0;index" form:"status"`        // 任务状态, 1-可执行 0-不可执行
+	Script        int64              `json:"script" gorm:"index;not null" form:"script"`                         // 任务脚本
+	Errmsg        string             `json:"errmsg" gorm:"default:null" form:"errmsg"`                           // 错误信息
+	AdminId       int64              `json:"admin_id" gorm:"index;not null"`                                     // 管理员id
+	Cycle         int64              `json:"cycle" gorm:"default:0" form:"cycle"`                                // 任务周期,单位秒,0为不重复执行,大于0表示间隔多久自动重复执行
+	RetryMax      int                `json:"retry_max" gorm:"default:0" form:"retry_max"`                        // 最大重试次数
+	Timeout       int64              `json:"timeout" gorm:"default:0" form:"timeout"`                            // 单次超时（秒）
+	Priority      int                `json:"priority" gorm:"default:0" form:"priority"`                          // 优先级
+	CatchUp       bool               `json:"catch_up" gorm:"default:false" form:"catch_up"`                      // 补跑漏掉的周期
+	SeNum         int                `json:"se_num" gorm:"default:2" form:"se_num"`                              // 同时执行的设备数量,0表示所有设备同时执行
+	DataSpec      string             `json:"data_spec" gorm:"default:null" form:"data_spec"`                     // 数据来源配置（JSON）,这种方式需要的参数
+	DataType      string             `json:"data_type" gorm:"default:null" form:"data_type"`                     // 数据类型标识,我用哪一种“取数方式”
+	Devices       []int64            `json:"devices" gorm:"-" form:"devices"`                                    // 设备列表
+	Tags          []string           `json:"tags" gorm:"-" form:"tags"`                                          // 设备标签
+	Params        []*TaskParam       `json:"params" gorm:"-" form:"params"`                                      // 参数
+	RunnerBrowser *browserdb.Browser `json:"-" gorm:"-"`                                                         // 执行的浏览器
+	RunnerPhone   *clients.Phone     `json:"-" gorm:"-"`                                                         // 执行的手机
 	// Params    string   `json:"params" gorm:"default:null" parse:"json"`                            // 脚本参数
 }
 
@@ -171,8 +178,22 @@ func (this *Task) Save(tx *gorm.DB) error {
 		}
 	}
 
-	defer NotifyTaskChanged(this.ID)
+	older := new(Task)
+
+	defer func() {
+		fmt.Println(older.Status, this.Status, "-----")
+		if older.ID > 0 && older.Status != this.Status {
+			if this.Status == 1 {
+				NotifyTaskChanged(this.ID)
+			} else {
+				fmt.Println("停止任务-----")
+				scheduler.StopTask(this.ID)
+			}
+		}
+
+	}()
 	if this.ID > 0 {
+		dbs.Model(&Task{}).Where("id = ?", this.ID).First(older)
 		return tx.Model(&Task{}).Where("id = ?", this.ID).
 			Updates(map[string]any{
 				"title":     this.Title,

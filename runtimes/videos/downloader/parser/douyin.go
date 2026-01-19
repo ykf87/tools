@@ -63,14 +63,15 @@ func (d douYin) parseVideoID(videoId string, transport *http.Transport) (*VideoP
 			})
 		}
 	}
-
 	// 获取视频播放地址
 	videoUrl := data.Get("video.play_addr.url_list.0").String()
 	videoUrl = strings.ReplaceAll(videoUrl, "playwm", "play")
 	data.Get("video.play_addr.url_list").ForEach(func(key, value gjson.Result) bool {
-		fmt.Println(strings.ReplaceAll(value.String(), "playwm", "play"))
+		// fmt.Println(strings.ReplaceAll(value.String(), "playwm", "play"))
 		return true
 	})
+
+	// fmt.Println(data.String(), "----")
 
 	// 如果图集地址不为空时，因为没有视频，上面抖音返回的视频地址无法访问，置空处理
 	if len(images) > 0 {
@@ -88,6 +89,8 @@ func (d douYin) parseVideoID(videoId string, transport *http.Transport) (*VideoP
 	videoInfo.Author.Uid = data.Get("author.sec_uid").String()
 	videoInfo.Author.Name = data.Get("author.nickname").String()
 	videoInfo.Author.Avatar = data.Get("author.avatar_thumb.url_list.0").String()
+	videoInfo.Author.SearchID = data.Get("author.unique_id").String()
+	// fmt.Println(videoInfo.Author.SearchID, data.Get("author").String(), "-------search ID")
 
 	// 视频地址非空时，获取302重定向之后的视频地址
 	// 图集时，视频地址为空，不处理

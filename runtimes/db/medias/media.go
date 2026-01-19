@@ -16,16 +16,17 @@ import (
 
 type Media struct {
 	Id       int64     `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
-	Path     string    `json:"path" gorm:"index;default:null" form:"path"` // 相对于存储根目录的纯路径
-	Name     string    `json:"name" gorm:"default:null;index" form:"name"` // 真实文件名称,不含路径
-	Title    string    `json:"title" gorm:"default:null" form:"title"`     // 显示的标题
-	Md5      string    `json:"md5" gorm:"uniqueIndex"`
-	Platform string    `json:"platform" gorm:"index;default:null" form:"platform"`
-	UserId   int64     `json:"user_id" gorm:"index;default:0"`     // MediaUser id
-	Url      string    `json:"url" gorm:"default:null" form:"url"` // 下载地址
-	Mime     string    `json:"mime" gorm:"index" form:"mime"`
-	Size     int64     `json:"size" gorm:"index;default:0" form:"size"`         //大小
-	Filetime int64     `json:"filetime" gorm:"index;default:0" form:"filetime"` // 文件最后修改日期
+	Path     string    `json:"path" gorm:"index;default:null" form:"path"`         // 相对于存储根目录的纯路径
+	Name     string    `json:"name" gorm:"default:null;index" form:"name"`         // 真实文件名称,不含路径
+	Title    string    `json:"title" gorm:"default:null" form:"title"`             // 显示的标题
+	Md5      string    `json:"md5" gorm:"uniqueIndex; not null"`                   // 文件的md5值
+	UrlMd5   string    `json:"url_md5" gorm:"uniqueIndex; not null"`               // 下载地址的md5
+	Platform string    `json:"platform" gorm:"index;default:null" form:"platform"` // 平台
+	UserId   int64     `json:"user_id" gorm:"index;default:0"`                     // MediaUser id
+	Url      string    `json:"url" gorm:"default:null" form:"url"`                 // 下载地址
+	Mime     string    `json:"mime" gorm:"index" form:"mime"`                      // mime
+	Size     int64     `json:"size" gorm:"index;default:0" form:"size"`            //大小
+	Filetime int64     `json:"filetime" gorm:"index;default:0" form:"filetime"`    // 文件最后修改日期
 	Addtime  time.Time // 本数据添加日期
 }
 
@@ -41,11 +42,12 @@ func init() {
 	dbs.AutoMigrate(&MediaUserProxy{})
 }
 
-func MkerMediaUser(platform, uid, cover, name, proxy string, adminID int64) *MediaUser {
+func MkerMediaUser(platform, uid, cover, name, proxy, searchID string, adminID int64) *MediaUser {
 	mu := new(MediaUser)
+	// fmt.Println(searchID, "mkuser------------------")
 	if err := dbs.Model(&MediaUser{}).Where("platform = ? and uuid = ?", platform, uid).First(mu).Error; err != nil {
 		exts := "png"
-		dl := downloader.NewDownloader(proxy, func(percent float64, downloaded, total int64) {}, nil)
+		dl := downloader.NewDownloader(proxy, nil, nil)
 		if ext, err := dl.GetUrlFileExt(cover); err == nil {
 			exts = ext
 		}
@@ -65,6 +67,11 @@ func MkerMediaUser(platform, uid, cover, name, proxy string, adminID int64) *Med
 		mu.Platform = platform
 		mu.Uuid = uid
 		mu.AdminID = adminID
+		mu.Account = searchID
+
+		mu.Save(nil)
+	} else {
+		mu.Account = searchID
 		mu.Save(nil)
 	}
 	return mu
@@ -129,4 +136,11 @@ func GetMediasUserFromName(names []string) map[string]*MediaUser {
 		}
 	}
 	return resp
+}
+
+// 通过url的md5获取行
+func GerUrlMd5Row(md5 string) *Media {
+	md := new(Media)
+	dbs.Model(&Media{}).Where("url_md5 = ?", md5).First(md)
+	return md
 }

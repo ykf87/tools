@@ -54,9 +54,10 @@ type videoIdParser interface {
 // VideoParseInfo 视频解析信息
 type VideoParseInfo struct {
 	Author struct {
-		Uid    string `json:"uid"`    // 作者id
-		Name   string `json:"name"`   // 作者名称
-		Avatar string `json:"avatar"` // 作者头像
+		Uid      string `json:"uid"`       // 作者id
+		Name     string `json:"name"`      // 作者名称
+		Avatar   string `json:"avatar"`    // 作者头像
+		SearchID string `json:"search_id"` // 用户唯一的id，用于搜索该用户
 	} `json:"author"` // 作者信息
 	Title    string    `json:"title"`     // 描述
 	VideoUrl string    `json:"video_url"` // 视频播放地址

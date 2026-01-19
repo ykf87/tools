@@ -350,11 +350,18 @@ func Download(c *gin.Context) {
 		rsrow := new(Pms)
 		rsrow.DownFile = urlmd5
 
+		if mmmd := medias.GerUrlMd5Row(urlmd5); mmmd.Id > 0 {
+			errs = append(errs, fmt.Sprintf("%s 已经下载", ul))
+			wg.Done()
+			continue
+		}
+
 		var proxyUrl string
 		if len(dt.Proxys) > 0 {
 			proxyid := dt.Proxys[rand.Intn(len(dt.Proxys))]
 			if pc, ok := proxyObjs[proxyid]; ok {
 				proxyUrl = pc.Listened()
+				defer pc.Close(true)
 			}
 		}
 
@@ -454,9 +461,11 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vu
 		md.Platform = parseRes.Platform
 		md.Url = vurl
 		md.Title = parseRes.Title
+		md.UrlMd5 = urlmd5
 
 		if parseRes.Author.Uid != "" {
-			mu := medias.MkerMediaUser(parseRes.Platform, parseRes.Author.Uid, parseRes.Author.Avatar, parseRes.Author.Name, proxy, uid)
+			// fmt.Println(parseRes.Author.SearchID, "------------auth")
+			mu := medias.MkerMediaUser(parseRes.Platform, parseRes.Author.Uid, parseRes.Author.Avatar, parseRes.Author.Name, proxy, parseRes.Author.SearchID, uid)
 			md.UserId = mu.Id
 		}
 		md.Save(nil)

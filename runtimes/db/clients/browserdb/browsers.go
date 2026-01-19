@@ -133,9 +133,14 @@ func (this *Browser) Open() error {
 
 }
 
-func (this *Browser) Close() error {
+// rmv是否彻底删除
+func (this *Browser) Close(rmv bool) error {
 	if err := Mng.Close(this.Id); err != nil {
 		return err
+	}
+
+	if rmv == true {
+		Mng.Remove(this.Id)
 	}
 
 	eventbus.Bus.Publish("browser-close", this)
@@ -149,7 +154,7 @@ func (this *Browser) Delete() error {
 
 	tx := db.DB.Begin()
 	tx.Where("browser_id = ?", this.Id).Delete(&BrowserToTag{})
-	if err := this.Close(); err != nil {
+	if err := this.Close(false); err != nil {
 		tx.Rollback()
 		return err
 	}

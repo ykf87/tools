@@ -315,7 +315,7 @@ func Stop(c *gin.Context) {
 		return
 	}
 
-	if err := bs.Close(); err != nil {
+	if err := bs.Close(false); err != nil {
 		response.Error(c, http.StatusNotFound, err.Error(), nil)
 		return
 	}

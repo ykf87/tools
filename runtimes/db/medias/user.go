@@ -50,6 +50,11 @@ func (this *MediaUser) Save(tx *gorm.DB) error {
 		tx = dbs
 	}
 
+	if strings.HasPrefix(this.Cover, config.MediaUrl) {
+		if af, ok := strings.CutPrefix(this.Cover, config.MediaUrl); ok {
+			this.Cover = af
+		}
+	}
 	if this.Id > 0 {
 		err := tx.Model(&MediaUser{}).Where("id = ?", this.Id).
 			Updates(map[string]any{
@@ -60,6 +65,7 @@ func (this *MediaUser) Save(tx *gorm.DB) error {
 				"fans":     this.Fans,
 				"works":    this.Works,
 				"local":    this.Local,
+				"account":  this.Account,
 			}).Error
 		if err != nil {
 			return err
@@ -96,16 +102,23 @@ func (this *MediaUser) GetClients() []map[int]int64 {
 func (this *MediaUser) Commpare() {
 	this.GetClients()
 	this.GetProxys()
+	this.GenAvatarToHttp()
 
 	for _, zv := range this.GetTags() {
 		this.Tags = append(this.Tags, zv.Name)
 	}
 }
 
+func (this *MediaUser) GenAvatarToHttp() {
+	if !strings.HasPrefix(this.Cover, "http") {
+		this.Cover = fmt.Sprintf("%s/%s", config.MediaUrl, this.Cover)
+	}
+}
+
 // 获取代理列表
 func (this *MediaUser) GetProxys() []int64 {
 	var ids []int64
-	dbs.Model(&MediaUserProxy{}).Select("proxy_id").Where("mu_id = ?", this.Id).Find(&ids)
+	dbs.Model(&MediaUserProxy{}).Select("proxy_id").Where("m_uid = ?", this.Id).Find(&ids)
 	this.Proxys = ids
 	return this.Proxys
 }
@@ -159,9 +172,11 @@ func GetMediaUsers(adminID int64, dt *db.ListFinder) ([]*MediaUser, int64) {
 
 	for _, v := range mus {
 		v.Commpare()
-		if v.Cover != "" {
-			v.Cover = fmt.Sprintf("%s/%s", config.MediaUrl, v.Cover)
-		}
+		// if v.Cover != "" {
+		// 	if !strings.HasPrefix(v.Cover, "http") {
+		// 		v.Cover = fmt.Sprintf("%s/%s", config.MediaUrl, v.Cover)
+		// 	}
+		// }
 	}
 	return mus, total
 }

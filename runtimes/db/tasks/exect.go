@@ -49,6 +49,7 @@ func execTask(ctx context.Context, task *Task, runID int64, js string) error {
 			case 0: // 执行浏览器
 				bs, err := browserdb.GetBrowserById(v.DeviceID)
 				if err == nil {
+					task.RunnerBrowser = bs
 					if err := bs.Open(); err == nil {
 						bs.Bs.RunJs(js)
 					}
@@ -56,6 +57,7 @@ func execTask(ctx context.Context, task *Task, runID int64, js string) error {
 			case 1: // 执行autojs
 				phone, err := clients.GetPhoneById(v.DeviceID)
 				if err == nil {
+					task.RunnerPhone = phone
 					if dt, err := config.Json.Marshal(map[string]any{
 						"type": "runjs",
 						"data": js,
