@@ -49,7 +49,7 @@ func (mq *MQ) Register(topic string, handler Handler, buffer int) {
 
 	if mq.started {
 		mq.wg.Add(1)
-		go mq.consumeLoop(topic, ch, handler)
+		go mq.consumeLoop(ch, handler)
 	}
 }
 
@@ -76,7 +76,7 @@ func (mq *MQ) Start() error {
 	for topic, handler := range mq.handlers {
 		ch := mq.queues[topic]
 		mq.wg.Add(1)
-		go mq.consumeLoop(topic, ch, handler)
+		go mq.consumeLoop(ch, handler)
 	}
 
 	return nil

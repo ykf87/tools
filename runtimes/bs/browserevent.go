@@ -2,11 +2,14 @@ package bs
 
 import (
 	"os"
+	"sync"
 
 	"github.com/chromedp/cdproto/page"
 	rt "github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 )
+
+var OpendBrowser sync.Map
 
 func (b *Browser) watchClose() {
 	go func() {
@@ -55,7 +58,15 @@ func safeCallConsole(cb func([]*rt.RemoteObject), args []*rt.RemoteObject) {
 
 func (b *Browser) Close() {
 	b.mu.Lock()
-	defer b.mu.Unlock()
+	defer func() {
+		b.mu.Unlock()
+		<-maxNumsCh
+	}()
+
+	if _, ok := OpendBrowser.Load(b.id); ok {
+		OpendBrowser.Delete(b.id)
+	}
+
 	if b.survival.Load() {
 		b.cancel()
 		b.alloc()
@@ -86,4 +97,8 @@ func (b *Browser) OnClosed(cb func()) {
 
 func (b *Browser) OnConsole(cb func([]*rt.RemoteObject)) {
 	b.onConsole.Store(cb)
+}
+
+func ConseleFun(callback func(str string)) {
+
 }

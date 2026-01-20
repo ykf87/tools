@@ -96,7 +96,7 @@ func (this *Js) GetContent(taskParams map[string]any) string {
 	for _, v := range params {
 		val, ok := taskParams[v.CodeName]
 		if !ok {
-			continue
+			val = v.DefaultValue
 		}
 		str = funcs.ReplaceContent(str, prev, end, v.CodeName, val)
 	}
@@ -117,6 +117,16 @@ func GetJsById(id int64) *Js {
 	}
 	jsobj := new(Js)
 	db.DB.Model(&Js{}).Where("id = ?", id).First(jsobj)
+	return jsobj
+}
+
+// 根据code获取脚本
+func GetJsByCode(code string) *Js {
+	if code == "" {
+		return nil
+	}
+	jsobj := new(Js)
+	db.DB.Model(&Js{}).Where("code = ?", code).First(jsobj)
 	return jsobj
 }
 

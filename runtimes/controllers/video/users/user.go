@@ -140,6 +140,16 @@ func Editer(c *gin.Context) {
 			}
 		}
 	}
+
+	mmu.Autoinfo = mu.Autoinfo
+	mmu.AutoDownload = mu.AutoDownload
+	mmu.AutoTimer = mu.AutoTimer
+	mmu.DownFreq = mu.DownFreq
+	if err := mmu.Save(tx); err != nil {
+		tx.Rollback()
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
 	tx.Commit()
 	mu.Commpare()
 

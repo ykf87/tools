@@ -42,6 +42,11 @@ func (m *Manager) New(id int64, opt Options) (*Browser, error) {
 	if b, ok := m.browsers[id]; ok {
 		return b, nil
 	}
+	if b, ok := OpendBrowser.Load(id); ok {
+		if bbs, ok := b.(*Browser); ok {
+			return bbs, nil
+		}
+	}
 
 	if opt.ExecPath == "" {
 		execPath, err := getBrowserBinName()
@@ -69,10 +74,16 @@ func (m *Manager) New(id int64, opt Options) (*Browser, error) {
 		id:   id,
 		Opts: opt,
 	}
+
+	if _, err := MakeBrowserConfig(b.id, b.Opts.Language, b.Opts.Timezone, b.Opts.Proxy); err != nil {
+		return nil, err
+	}
+
 	b.onURLChange.Store((func(string))(nil))
 	b.onConsole.Store((func([]*rt.RemoteObject))(nil))
 
 	m.browsers[id] = b
+	OpendBrowser.Store(id, b)
 	return b, nil
 }
 

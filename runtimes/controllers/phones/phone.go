@@ -120,7 +120,7 @@ func List(c *gin.Context) {
 	}
 
 	var ps []*clients.Phone
-	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Debug().Find(&ps)
+	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Find(&ps)
 
 	// 处理代理标签
 	if len(ps) > 0 {

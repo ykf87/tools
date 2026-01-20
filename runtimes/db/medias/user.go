@@ -1,8 +1,10 @@
 package medias
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
@@ -11,20 +13,30 @@ import (
 )
 
 type MediaUser struct {
-	Id       int64           `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name     string          `json:"name" gorm:"index;default:null"`     // 用户名
-	Cover    string          `json:"cover" gorm:"default:null"`          // 头像
-	Platform string          `json:"platform" gorm:"index:plu;not null"` // 怕太
-	Uuid     string          `json:"uuid" gorm:"index:plu;not null"`     // 访问主页等
-	Account  string          `json:"account" gorm:"index;"`              // 例如抖音号,用于用户搜索的
-	AdminID  int64           `json:"admin_id" gorm:"index;default:0"`    // 哪个后台用户添加的
-	Addtime  int64           `json:"addtime" gorm:"default:0;index"`     // 添加时间
-	Works    int64           `json:"works" gorm:"index;default:-1"`      // 发布作品数量
-	Fans     int64           `json:"fans" gorm:"index;default:-1"`       // 粉丝数
-	Local    string          `json:"local" gorm:"index;default:null"`    // 所在地区
-	Tags     []string        `json:"tags" gorm:"-"`                      // 标签
-	Clients  map[int][]int64 `json:"clients" gorm:"-"`                   // 使用的客户端
-	Proxys   []int64         `json:"proxys" gorm:"-"`                    // 使用的代理列表
+	Id           int64           `json:"id" gorm:"primaryKey;autoIncrement"`
+	Name         string          `json:"name" gorm:"index;default:null"`                       // 用户名
+	Cover        string          `json:"cover" gorm:"default:null"`                            // 头像
+	Platform     string          `json:"platform" gorm:"index:plu;not null"`                   // 怕太
+	Uuid         string          `json:"uuid" gorm:"index:plu;not null"`                       // 访问主页等
+	Account      string          `json:"account" gorm:"index;"`                                // 例如抖音号,用于用户搜索的
+	AdminID      int64           `json:"admin_id" gorm:"index;default:0"`                      // 哪个后台用户添加的
+	Addtime      int64           `json:"addtime" gorm:"default:0;index"`                       // 添加时间
+	Works        int64           `json:"works" gorm:"index;default:-1"`                        // 发布作品数量
+	Fans         int64           `json:"fans" gorm:"index;default:-1"`                         // 粉丝数
+	Local        string          `json:"local" gorm:"index;default:null"`                      // 所在地区
+	Autoinfo     int             `json:"autoinfo" gorm:"default:0;index;type:tinyint(1)"`      // 自动获取信息,也就是监听账号的数据变化
+	AutoTimer    int64           `json:"auto_timer" gorm:"index;default:0"`                    // 自动获取信息执行时间，每天
+	AutoDownload int             `json:"auto_download" gorm:"index;default:0;type:tinyint(1)"` // 自动下载视频
+	DownFreq     int             `json:"down_freq" gorm:"default:30"`                          // 自动下载视频执行频率,单位是分钟
+	LastDownTime int64           `json:"last_down_time" gorm:"default:0"`                      // 上一次下载的时间
+	Tags         []string        `json:"tags" gorm:"-"`                                        // 标签
+	Clients      map[int][]int64 `json:"clients" gorm:"-"`                                     // 使用的客户端
+	Proxys       []int64         `json:"proxys" gorm:"-"`                                      // 使用的代理列表
+	ctx          context.Context `json:"-" gorm:"-"`                                           //
+	done         chan bool       `json:"-" gorm:"-"`                                           // 执行句柄
+	Isruner      bool            `json:"isruner" gorm:"-"`                                     // 是否正在执行
+	mu           sync.Mutex      `json:"-" gorm:"-"`                                           // 锁
+	trans        string          `json:"-" gorm:"-"`                                           // 代理
 }
 
 type MediaUserToTag struct {
@@ -58,14 +70,19 @@ func (this *MediaUser) Save(tx *gorm.DB) error {
 	if this.Id > 0 {
 		err := tx.Model(&MediaUser{}).Where("id = ?", this.Id).
 			Updates(map[string]any{
-				"platform": this.Platform,
-				"name":     this.Name,
-				"cover":    this.Cover,
-				"uuid":     this.Uuid,
-				"fans":     this.Fans,
-				"works":    this.Works,
-				"local":    this.Local,
-				"account":  this.Account,
+				"platform":       this.Platform,
+				"name":           this.Name,
+				"cover":          this.Cover,
+				"uuid":           this.Uuid,
+				"fans":           this.Fans,
+				"works":          this.Works,
+				"local":          this.Local,
+				"account":        this.Account,
+				"autoinfo":       this.Autoinfo,
+				"auto_download":  this.AutoDownload,
+				"auto_timer":     this.AutoTimer,
+				"down_freq":      this.DownFreq,
+				"last_down_time": this.LastDownTime,
 			}).Error
 		if err != nil {
 			return err

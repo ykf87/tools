@@ -90,6 +90,7 @@ func (d douYin) parseVideoID(videoId string, transport *http.Transport) (*VideoP
 	videoInfo.Author.Name = data.Get("author.nickname").String()
 	videoInfo.Author.Avatar = data.Get("author.avatar_thumb.url_list.0").String()
 	videoInfo.Author.SearchID = data.Get("author.unique_id").String()
+	videoInfo.VideoID = data.Get("aweme_id").String()
 	// fmt.Println(videoInfo.Author.SearchID, data.Get("author").String(), "-------search ID")
 
 	// 视频地址非空时，获取302重定向之后的视频地址

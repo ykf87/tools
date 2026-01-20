@@ -43,6 +43,7 @@ import (
 	"syscall"
 	"time"
 	_ "tools/runtimes"
+	"tools/runtimes/bs"
 	_ "tools/runtimes/db"
 	"tools/runtimes/listens/web"
 	_ "tools/runtimes/minio"
@@ -62,7 +63,7 @@ func main() {
 	<-quit
 
 	web.WebCloseCh()
-	// browser.Flush()
+	bs.Flush()
 	time.Sleep(time.Second)
 	fmt.Println("----")
 }

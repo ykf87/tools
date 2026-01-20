@@ -65,6 +65,7 @@ type VideoParseInfo struct {
 	CoverUrl string    `json:"cover_url"` // 视频封面地址
 	Images   []ImgInfo `json:"images"`    // 图集图片地址列表
 	Platform string    `json:"platform"`  // 平台
+	VideoID  string    `json:"video_id"`  // 视频在平台中的唯一id
 }
 
 type ImgInfo struct {

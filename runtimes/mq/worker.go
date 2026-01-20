@@ -2,7 +2,7 @@ package mq
 
 import "time"
 
-func (mq *MQ) consumeLoop(topic string, ch chan *Message, handler Handler) {
+func (mq *MQ) consumeLoop(ch chan *Message, handler Handler) {
 	defer mq.wg.Done()
 
 	for {

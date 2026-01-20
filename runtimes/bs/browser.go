@@ -17,15 +17,21 @@ import (
 
 var BASEPATH = config.BROWSERCACHE
 var Json = jsoniter.ConfigCompatibleWithStandardLibrary
+var browserMaxNums = 100 // 浏览器被打开的最大数量
+var maxNumsCh chan byte
+
+func init() {
+	maxNumsCh = make(chan byte, browserMaxNums)
+}
 
 // 打开浏览器
+// 但是对于打开浏览器的数量需要做个限制
 func (b *Browser) OpenBrowser() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if _, err := MakeBrowserConfig(b.id, b.Opts.Language, b.Opts.Timezone, b.Opts.Proxy); err != nil {
-		return err
-	}
+	maxNumsCh <- 1
+
 	allocOpts := make([]chromedp.ExecAllocatorOption, 0, len(chromedp.DefaultExecAllocatorOptions)+8)
 	allocOpts = append(allocOpts, chromedp.DefaultExecAllocatorOptions[:]...)
 	allocOpts = append(allocOpts,
@@ -177,4 +183,15 @@ func (this *Browser) InputTxt(text, clickNode string) error {
 // 当前浏览器是否存活
 func (this *Browser) IsArrive() bool {
 	return this.survival.Load() && !this.closed.Load()
+}
+
+// 释放所有已打开的浏览器
+func Flush() {
+	OpendBrowser.Range(func(k, v any) bool {
+		fmt.Println("释放浏览器id: ", k)
+		if b, ok := v.(*Browser); ok {
+			b.Close()
+		}
+		return true
+	})
 }

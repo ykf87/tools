@@ -23,6 +23,7 @@ type Media struct {
 	UrlMd5   string    `json:"url_md5" gorm:"uniqueIndex; not null"`               // 下载地址的md5
 	Platform string    `json:"platform" gorm:"index;default:null" form:"platform"` // 平台
 	UserId   int64     `json:"user_id" gorm:"index;default:0"`                     // MediaUser id
+	VideoID  string    `json:"video_id" gorm:"index"`                              // 自动下载才有的短视频的唯一id
 	Url      string    `json:"url" gorm:"default:null" form:"url"`                 // 下载地址
 	Mime     string    `json:"mime" gorm:"index" form:"mime"`                      // mime
 	Size     int64     `json:"size" gorm:"index;default:0" form:"size"`            //大小
@@ -40,6 +41,15 @@ func init() {
 	dbs.AutoMigrate(&MediaUserToTag{})
 	dbs.AutoMigrate(&MediaUserToClient{})
 	dbs.AutoMigrate(&MediaUserProxy{})
+	dbs.AutoMigrate(&MediaUserDay{})
+
+	var mus []*MediaUser
+	dbs.Model(&MediaUser{}).Where("autoinfo = 1 or auto_download = 1").Find(&mus)
+	for _, v := range mus {
+		autoLoaderUser.Store(v.Id, v)
+	}
+
+	go autoStart()
 }
 
 func GetDb() *gorm.DB {

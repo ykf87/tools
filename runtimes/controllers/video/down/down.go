@@ -21,10 +21,9 @@ import (
 	"tools/runtimes/db/admins"
 	"tools/runtimes/db/medias"
 	"tools/runtimes/db/proxys"
-	"tools/runtimes/downloader"
 
 	// "tools/runtimes/eventbus"
-	"tools/runtimes/file"
+
 	"tools/runtimes/funcs"
 	"tools/runtimes/i18n"
 	"tools/runtimes/listens/ws"
@@ -397,9 +396,7 @@ func Download(c *gin.Context) {
 
 func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vurl string, uid int64, cover string) {
 	if parseRes.VideoUrl != "" {
-		var fullFn string
-		fn := urlmd5
-		d := downloader.NewDownloader(proxy, func(percent float64, downloaded, total int64) {
+		md, err := medias.DownLoadVideo(parseRes.VideoUrl, path, "", proxy, func(percent float64, downloaded, total int64) {
 			fmt.Printf("\r下载进度: %.2f%%", percent)
 			dbk := new(Pms)
 			dbk.DownFile = urlmd5
@@ -411,9 +408,7 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vu
 			dbk.Platform = parseRes.Platform
 
 			ws.SentBus(uid, "video-download", dbk, "")
-		}, nil)
-
-		ext, err := d.GetUrlFileExt(parseRes.VideoUrl)
+		})
 		if err != nil {
 			dbk := new(Pms)
 			dbk.DownFile = urlmd5
@@ -426,45 +421,11 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vu
 			ws.SentBus(uid, "video-download", dbk, "")
 			return
 		}
-		fullFn = fmt.Sprintf("%s.%s", fn, ext)
-
-		saveto := filepath.Join(path, fullFn)
-		fullSaveTo := filepath.Join(config.MEDIAROOT, saveto)
-
-		err = d.Download(parseRes.VideoUrl, fullSaveTo)
-		if err != nil {
-			dbk := new(Pms)
-			dbk.DownFile = urlmd5
-			dbk.Fmt = ""
-			dbk.Num = 0
-			dbk.Dir = false
-			dbk.Status = -1
-			dbk.Name = fullFn
-			dbk.DownErrMsg = err.Error()
-
-			ws.SentBus(uid, "video-download", dbk, "")
-			return
-		}
-
-		md := new(medias.Media)
-		fl, err := file.NewFileInfo(fullSaveTo)
-		if err != nil {
-			return
-		}
-		md.Mime = fl.GetMime()
-		md.Size = fl.Size()
-		md.Filetime = fl.Time().Unix()
-		md.Md5 = fl.Md5()
-		md.Addtime = time.Now()
-		md.Name = fullFn
-		md.Path = path
+		md.VideoID = parseRes.VideoID
 		md.Platform = parseRes.Platform
-		md.Url = vurl
 		md.Title = parseRes.Title
-		md.UrlMd5 = urlmd5
 
 		if parseRes.Author.Uid != "" {
-			// fmt.Println(parseRes.Author.SearchID, "------------auth")
 			mu := medias.MkerMediaUser(parseRes.Platform, parseRes.Author.Uid, parseRes.Author.Avatar, parseRes.Author.Name, proxy, parseRes.Author.SearchID, uid)
 			md.UserId = mu.Id
 		}
@@ -478,16 +439,16 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vu
 		dbk.Status = 1
 		dbk.Mime = md.Mime
 		dbk.Size = funcs.FormatFileSize(md.Size)
-		dbk.Name = fullFn
+		dbk.Name = md.Name
 		dbk.Platform = md.Platform
-		dbk.Url = fmt.Sprintf("%s/%s", config.MediaUrl, filepath.Join(path, fullFn))
+		dbk.Url = fmt.Sprintf("%s/%s", config.MediaUrl, filepath.Join(path, md.Name))
 
-		rrs := medias.GetMediasUserFromName([]string{fullFn})
-		if vvs, ok := rrs[fullFn]; ok {
+		rrs := medias.GetMediasUserFromName([]string{md.Mime})
+		if vvs, ok := rrs[md.Mime]; ok {
 			dbk.User = vvs
 		}
 
-		tms := strings.Split(fullFn, ".")
+		tms := strings.Split(md.Mime, ".")
 		if len(tms) > 1 {
 			dbk.Ext = strings.ToLower(tms[len(tms)-1])
 		}
