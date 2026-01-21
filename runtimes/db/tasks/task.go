@@ -2,7 +2,6 @@
 package tasks
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -10,8 +9,8 @@ import (
 	"tools/runtimes/db"
 	"tools/runtimes/db/clients"
 	"tools/runtimes/db/clients/browserdb"
-	"tools/runtimes/db/jses"
 	"tools/runtimes/listens/ws"
+	"tools/runtimes/scheduler"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -68,6 +67,8 @@ type Task struct {
 	Params        []*TaskParam       `json:"params" gorm:"-" form:"params"`                                      // 参数
 	RunnerBrowser *browserdb.Browser `json:"-" gorm:"-"`                                                         // 执行的浏览器
 	RunnerPhone   *clients.Phone     `json:"-" gorm:"-"`                                                         // 执行的手机
+	mu            sync.Mutex         `json:"-" gorm:"-"`                                                         // 锁
+	isRuning      bool               `json:"-" gorm:"-"`                                                         // 是否在执行
 	// Params    string   `json:"params" gorm:"default:null" parse:"json"`                            // 脚本参数
 }
 
@@ -104,14 +105,8 @@ type TaskToTag struct {
 	TagID  int64 `json:"tag_id" gorm:"primaryKey"`
 }
 
-// 临时任务
-type TempTask struct {
-	ID        int64
-	Title     string
-	Timeout   int64
-	Priority  int
-	CreatedAt int64
-}
+var dbs = db.TaskDB
+var Seched *scheduler.Scheduler
 
 func init() {
 	dbs.AutoMigrate(&Task{})
@@ -122,42 +117,16 @@ func init() {
 	dbs.AutoMigrate(&TaskLog{})
 	dbs.AutoMigrate(&TaskParam{})
 
-	// 启动任务监听
-	InitScheduler(
-		func() ([]Task, error) {
-			var tasks []Task
-			err := dbs.Where("status = 1").Find(&tasks).Error
-			return tasks, err
-		},
-		func(ctx context.Context, task *Task, runID int64) error {
-			// log.Println("[run task] 执行任务:", task.ID)
-			// 此处需要先获取数据,通过 DataSpec 和 DataType 获取
-			// runData := []byte("测试数据")
-			jsobj := jses.GetJsById(task.Script)
-			if jsobj == nil || jsobj.ID < 1 {
-				return fmt.Errorf("%s（%d） 未设置脚本", task.Title, task.ID)
-			}
-			pms := task.GetParams()
-			pmmaps := make(map[string]any)
-			for _, v := range pms {
-				pmmaps[v.CodeName] = v.Value
-			}
-			jsstr := jsobj.GetContent(pmmaps)
-			for {
-				select {
-				case <-ctx.Done():
-					// ⚠️ 这是“正常的被中断结束”
-					return ctx.Err()
-				default:
-					// log.Println("----执行代码")
-					return execTask(ctx, task, runID, jsstr)
-					// doOneStep()
-				}
-			}
-			// return ctx.Err()
-			// return nil
-		},
-	)
+	var tsks []*Task
+	dbs.Model(&Task{}).Where("status = 1").Find(&tsks)
+
+	Seched = scheduler.New(scheduler.DefaultOptions())
+	Seched.Start()
+
+	for _, v := range tsks {
+		dbTasks.Store(v.ID, v)
+	}
+	go listen()
 }
 
 func (this *Task) Save(tx *gorm.DB) error {
@@ -184,10 +153,12 @@ func (this *Task) Save(tx *gorm.DB) error {
 		fmt.Println(older.Status, this.Status, "-----")
 		if older.ID > 0 && older.Status != this.Status {
 			if this.Status == 1 {
-				NotifyTaskChanged(this.ID)
+				dbTasks.Store(this.ID, this)
+				fmt.Println("任务加入队列----", this.ID)
+				// NotifyTaskChanged(this.ID)
 			} else {
 				fmt.Println("停止任务-----")
-				scheduler.StopTask(this.ID)
+				// scheduler.StopTask(this.ID)
 			}
 		}
 
@@ -371,4 +342,8 @@ func (this *Task) AddTags() error {
 			Create(&tags).Error
 	}
 	return nil
+}
+
+func DeleteByID(id any) error {
+	return dbs.Where("id = ?", id).Delete(&Task{}).Error
 }

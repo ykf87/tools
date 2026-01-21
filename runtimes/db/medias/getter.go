@@ -38,6 +38,7 @@ func init() {
 }
 
 func autoStart() {
+	return
 	for {
 		autoLoaderUser.Range(func(k, v any) bool {
 			if mu, ok := v.(*MediaUser); ok {

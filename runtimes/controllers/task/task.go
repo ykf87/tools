@@ -135,3 +135,12 @@ func TaskDevices(c *gin.Context) {
 	}
 	response.Success(c, dvs, "")
 }
+
+func Delete(c *gin.Context) {
+	if err := tasks.DeleteByID(c.Query("id")); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+	// 停止任务 todo...
+	response.Success(c, nil, "删除成功")
+}
