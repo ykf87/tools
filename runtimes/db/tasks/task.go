@@ -52,6 +52,7 @@ type Task struct {
 	Endtime       int64              `json:"endtime" gorm:"index;default:0" form:"endtime" parse:"datetime"`     // 任务结束时间
 	Status        int                `json:"status" gorm:"type:tinyint(1);default:0;index" form:"status"`        // 任务状态, 1-可执行 0-不可执行
 	Script        int64              `json:"script" gorm:"index;not null" form:"script"`                         // 任务脚本
+	ScriptStr     string             `json:"script_str"`                                                         // 执行的脚本字符串
 	Errmsg        string             `json:"errmsg" gorm:"default:null" form:"errmsg"`                           // 错误信息
 	AdminId       int64              `json:"admin_id" gorm:"index;not null"`                                     // 管理员id
 	Cycle         int64              `json:"cycle" gorm:"default:0" form:"cycle"`                                // 任务周期,单位秒,0为不重复执行,大于0表示间隔多久自动重复执行
@@ -65,10 +66,16 @@ type Task struct {
 	Devices       []int64            `json:"devices" gorm:"-" form:"devices"`                                    // 设备列表
 	Tags          []string           `json:"tags" gorm:"-" form:"tags"`                                          // 设备标签
 	Params        []*TaskParam       `json:"params" gorm:"-" form:"params"`                                      // 参数
+	DefUrl        string             `json:"def_url" form:"def_url"`                                             // 默认url地址
+	Headless      int                `json:"headless" gorm:"type:tinyint(1);default:0"`                          // 0为静默(不显示窗口) 1为显示窗口
 	RunnerBrowser *browserdb.Browser `json:"-" gorm:"-"`                                                         // 执行的浏览器
 	RunnerPhone   *clients.Phone     `json:"-" gorm:"-"`                                                         // 执行的手机
 	mu            sync.Mutex         `json:"-" gorm:"-"`                                                         // 锁
 	isRuning      bool               `json:"-" gorm:"-"`                                                         // 是否在执行
+	Callback      func(string) error `json:"-" gorm:"-"`                                                         // 任务执行结果回调
+	OnError       func()             `json:"-" gorm:"-"`                                                         // 任务错误结果回调
+	OnClose       func()             `json:"-" gorm:"-"`                                                         // 浏览器关闭回调
+	OnUrlchange   func(string) error `json:"-" gorm:"-"`                                                         // 当浏览器地址改变回调
 	// Params    string   `json:"params" gorm:"default:null" parse:"json"`                            // 脚本参数
 }
 
@@ -150,15 +157,14 @@ func (this *Task) Save(tx *gorm.DB) error {
 	older := new(Task)
 
 	defer func() {
-		fmt.Println(older.Status, this.Status, "-----")
 		if older.ID > 0 && older.Status != this.Status {
 			if this.Status == 1 {
 				dbTasks.Store(this.ID, this)
-				fmt.Println("任务加入队列----", this.ID)
-				// NotifyTaskChanged(this.ID)
+				// fmt.Println("任务加入队列----", this.ID)
 			} else {
-				fmt.Println("停止任务-----")
+				// fmt.Println("停止任务-----")
 				// scheduler.StopTask(this.ID)
+				Seched.Remove(GenTaskID(this.ID))
 			}
 		}
 
@@ -345,5 +351,13 @@ func (this *Task) AddTags() error {
 }
 
 func DeleteByID(id any) error {
-	return dbs.Where("id = ?", id).Delete(&Task{}).Error
+	tsk := GetTaskById(id)
+	if tsk != nil && tsk.ID > 0 {
+		if err := dbs.Where("id = ?", id).Delete(&Task{}).Error; err != nil {
+			return err
+		}
+		Seched.Remove(GenTaskID(tsk.ID))
+	}
+
+	return nil
 }
