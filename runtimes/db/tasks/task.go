@@ -159,7 +159,8 @@ func (this *Task) Save(tx *gorm.DB) error {
 	defer func() {
 		if older.ID > 0 && older.Status != this.Status {
 			if this.Status == 1 {
-				dbTasks.Store(this.ID, this)
+				this.Run()
+				// dbTasks.Store(this.ID, this)
 				// fmt.Println("任务加入队列----", this.ID)
 			} else {
 				// fmt.Println("停止任务-----")

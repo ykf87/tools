@@ -562,3 +562,8 @@ func SaveFile(path string, r io.Reader, opts ...SaveOption) error {
 
 	return nil
 }
+
+// 生成随机数
+func RandomNumber(min, max int) int {
+	return rand.Intn(max-min+1) + min
+}

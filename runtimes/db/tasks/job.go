@@ -7,6 +7,7 @@ import (
 	"time"
 	"tools/runtimes/bs"
 	"tools/runtimes/db/jses"
+	"tools/runtimes/funcs"
 	"tools/runtimes/scheduler"
 
 	"github.com/chromedp/cdproto/runtime"
@@ -15,6 +16,11 @@ import (
 
 var tmpIndex int64
 var dbTasks sync.Map
+var bbs *bs.Manager
+
+func init() {
+	bbs = bs.NewManager("")
+}
 
 // 仅针对浏览器可用设置临时的设备
 func TempTask(adminID int64) *Task {
@@ -29,7 +35,12 @@ func listen() {
 	for {
 		dbTasks.Range(func(k, v any) bool {
 			if tsk, ok := v.(*Task); ok {
-				tsk.watching()
+				if err := tsk.watching(); err != nil {
+					taskRunID := GenTaskID(tsk.ID)
+					if Seched.Exists(taskRunID) {
+						Seched.Remove(taskRunID)
+					}
+				}
 			}
 			return true
 		})
@@ -44,15 +55,13 @@ func (this *Task) watching() error {
 
 	now := time.Now().Unix()
 	if this.Starttime > 0 && this.Starttime > now {
-		return nil
+		return fmt.Errorf("任务还未到开始时间")
 	}
 
 	if this.Endtime > 0 && this.Endtime < now {
-		return nil
+		return fmt.Errorf("任务已结束")
 	}
-	this.Run()
-
-	return nil
+	return this.Run()
 }
 
 // 将任务添加到调度器并启动
@@ -109,6 +118,9 @@ func (this *Task) Run() error {
 	if Seched.Exists(taskID) {
 		return nil
 	}
+	if _, ok := dbTasks.Load(this.ID); !ok {
+		dbTasks.Store(this.ID, this)
+	}
 
 	return Seched.Add(&scheduler.Task{
 		ID:       taskID,
@@ -121,6 +133,7 @@ func (this *Task) Run() error {
 }
 
 func (this *Task) runner(ctx context.Context) error {
+	fmt.Println("-------- 执行任务:", this.ID)
 	if this.ScriptStr == "" && this.Script > 0 {
 		js := jses.GetJsById(this.Script)
 		if js != nil && js.ID > 0 {
@@ -138,8 +151,60 @@ func (this *Task) runner(ctx context.Context) error {
 		dbs.Model(&TaskClients{}).Where("task_id = ?", this.ID).Find(&taskDevices)
 	}
 	if len(taskDevices) < 1 {
-		// taskDevices
+		taskDevices = append(taskDevices, &TaskClients{
+			DeviceID:   0,
+			DeviceType: 0,
+		})
 	}
+
+	//设备需要分开启动,浏览器的和手机先隔离开
+	var borwsers []int64
+	var phones []int64
+
+	for _, v := range taskDevices {
+		switch v.DeviceType {
+		case 0:
+			borwsers = append(borwsers, v.DeviceID)
+		case 1:
+			phones = append(phones, v.DeviceID)
+		}
+	}
+
+	wg := new(sync.WaitGroup)
+	if len(borwsers) > 0 {
+		wg.Go(func() {
+			wgg := new(sync.WaitGroup)
+			for _, bid := range borwsers { // 此处需要完善使用可控制输了的协程, sc_num
+				wgg.Go(func() {
+					ch := make(chan bool)
+					this.runBrowser(bid, func(str string) error {
+						if this.Callback != nil {
+							return this.Callback(str)
+						}
+						return nil
+					}, func() {
+						if this.OnClose != nil {
+							this.OnClose()
+							ch <- true
+						}
+					}, func(str string) error {
+						if this.OnUrlchange != nil {
+							return this.OnUrlchange(str)
+						}
+						return nil
+					})
+					<-ch
+				})
+				time.Sleep(time.Duration(int64(funcs.RandomNumber(10, 200))))
+			}
+			wgg.Wait()
+		})
+	}
+	if len(phones) > 0 {
+		// this.runPhones(phones)
+	}
+	wg.Wait()
+
 	return nil //fmt.Errorf("error")
 }
 
@@ -164,8 +229,11 @@ func GenTaskID(id int64) string {
 }
 
 // 执行浏览器的任务
-func (this *Task) runBrowser(browserID int64) error {
-	bbs := bs.NewManager("")
+func (this *Task) runBrowser(
+	browserID int64,
+	callback func(string) error,
+	closeback func(),
+	urlchangeback func(string) error) error {
 	brows, _ := bbs.New(browserID, bs.Options{
 		Url:      this.DefUrl,
 		JsStr:    this.ScriptStr,
@@ -173,28 +241,32 @@ func (this *Task) runBrowser(browserID int64) error {
 		Timeout:  time.Duration(time.Second * time.Duration(this.Timeout)),
 	})
 
-	if this.OnClose != nil {
+	if closeback != nil {
 		brows.OnClosed(func() {
-			this.OnClose()
+			closeback()
 		})
 	}
 
-	if this.Callback != nil {
+	if callback != nil {
 		brows.OnConsole(func(args []*runtime.RemoteObject) {
 			for _, arg := range args {
 				if arg.Value != nil {
 					gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
 					if gs.Get("type").String() == "kaka" {
-						this.Callback(gs.Get("data").String())
+						if err := callback(gs.Get("data").String()); err != nil {
+							brows.Close()
+						}
 					}
 				}
 			}
 		})
 	}
 
-	if this.OnUrlchange != nil {
+	if urlchangeback != nil {
 		brows.OnURLChange(func(url string) {
-			this.OnUrlchange(url)
+			if err := urlchangeback(url); err != nil {
+				brows.Close()
+			}
 		})
 	}
 
@@ -202,4 +274,9 @@ func (this *Task) runBrowser(browserID int64) error {
 	time.Sleep(time.Second * 1)
 	go brows.RunJs(this.ScriptStr)
 	return nil
+}
+
+// 批量执行手机端任务
+func (this *Task) runPhone(phoneIDs int64) {
+
 }
