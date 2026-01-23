@@ -695,11 +695,12 @@ type Options struct {
 	Timeout   time.Duration
 	Temp      bool // 是否临时浏览器
 	JsStr     string
+	Ctx       context.Context
 }
 
 // 浏览器
 type Browser struct {
-	id       int64
+	ID       int64
 	Opts     Options
 	ctx      context.Context
 	cancel   context.CancelFunc

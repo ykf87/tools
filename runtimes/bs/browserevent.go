@@ -63,8 +63,8 @@ func (b *Browser) Close() {
 		<-maxNumsCh
 	}()
 
-	if _, ok := OpendBrowser.Load(b.id); ok {
-		OpendBrowser.Delete(b.id)
+	if _, ok := OpendBrowser.Load(b.ID); ok {
+		OpendBrowser.Delete(b.ID)
 	}
 
 	if b.survival.Load() {

@@ -40,7 +40,7 @@ func (b *Browser) OpenBrowser() error {
 		chromedp.WindowSize(b.Opts.Width, b.Opts.Height),
 		chromedp.Flag("headless", b.Opts.Headless),
 		chromedp.Flag("disable-gpu", b.Opts.Headless),
-		chromedp.Flag("worker-id", fmt.Sprintf("%d", b.id)),
+		chromedp.Flag("worker-id", fmt.Sprintf("%d", b.ID)),
 	)
 
 	if b.Opts.Proxy != "" {
@@ -49,7 +49,15 @@ func (b *Browser) OpenBrowser() error {
 	if b.Opts.UserAgent != "" {
 		allocOpts = append(allocOpts, chromedp.UserAgent(b.Opts.UserAgent))
 	}
-	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), allocOpts...)
+
+	var ctxxxx context.Context
+	if b.Opts.Ctx != nil {
+		ctxxxx = b.Opts.Ctx
+	} else {
+		ctxxxx = context.Background()
+	}
+
+	allocCtx, allocCancel := chromedp.NewExecAllocator(ctxxxx, allocOpts...)
 	ctx, cancel := chromedp.NewContext(allocCtx, chromedp.WithLogf(func(string, ...any) {}))
 
 	b.alloc = allocCancel

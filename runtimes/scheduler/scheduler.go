@@ -13,12 +13,15 @@ import (
 type Scheduler struct {
 	mu sync.Mutex
 
+	Ctx    context.Context
+	cancel context.CancelFunc
+
 	tasks   map[string]*Task // waiting / failed
 	running map[string]*Task // running
 	heap    taskHeap         // waiting heap
 	sem     chan struct{}    // global concurrency
 	wakeup  chan struct{}
-	stop    chan struct{}
+	StopCh  chan struct{}
 
 	logs    []ExecLog
 	maxLogs int
@@ -34,13 +37,17 @@ func New(opts Options) *Scheduler {
 		opts.MaxQueueSize = 1000
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	s := &Scheduler{
+		Ctx:     ctx,
+		cancel:  cancel,
 		tasks:   make(map[string]*Task),
 		running: make(map[string]*Task),
 		heap:    taskHeap{},
 		sem:     make(chan struct{}, opts.MaxConcurrency),
 		wakeup:  make(chan struct{}, 1),
-		stop:    make(chan struct{}),
+		StopCh:  make(chan struct{}),
 		opts:    opts,
 		logs:    make([]ExecLog, 0, 1000),
 		maxLogs: 1000,
@@ -57,7 +64,18 @@ func (s *Scheduler) Start() {
 }
 
 func (s *Scheduler) Stop() {
-	close(s.stop)
+	s.cancel()
+
+	s.mu.Lock()
+	for _, t := range s.running {
+		t.Canceled = true
+		if t.Stop != nil {
+			go t.Stop(s.Ctx)
+		}
+	}
+	s.mu.Unlock()
+
+	close(s.StopCh)
 	s.save()
 }
 
@@ -162,7 +180,7 @@ func (s *Scheduler) loop() {
 			select {
 			case <-s.wakeup:
 				s.mu.Lock()
-			case <-s.stop:
+			case <-s.StopCh:
 				return
 			}
 		}
@@ -180,11 +198,14 @@ func (s *Scheduler) loop() {
 		s.mu.Unlock()
 
 		if wait > 0 {
+			timer := time.NewTimer(wait)
 			select {
-			case <-time.After(wait):
+			case <-timer.C:
 			case <-s.wakeup:
+				timer.Stop()
 				continue
-			case <-s.stop:
+			case <-s.StopCh:
+				timer.Stop()
 				return
 			}
 		}

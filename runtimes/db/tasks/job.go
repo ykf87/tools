@@ -36,6 +36,7 @@ func listen() {
 		dbTasks.Range(func(k, v any) bool {
 			if tsk, ok := v.(*Task); ok {
 				if err := tsk.watching(); err != nil {
+					fmt.Println("-----启动错误::", err)
 					taskRunID := GenTaskID(tsk.ID)
 					if Seched.Exists(taskRunID) {
 						Seched.Remove(taskRunID)
@@ -104,6 +105,10 @@ func (this *Task) Run() error {
 	this.mu.Lock()
 	defer this.mu.Unlock()
 
+	if this.runnerBrowser == nil {
+		this.runnerBrowser = make(map[int64]*bs.Browser)
+	}
+
 	if this.ID == 0 {
 		return fmt.Errorf("任务未设置")
 	}
@@ -111,7 +116,15 @@ func (this *Task) Run() error {
 		return fmt.Errorf("任务未启动")
 	}
 	if this.Callback == nil {
-		return fmt.Errorf("未设置执行方法")
+		this.Callback = func(str string) error {
+			return nil
+		}
+		// return fmt.Errorf("未设置执行方法")
+	}
+	if this.OnClose == nil {
+		this.OnClose = func() {
+			fmt.Println("浏览器被关闭-----")
+		}
 	}
 
 	taskID := GenTaskID(this.ID)
@@ -172,6 +185,7 @@ func (this *Task) runner(ctx context.Context) error {
 
 	wg := new(sync.WaitGroup)
 	if len(borwsers) > 0 {
+		fmt.Println("执行浏览器任务:", len(borwsers))
 		wg.Go(func() {
 			wgg := new(sync.WaitGroup)
 			for _, bid := range borwsers { // 此处需要完善使用可控制输了的协程, sc_num
@@ -221,6 +235,13 @@ func (this *Task) stop(ctx context.Context) error {
 		}
 		dbTasks.Delete(this.ID)
 	}
+
+	if this.runnerBrowser != nil {
+		for k, b := range this.runnerBrowser {
+			b.Close()
+			delete(this.runnerBrowser, k)
+		}
+	}
 	return nil
 }
 
@@ -231,14 +252,16 @@ func GenTaskID(id int64) string {
 // 执行浏览器的任务
 func (this *Task) runBrowser(
 	browserID int64,
-	callback func(string) error,
+	callback func(string) error, //如果返回nil,则关闭浏览器,说明已经执行成功了
 	closeback func(),
-	urlchangeback func(string) error) error {
+	urlchangeback func(string) error, // 如果不是nil,则关闭浏览器,说明url不允许执行
+) (*bs.Browser, error) {
 	brows, _ := bbs.New(browserID, bs.Options{
 		Url:      this.DefUrl,
 		JsStr:    this.ScriptStr,
-		Headless: this.Headless == 1,
+		Headless: !(this.Headless == 1),
 		Timeout:  time.Duration(time.Second * time.Duration(this.Timeout)),
+		Ctx:      Seched.Ctx,
 	})
 
 	if closeback != nil {
@@ -253,7 +276,7 @@ func (this *Task) runBrowser(
 				if arg.Value != nil {
 					gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
 					if gs.Get("type").String() == "kaka" {
-						if err := callback(gs.Get("data").String()); err != nil {
+						if err := callback(gs.Get("data").String()); err == nil {
 							brows.Close()
 						}
 					}
@@ -272,8 +295,15 @@ func (this *Task) runBrowser(
 
 	brows.OpenBrowser()
 	time.Sleep(time.Second * 1)
+
+	if this.DefUrl != "" {
+		brows.GoToUrl(this.DefUrl)
+	}
+
+	this.runnerBrowser[brows.ID] = brows
+
 	go brows.RunJs(this.ScriptStr)
-	return nil
+	return brows, nil
 }
 
 // 批量执行手机端任务

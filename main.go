@@ -45,6 +45,7 @@ import (
 	_ "tools/runtimes"
 	"tools/runtimes/bs"
 	_ "tools/runtimes/db"
+	"tools/runtimes/db/tasks"
 	"tools/runtimes/listens/web"
 	_ "tools/runtimes/minio"
 	_ "tools/runtimes/subscribes/submqs"
@@ -65,5 +66,6 @@ func main() {
 	web.WebCloseCh()
 	bs.Flush()
 	time.Sleep(time.Second)
+	tasks.Seched.Stop()
 	fmt.Println("----")
 }
