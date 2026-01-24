@@ -54,6 +54,17 @@ import (
 )
 
 func main() {
+	// s := schedulers.New()
+	// s.Start()
+	// rr, _ := s.NewRunner(time.Second*3, func(ctx context.Context) error {
+	// 	fmt.Println("------ 执行一次")
+	// 	return nil
+	// }, 3)
+	// go func() {
+	// 	time.Sleep(time.Second * 6)
+	// 	rr.Stop()
+	// }()
+
 	// Maker()
 	port := 19998
 	go web.Start(port)

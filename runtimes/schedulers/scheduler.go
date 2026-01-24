@@ -11,24 +11,30 @@ import (
 )
 
 type Schedulers struct {
-	ctx    context.Context    // 调度器上下文
-	cancle context.CancelFunc // 调度器上下文关闭句柄
-	mu     sync.Mutex         // 调度器锁
-	runner map[string]*Runner // 被执行的任务
+	ctx     context.Context    // 调度器上下文
+	cancle  context.CancelFunc // 调度器上下文关闭句柄
+	mu      sync.Mutex         // 调度器锁
+	runner  map[string]*Runner // 被执行的任务
+	started atomic.Bool        // 是否启动
+	ticker  time.Duration      // 频率
 }
 
 type TaskFun func(ctx context.Context) error
 
 type Runner struct {
-	uuid    string             // 任务唯一编号
-	ctx     context.Context    // 调度器上下文
-	cancle  context.CancelFunc // 调度器上下文关闭句柄
-	mu      sync.Mutex         // 锁
-	timer   time.Duration      // 任务执行频率
-	started bool               // 是否启动
-	task    TaskFun            // 执行任务的方法
-	maxTry  int                // 最大重试次数
-	tried   atomic.Int32       // 已经重试的次数
+	mu     sync.Mutex         // 锁
+	uuid   string             // 任务唯一编号
+	ctx    context.Context    // 调度器上下文
+	cancle context.CancelFunc // 调度器上下文关闭句柄
+
+	timer       time.Duration // 任务执行频率
+	nextRunTime time.Time     // 下一次执行时间
+	task        TaskFun       // 执行任务的方法
+
+	maxTry  int          // 最大重试次数
+	tried   atomic.Int32 // 已经重试的次数
+	running atomic.Bool  // 是否在运行
+	closed  atomic.Bool  // 是否已经被关闭
 }
 
 // 总调度器,调度器内部可用有多个任务,这个调度器用于调度内部任务
@@ -43,26 +49,57 @@ func New() *Schedulers {
 	}
 }
 
-func (s *Schedulers) Start() error {
+func (s *Schedulers) Start() {
+	if s.started.Load() {
+		return
+	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.started.Store(true)
+	s.mu.Unlock()
 
-	if s.cancle != nil {
-		return fmt.Errorf("任务已启动,请使用ReStart重启")
+	if s.ticker <= 0 {
+		s.ticker = time.Second
 	}
-
-	for _, v := range s.runner {
-		go v.Run()
-	}
-	return nil
+	go func() {
+		tic := time.NewTicker(s.ticker)
+		defer tic.Stop()
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			case <-tic.C:
+				now := time.Now()
+				s.mu.Lock()
+				for _, v := range s.runner {
+					if v.ctx.Err() != nil {
+						continue
+					}
+					if !v.running.Load() && !v.closed.Load() && now.After(v.nextRunTime) {
+						go v.Run()
+					}
+				}
+				s.mu.Unlock()
+			}
+		}
+	}()
 }
 
 func (s *Schedulers) ReStart() {
 	s.Stop()
-	_ = s.Start()
+
+	ctx, cancle := context.WithCancel(context.Background())
+	s.ctx = ctx
+	s.cancle = cancle
+
+	for _, v := range s.runner {
+		ctx, cancle := context.WithCancel(ctx)
+		v.cancle = cancle
+		v.ctx = ctx
+	}
+	s.Start()
 }
 
-// stop后再要使用Schedulers,必须重新new
+// stop
 func (s *Schedulers) Stop() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -76,34 +113,26 @@ func (s *Schedulers) Stop() {
 	if s.cancle != nil {
 		s.cancle()
 	}
-	s.ctx = nil
-	s.cancle = nil
-}
-
-func (s *Schedulers) Add(runner *Runner) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// if runner.
+	s.started.Store(false)
 }
 
 func (s *Schedulers) NewRunner(timer time.Duration, task TaskFun, maxtry int) (*Runner, error) {
-	uuid, err := uuid.NewUUID()
-	if err != nil {
-		return nil, err
-	}
+	uuid := uuid.NewString()
 
 	ctx, cancle := context.WithCancel(s.ctx)
 
 	runn := &Runner{
-		uuid:   uuid.String(),
+		uuid:   uuid,
 		timer:  timer,
 		ctx:    ctx,
 		cancle: cancle,
 		maxTry: maxtry,
+		task:   task,
 	}
 
-	s.runner[uuid.String()] = runn
+	s.mu.Lock()
+	s.runner[uuid] = runn
+	s.mu.Unlock()
 
 	return runn, nil
 }
@@ -112,36 +141,20 @@ func (r *Runner) Run() error {
 	if r.task == nil {
 		return fmt.Errorf("执行的方法未传入..., 任务启动失败")
 	}
-	r.mu.Lock()
-	if r.started {
-		r.mu.Unlock()
+	if !r.running.CompareAndSwap(false, true) {
 		return nil
 	}
-	r.started = true
-	r.mu.Unlock()
+	defer func() {
+		r.initNextRun()
+		r.running.Store(false)
+	}()
 
-	if r.timer == 0 {
-		go r.task(r.ctx)
-	} else {
-		go func() {
-			ticker := time.NewTicker(r.timer)
-			defer ticker.Stop()
-
-			for {
-				select {
-				case <-ticker.C:
-					if err := r.task(r.ctx); err != nil {
-						if int(r.tried.Load()) >= r.maxTry {
-							r.cancle()
-							return
-						}
-						r.tried.Add(1)
-					}
-				case <-r.ctx.Done():
-					return
-				}
-			}
-		}()
+	if err := r.task(r.ctx); err != nil {
+		if r.tried.Add(1) >= int32(r.maxTry) {
+			r.cancle()
+			r.closed.Store(true)
+			return err
+		}
 	}
 
 	return nil
@@ -151,9 +164,26 @@ func (r *Runner) Stop() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if !r.started {
+	// if !r.running.Load() {
+	// 	return
+	// }
+
+	r.cancle()
+	r.running.Store(false)
+	r.closed.Store(true)
+}
+
+func (r *Runner) initNextRun() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.timer <= 0 {
 		return
 	}
 
-	r.cancle()
+	if r.nextRunTime.IsZero() {
+		r.nextRunTime = time.Now().Add(r.timer)
+	} else {
+		r.nextRunTime = r.nextRunTime.Add(r.timer)
+	}
 }
