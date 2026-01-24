@@ -49,6 +49,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
 	github.com/ghodss/yaml v1.0.1-0.20220118164431-d8423dcdf344 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
+	github.com/go-co-op/gocron v1.37.0 // indirect
 	github.com/go-co-op/gocron/v2 v2.19.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-json-experiment/json v0.0.0-20251027170946-4849db3c2f7e // indirect
@@ -119,6 +120,7 @@ require (
 	github.com/yyyoichi/bitstream-go v0.2.1 // indirect
 	github.com/yyyoichi/golay v0.2.1 // indirect
 	github.com/yyyoichi/watermark_zero v0.2.3 // indirect
+	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go4.org/netipx v0.0.0-20231129151722-fdeea329fbba // indirect
