@@ -9,7 +9,7 @@ import (
 var i18nMap sync.Map
 
 func init() {
-	fmt.Println("---- i18n 需要同步多语言信息,todo.......")
+	// fmt.Println("---- i18n 需要同步多语言信息,todo.......")
 }
 
 func T(key string, args ...any) string {

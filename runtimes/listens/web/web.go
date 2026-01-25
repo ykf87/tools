@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -25,13 +26,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var WebCloseCh context.CancelFunc // web关闭协程
-var ROUTER *gin.Engine            // 路由
-var RunPort int                   // 后端监听端口
-var WebPort int                   // 网页打开的url
-var WebUrl string                 // 打开的url地址
-var NetIp string                  // 本机ip
-var DataPath string               // 数据存储目录
+var WebCloseCh context.CancelFunc              // web关闭协程
+var ROUTER *gin.Engine                         // 路由
+var RunPort int                                // 后端监听端口
+var WebUrl string                              // 打开的url地址
+var NetIp string                               // 本机ip
+var DataPath string                            // 数据存储目录
+var WebPort = flag.Int("port", 15558, "管理员端口") // 网页打开的url
 
 type fileReplaceReqs struct {
 	NewContent string
@@ -39,6 +40,7 @@ type fileReplaceReqs struct {
 }
 
 func Start(port int) {
+	flag.Parse()
 	var err error
 	NetIp, err = funcs.GetLocalIP(false)
 	if err != nil {
@@ -68,13 +70,12 @@ func Start(port int) {
 	// if err != nil {
 	// 	panic(err)
 	// }
-	WebPort := 15558
-	config.WebPort = WebPort
+	config.WebPort = *WebPort
 
 	// go func() {
 	// 	webUrl(NetIp, RunPort, WebPort)
 	// }()
-	webUrl(NetIp, RunPort, WebPort)
+	webUrl(NetIp, RunPort, *WebPort)
 
 	go func() {
 		for {
@@ -86,7 +87,7 @@ func Start(port int) {
 		}
 	}()
 
-	WebUrl = fmt.Sprintf("http://%s:%d", NetIp, WebPort)
+	WebUrl = fmt.Sprintf("http://%s:%d", NetIp, *WebPort)
 	DataPath = config.FullPath(config.DATAROOT)
 	fmt.Println("\n服务已启动:", WebUrl)
 	config.WebUrl = WebUrl
@@ -95,8 +96,8 @@ func Start(port int) {
 	config.MediaUrl = fmt.Sprintf("http://%s:%d/media", NetIp, RunPort)
 
 	<-ctx.Done()
-	fmt.Println("web服务退出中...")
-	time.Sleep(time.Second)
+	// fmt.Println("web服务退出中...")
+	// time.Sleep(time.Second)
 }
 
 // 允许跨域中间件

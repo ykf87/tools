@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"tools/runtimes/syncuuid"
 
 	"golang.org/x/crypto/bcrypt"
 	// "syscall"
@@ -280,15 +281,16 @@ func GetLocalIP(local bool) (string, error) {
 
 // 获取当前固定的uuid
 func Uuid() string {
-	interfaces, _ := net.Interfaces()
-	for _, i := range interfaces {
-		if len(i.HardwareAddr) == 0 {
-			continue
-		}
-		// 用 MAC 地址生成固定 UUID
-		return uuid.NewMD5(uuid.Nil, i.HardwareAddr).String()
-	}
-	return uuid.New().String()
+	return syncuuid.MachineUUID()
+	// interfaces, _ := net.Interfaces()
+	// for _, i := range interfaces {
+	// 	if len(i.HardwareAddr) == 0 {
+	// 		continue
+	// 	}
+	// 	// 用 MAC 地址生成固定 UUID
+	// 	return uuid.NewMD5(uuid.Nil, i.HardwareAddr).String()
+	// }
+	// return uuid.New().String()
 }
 
 // 生产随机的uuid

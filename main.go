@@ -40,43 +40,54 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 	_ "tools/runtimes"
 	"tools/runtimes/bs"
+	"tools/runtimes/config"
 	_ "tools/runtimes/db"
 	"tools/runtimes/db/tasks"
+	"tools/runtimes/i18n"
 	"tools/runtimes/listens/web"
 	_ "tools/runtimes/minio"
 	_ "tools/runtimes/subscribes/submqs"
 	_ "tools/runtimes/subscribes/subws"
+	"tools/runtimes/syncuuid"
 	// "tools/runtimes/mq"
 )
 
 func main() {
-	// s := schedulers.New()
-	// s.Start()
-	// rr, _ := s.NewRunner(time.Second*3, func(ctx context.Context) error {
-	// 	fmt.Println("------ 执行一次")
-	// 	return nil
-	// }, 3)
-	// go func() {
-	// 	time.Sleep(time.Second * 6)
-	// 	rr.Stop()
-	// }()
+	if checkLocal() != nil {
+		time.Sleep(time.Second * 10)
+		return
+	}
 
-	// Maker()
 	port := 19998
+
+	fmt.Println("欢迎使用小卡卡辅助工具.有任何问题可以随时在系统内联系开发者或者前往官网留言.祝您使用愉快!")
+	fmt.Println("系统UUID:", syncuuid.MachineUUID())
 	go web.Start(port)
-	// mq.MqClient.Start()
-	// defer mq.MqClient.Stop()
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+
+	fmt.Println("\n系统准备关闭,释放内存中,请稍后...")
 
 	web.WebCloseCh()
 	bs.Flush()
 	time.Sleep(time.Second)
 	tasks.Seched.Stop()
-	fmt.Println("----")
+	fmt.Println("系统已退出,感谢您的使用!")
+}
+
+func checkLocal() error {
+	if strings.HasPrefix(strings.ToLower(config.RuningRoot), "c:") {
+		msg := i18n.T("禁止在C盘启动")
+		fmt.Println(msg)
+		fmt.Println("由于软件使用过程中会产生许多数据,而C盘作为系统盘并不建议存储业务数据,因此我们限制将软件放在C盘使用.")
+		time.Sleep(time.Second * 30)
+		return fmt.Errorf("error")
+	}
+	return nil
 }

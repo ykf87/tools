@@ -10,6 +10,7 @@ import (
 	"tools/runtimes/config"
 	"tools/runtimes/db"
 	"tools/runtimes/db/configs"
+	"tools/runtimes/scheduler"
 
 	"gorm.io/gorm"
 )
@@ -53,24 +54,22 @@ func init() {
 			rmvDay = vv
 		}
 	}
+
 	rmvDay64 := int64(rmvDay * 86400)
-	go func() { // 定时清除过期任务
-		for {
-			dbs.Where("addtime < ?", (time.Now().Unix() - rmvDay64)).Where("status != 0").Delete(&AppTask{})
-			time.Sleep(time.Hour * 24)
-		}
-	}()
-
-	InitAppTask()
+	s := scheduler.New()
+	s.NewRunner(func(ctx context.Context) error {
+		dbs.Where("addtime < ?", (time.Now().Unix() - rmvDay64)).Where("status != 0").Delete(&AppTask{})
+		return nil
+	}).Every(time.Second * time.Duration(rmvDay64)).SetMaxTry(3).Run()
 }
 
-func InitAppTask() {
-	TaskMgr = apptask.New(apptask.Options{
-		Store:        NewGormTaskStore(dbs),
-		TickInterval: time.Second * 5,
-	})
-	TaskMgr.Start()
-}
+// func InitAppTask() {
+// 	TaskMgr = apptask.New(apptask.Options{
+// 		Store:        NewGormTaskStore(dbs),
+// 		TickInterval: time.Second * 5,
+// 	})
+// 	TaskMgr.Start()
+// }
 
 func (this *AppTask) Save(tx *gorm.DB) error {
 	if tx == nil {

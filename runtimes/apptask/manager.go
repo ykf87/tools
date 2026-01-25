@@ -1,7 +1,6 @@
 package apptask
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -31,20 +30,20 @@ func (m *Manager) UnbindDevice(deviceId string) {
 	m.rt.unbindDevice(deviceId)
 }
 
-func (m *Manager) Start() {
-	fmt.Println("----- 启动apptask")
-	go func() {
-		ticker := time.NewTicker(m.rt.opt.TickInterval)
-		for {
-			select {
-			case <-ticker.C:
-				m.rt.tick()
-			case <-m.stop:
-				return
-			}
-		}
-	}()
-}
+// func (m *Manager) Start() {
+// 	fmt.Println("----- 启动apptask")
+// 	go func() {
+// 		ticker := time.NewTicker(m.rt.opt.TickInterval)
+// 		for {
+// 			select {
+// 			case <-ticker.C:
+// 				m.rt.tick()
+// 			case <-m.stop:
+// 				return
+// 			}
+// 		}
+// 	}()
+// }
 
 func (m *Manager) Stop() {
 	close(m.stop)

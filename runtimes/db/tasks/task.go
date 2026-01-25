@@ -2,6 +2,7 @@
 package tasks
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -78,6 +79,7 @@ type Task struct {
 	OnClose       func()                `json:"-" gorm:"-"`                                                         // 浏览器关闭回调
 	OnUrlchange   func(string) error    `json:"-" gorm:"-"`                                                         // 当浏览器地址改变回调
 	runnerBrowser map[int64]*bs.Browser `json:"-" gorm:"-"`                                                         // 正在执行的bs
+	tsk           *scheduler.Runner     `json:"-" gorm:"-"`                                                         // 调度器中的任务
 	// Params    string   `json:"params" gorm:"default:null" parse:"json"`                            // 脚本参数
 }
 
@@ -129,13 +131,15 @@ func init() {
 	var tsks []*Task
 	dbs.Model(&Task{}).Where("status = 1").Find(&tsks)
 
-	Seched = scheduler.New(scheduler.DefaultOptions())
-	Seched.Start()
+	Seched = scheduler.New()
 
 	for _, v := range tsks {
-		dbTasks.Store(v.ID, v)
+		v.tsk = Seched.NewRunner(func(ctx context.Context) error {
+			return nil
+		})
+		v.tsk.Run()
+		// dbTasks.Store(v.ID, v)
 	}
-	go listen()
 }
 
 func (this *Task) Save(tx *gorm.DB) error {
@@ -162,15 +166,19 @@ func (this *Task) Save(tx *gorm.DB) error {
 		if older.ID > 0 && older.Status != this.Status {
 			if this.Status == 1 {
 				fmt.Println("启动脚本")
-				if err := this.Run(); err != nil {
-					fmt.Println("启动错误:", err)
-				}
+				this.tsk = Seched.NewRunner(func(ctx context.Context) error {
+					return nil
+				})
+				// if err := this.tsk.Run(); err != nil {
+				// 	fmt.Println("启动错误:", err)
+				// }
 				// dbTasks.Store(this.ID, this)
 				// fmt.Println("任务加入队列----", this.ID)
 			} else {
 				// fmt.Println("停止任务-----")
 				// scheduler.StopTask(this.ID)
-				Seched.Remove(GenTaskID(this.ID))
+				// Seched.Remove(GenTaskID(this.ID))
+				this.tsk.Stop()
 			}
 		}
 
@@ -363,7 +371,7 @@ func DeleteByID(id any) error {
 		if err := dbs.Where("id = ?", id).Delete(&Task{}).Error; err != nil {
 			return err
 		}
-		Seched.Remove(GenTaskID(tsk.ID))
+		// Seched.Remove(GenTaskID(tsk.ID))
 	}
 
 	return nil
