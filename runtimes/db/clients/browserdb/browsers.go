@@ -33,14 +33,10 @@ type Browser struct {
 	Opend       bool        `json:"opend" gorm:"-" form:"-"`   // 是否启动
 }
 
-var Mng *bs.Manager
-
 func init() {
 	db.DB.AutoMigrate(&Browser{})
 	db.DB.AutoMigrate(&BrowserTag{})
 	db.DB.AutoMigrate(&BrowserToTag{})
-
-	Mng = bs.NewManager("")
 }
 
 func GetBrowserById(id any) (*Browser, error) {
@@ -99,13 +95,13 @@ func (this *Browser) Open() error {
 		}
 	}
 
-	bbs, err := Mng.New(this.Id, bs.Options{
+	bbs, err := bs.BsManager.New(this.Id, bs.Options{
 		Proxy:    proxyUrl,
 		Width:    this.Width,
 		Height:   this.Height,
 		Language: this.Lang,
 		Timezone: this.Timezone,
-	})
+	}, true)
 	if err != nil {
 		return err
 	}
@@ -135,12 +131,12 @@ func (this *Browser) Open() error {
 
 // rmv是否彻底删除
 func (this *Browser) Close(rmv bool) error {
-	if err := Mng.Close(this.Id); err != nil {
+	if err := bs.BsManager.Close(this.Id); err != nil {
 		return err
 	}
 
 	if rmv == true {
-		Mng.Remove(this.Id)
+		bs.BsManager.Remove(this.Id)
 	}
 
 	eventbus.Bus.Publish("browser-close", this)

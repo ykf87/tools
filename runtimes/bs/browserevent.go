@@ -59,6 +59,9 @@ func safeCallConsole(cb func([]*rt.RemoteObject), args []*rt.RemoteObject) {
 func (b *Browser) Close() {
 	b.mu.Lock()
 	defer func() {
+		if b.Locker != nil {
+			b.Locker <- 1
+		}
 		b.mu.Unlock()
 		<-maxNumsCh
 	}()

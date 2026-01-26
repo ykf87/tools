@@ -119,7 +119,7 @@ func List(c *gin.Context) {
 	var ps []*browserdb.Browser
 	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Offset((l.Page - 1) * l.Limit).Limit(l.Limit).Debug().Find(&ps)
 	for _, v := range ps {
-		v.Opend = browserdb.Mng.IsArride(v.Id)
+		v.Opend = bs.BsManager.IsArride(v.Id)
 	}
 
 	// 处理代理标签

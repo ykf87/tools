@@ -2,6 +2,7 @@ package bs
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	rt "github.com/chromedp/cdproto/runtime"
@@ -16,9 +17,14 @@ type Manager struct {
 
 // 临时的浏览器id
 var TempIndex int64
+var BsManager *Manager // 由于浏览器的特殊性,在一次打开后本质上是不允许在这次打开再操作的,因此统一管理
+
+func init() {
+	BsManager = newManager("")
+}
 
 // 新建一个浏览器组
-func NewManager(baseDir string) *Manager {
+func newManager(baseDir string) *Manager {
 	if baseDir == "" {
 		baseDir = BASEPATH
 	}
@@ -29,7 +35,7 @@ func NewManager(baseDir string) *Manager {
 }
 
 // 仅对控制器执行增减操作,并不启动浏览器
-func (m *Manager) New(id int64, opt Options) (*Browser, error) {
+func (m *Manager) New(id int64, opt Options, wait bool) (*Browser, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -44,7 +50,14 @@ func (m *Manager) New(id int64, opt Options) (*Browser, error) {
 	}
 	if b, ok := OpendBrowser.Load(id); ok {
 		if bbs, ok := b.(*Browser); ok {
-			return bbs, nil
+			if wait == true {
+				if bbs.Locker != nil {
+					<-bbs.Locker
+				}
+				return bbs, nil
+			} else {
+				return nil, fmt.Errorf("浏览器已经打开")
+			}
 		}
 	}
 

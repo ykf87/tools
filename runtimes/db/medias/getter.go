@@ -31,29 +31,24 @@ type MediaUserDay struct {
 
 var autoLoaderUser sync.Map
 var today string
-var mugetterBs *bs.Manager
-
-func init() {
-	mugetterBs = bs.NewManager("")
-}
 
 func autoStart() {
 	return
-	for {
-		autoLoaderUser.Range(func(k, v any) bool {
-			if mu, ok := v.(*MediaUser); ok {
-				if mu.Autoinfo == 0 && mu.AutoDownload == 0 {
-					autoLoaderUser.Delete(k)
-					return true
-				}
-				if mu.Isruner == false {
-					go mu.runner()
-				}
-			}
-			return true
-		})
-		time.Sleep(time.Second * 30)
-	}
+	// for {
+	// 	autoLoaderUser.Range(func(k, v any) bool {
+	// 		if mu, ok := v.(*MediaUser); ok {
+	// 			if mu.Autoinfo == 0 && mu.AutoDownload == 0 {
+	// 				autoLoaderUser.Delete(k)
+	// 				return true
+	// 			}
+	// 			if mu.Isruner == false {
+	// 				go mu.runner()
+	// 			}
+	// 		}
+	// 		return true
+	// 	})
+	// 	time.Sleep(time.Second * 30)
+	// }
 }
 
 func (t *MediaUser) runner() {
@@ -142,12 +137,12 @@ func (t *MediaUser) StartGetter(consoleFun func(str string, bs *bs.Browser), clo
 	}
 	runjs := js.GetContent(nil)
 
-	brows, _ := mugetterBs.New(0, bs.Options{
+	brows, _ := bs.BsManager.New(0, bs.Options{
 		Url:      runurl,
 		JsStr:    runjs,
 		Headless: false,
 		Timeout:  time.Duration(time.Second * 30),
-	})
+	}, true)
 
 	brows.OnClosed(func() {
 		if closeFun != nil {

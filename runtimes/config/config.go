@@ -46,13 +46,13 @@ var Country = "cn"
 var TimeFormat = "15:04:05"
 var DateFormat = "2006-01-02"
 var DateTimeFormat = "2006-01-02 15:04:05"
-var ApiUrl = ""
-var WebUrl = ""
 var MediaUrl = ""
 var MainStatus = 1
 var MainStatusMsg string
 var ApiPort int
 var WebPort int
+var ApiUrl = ""
+var WebUrl = ""
 
 var Mkdirs = map[string]*mkdirStruct{
 	"log": &mkdirStruct{

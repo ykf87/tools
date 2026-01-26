@@ -13,6 +13,7 @@ import (
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	_ "modernc.org/sqlite"
 )
 
@@ -130,7 +131,9 @@ func mkdb(dbname string) *gorm.DB {
 	dbhandle, err := gorm.Open(sqlite.Dialector{
 		DriverName: "sqlite", // 改这里
 		DSN:        dbfile + "?_busy_timeout=5000&_journal_mode=WAL",
-	}, &gorm.Config{})
+	}, &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		logs.Error(err.Error())
 		fmt.Println(dbfile)

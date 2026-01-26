@@ -99,13 +99,13 @@ func GetInfo(c *gin.Context) {
 
 	} else {
 		go func() {
-			bbs := bs.NewManager("")
-			brows, _ := bbs.New(0, bs.Options{
+			// bbs := bs.NewManager("")
+			brows, _ := bs.BsManager.New(0, bs.Options{
 				Url:      fmt.Sprintf("https://www.douyin.com/user/%s", mu.Uuid),
 				JsStr:    dyinfojs,
 				Headless: true,
 				Timeout:  time.Duration(time.Second * 30),
-			})
+			}, true)
 
 			brows.OnClosed(func() {
 				eventbus.Bus.Publish("media_user_info", mu)

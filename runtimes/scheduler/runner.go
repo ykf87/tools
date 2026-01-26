@@ -164,3 +164,7 @@ func (r *Runner) SetRetryDelay(d time.Duration) *Runner {
 func (r *Runner) GetID() string {
 	return r.id
 }
+
+func (r *Runner) GetCtx() context.Context {
+	return r.ctx
+}

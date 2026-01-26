@@ -700,12 +700,12 @@ type Options struct {
 
 // 浏览器
 type Browser struct {
-	ID       int64
-	Opts     Options
-	ctx      context.Context
-	cancel   context.CancelFunc
-	alloc    context.CancelFunc
-	once     sync.Once
+	ID     int64
+	Opts   Options
+	ctx    context.Context
+	cancel context.CancelFunc
+	alloc  context.CancelFunc
+	// once     sync.Once
 	closed   atomic.Bool
 	survival atomic.Bool
 	mu       sync.Mutex
@@ -713,6 +713,7 @@ type Browser struct {
 	onURLChange atomic.Value // func(string)
 	onConsole   atomic.Value // func([]*runtime.RemoteObject)
 	onClose     atomic.Value
+	Locker      chan byte
 }
 
 var BROWSERPATH string

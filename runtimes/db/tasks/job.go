@@ -1,5 +1,60 @@
 package tasks
 
+import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+	"tools/runtimes/bs"
+	"tools/runtimes/db/jses"
+
+	"github.com/chromedp/cdproto/runtime"
+	"github.com/tidwall/gjson"
+)
+
+func (t *Task) getClients() []*TaskClients {
+	var tcs []*TaskClients
+	if t.ID > 0 {
+		dbs.Model(&TaskClients{}).Where("task_id = ?", t.ID).Find(&tcs)
+	}
+	if len(tcs) < 1 {
+		tcs = append(tcs, &TaskClients{
+			DeviceID:   0,
+			DeviceType: 0,
+		})
+	}
+	return tcs
+}
+func (t *Task) Start(taskDevices ...*TaskClients) {
+	if len(taskDevices) < 1 { // 获取任务执行的设备
+		taskDevices = t.getClients()
+	}
+
+	//设备需要分开启动,浏览器的和手机先隔离开
+	var borwsers []int64
+	var phones []int64
+
+	for _, v := range taskDevices {
+		switch v.DeviceType {
+		case 0:
+			borwsers = append(borwsers, v.DeviceID)
+		case 1:
+			phones = append(phones, v.DeviceID)
+		}
+	}
+	fmt.Println(borwsers, phones)
+}
+
+func (t *Task) Stop() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	for _, v := range t.runners {
+		v.Stop()
+	}
+	t.runners = nil
+}
+
 // import (
 // 	"context"
 // 	"fmt"
@@ -145,82 +200,157 @@ package tasks
 // 	})
 // }
 
-// func (this *Task) runner(ctx context.Context) error {
-// 	fmt.Println("-------- 执行任务:", this.ID)
-// 	if this.ScriptStr == "" && this.Script > 0 {
-// 		js := jses.GetJsById(this.Script)
-// 		if js != nil && js.ID > 0 {
-// 			params := this.GetParams()
-// 			mp := make(map[string]any)
-// 			for _, v := range params {
-// 				mp[v.CodeName] = v.Value
-// 			}
-// 			this.ScriptStr = js.GetContent(mp)
-// 		}
-// 	}
+func (this *Task) runner(ctx context.Context) error {
+	fmt.Println("-------- 执行任务:", this.ID)
+	if this.ScriptStr == "" && this.Script > 0 {
+		js := jses.GetJsById(this.Script)
+		if js != nil && js.ID > 0 {
+			params := this.GetParams()
+			mp := make(map[string]any)
+			for _, v := range params {
+				mp[v.CodeName] = v.Value
+			}
+			this.ScriptStr = js.GetContent(mp)
+		}
+	}
 
-// 	var taskDevices []*TaskClients
-// 	if this.ID > 0 {
-// 		dbs.Model(&TaskClients{}).Where("task_id = ?", this.ID).Find(&taskDevices)
-// 	}
-// 	if len(taskDevices) < 1 {
-// 		taskDevices = append(taskDevices, &TaskClients{
-// 			DeviceID:   0,
-// 			DeviceType: 0,
-// 		})
-// 	}
+	var taskDevices []*TaskClients
+	if this.ID > 0 {
+		dbs.Model(&TaskClients{}).Where("task_id = ?", this.ID).Find(&taskDevices)
+	}
+	if len(taskDevices) < 1 {
+		taskDevices = append(taskDevices, &TaskClients{
+			DeviceID:   0,
+			DeviceType: 0,
+		})
+	}
 
-// 	//设备需要分开启动,浏览器的和手机先隔离开
-// 	var borwsers []int64
-// 	var phones []int64
+	//设备需要分开启动,浏览器的和手机先隔离开
+	var borwsers []int64
+	var phones []int64
 
-// 	for _, v := range taskDevices {
-// 		switch v.DeviceType {
-// 		case 0:
-// 			borwsers = append(borwsers, v.DeviceID)
-// 		case 1:
-// 			phones = append(phones, v.DeviceID)
-// 		}
-// 	}
+	for _, v := range taskDevices {
+		switch v.DeviceType {
+		case 0:
+			borwsers = append(borwsers, v.DeviceID)
+		case 1:
+			phones = append(phones, v.DeviceID)
+		}
+	}
 
-// 	wg := new(sync.WaitGroup)
-// 	if len(borwsers) > 0 {
-// 		fmt.Println("执行浏览器任务:", len(borwsers))
-// 		wg.Go(func() {
-// 			wgg := new(sync.WaitGroup)
-// 			for _, bid := range borwsers { // 此处需要完善使用可控制输了的协程, sc_num
-// 				wgg.Go(func() {
-// 					ch := make(chan bool)
-// 					this.runBrowser(bid, func(str string) error {
-// 						if this.Callback != nil {
-// 							return this.Callback(str)
-// 						}
-// 						return nil
-// 					}, func() {
-// 						if this.OnClose != nil {
-// 							this.OnClose()
-// 							ch <- true
-// 						}
-// 					}, func(str string) error {
-// 						if this.OnUrlchange != nil {
-// 							return this.OnUrlchange(str)
-// 						}
-// 						return nil
-// 					})
-// 					<-ch
-// 				})
-// 				time.Sleep(time.Duration(int64(funcs.RandomNumber(10, 200))))
-// 			}
-// 			wgg.Wait()
-// 		})
-// 	}
-// 	if len(phones) > 0 {
-// 		// this.runPhones(phones)
-// 	}
-// 	wg.Wait()
+	wg := new(sync.WaitGroup)
+	if len(borwsers) > 0 {
+		wg.Go(func() {
+			this.browsers(borwsers)
+		})
+	}
+	// if len(borwsers) > 0 {
+	// 	fmt.Println("执行浏览器任务:", len(borwsers))
+	// 	wg.Go(func() {
+	// 		wgg := new(sync.WaitGroup)
+	// 		for _, bid := range borwsers { // 此处需要完善使用可控制输了的协程, sc_num
+	// 			wgg.Go(func() {
+	// 				ch := make(chan bool)
+	// 				this.runBrowser(bid, func(str string) error {
+	// 					if this.Callback != nil {
+	// 						return this.Callback(str)
+	// 					}
+	// 					return nil
+	// 				}, func() {
+	// 					if this.OnClose != nil {
+	// 						this.OnClose()
+	// 						ch <- true
+	// 					}
+	// 				}, func(str string) error {
+	// 					if this.OnUrlchange != nil {
+	// 						return this.OnUrlchange(str)
+	// 					}
+	// 					return nil
+	// 				})
+	// 				<-ch
+	// 			})
+	// 			time.Sleep(time.Duration(int64(funcs.RandomNumber(10, 200))))
+	// 		}
+	// 		wgg.Wait()
+	// 	})
+	// }
+	if len(phones) > 0 {
+		// this.runPhones(phones)
+	}
+	wg.Wait()
 
-// 	return nil //fmt.Errorf("error")
-// }
+	return nil //fmt.Errorf("error")
+}
+
+func (this *Task) browsers(bsid []int64) {
+	// for {
+	// 	select {
+	// 	case <-this.tsk.GetCtx().Done():
+	// 		for _, bid := range bsid {
+	// 			bs.BsManager.Close(bid)
+	// 		}
+	// 		return
+	// 	default:
+	// 		for _, bid := range bsid {
+	// 			go this.runInBrowser(bid)
+	// 		}
+	// 	}
+	// }
+}
+
+func (this *Task) runInBrowser(browserID int64) {
+	brows, _ := bs.BsManager.New(browserID, bs.Options{
+		Url:      this.DefUrl,
+		JsStr:    this.ScriptStr,
+		Headless: !(this.Headless == 1),
+		Timeout:  time.Duration(time.Second * time.Duration(this.Timeout)),
+		// Ctx:      this.tsk.GetCtx(),
+	}, true)
+
+	if this.OnClose == nil {
+		this.OnClose = func() {
+
+		}
+	}
+	brows.OnClosed(func() {
+		this.OnClose()
+	})
+
+	if this.Callback != nil {
+		brows.OnConsole(func(args []*runtime.RemoteObject) {
+			for _, arg := range args {
+				if arg.Value != nil {
+					gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
+					if gs.Get("type").String() == "kaka" {
+						if err := this.Callback(gs.Get("data").String()); err == nil {
+							brows.Close()
+						}
+					}
+				}
+			}
+		})
+	}
+
+	if this.OnUrlchange != nil {
+		brows.OnURLChange(func(url string) {
+			if err := this.OnUrlchange(url); err != nil {
+				brows.Close()
+			}
+		})
+	}
+
+	brows.OpenBrowser()
+
+	if this.DefUrl != "" {
+		brows.GoToUrl(this.DefUrl)
+	}
+
+	this.mu.Lock()
+	// this.runnerBrowser[brows.ID] = brows
+	this.mu.Unlock()
+
+	brows.RunJs(this.ScriptStr)
+}
 
 // func RemoveTask(id int64) {
 // 	Seched.Remove(GenTaskID(id))
@@ -249,62 +379,62 @@ package tasks
 // 	return fmt.Sprintf("task-%d", id)
 // }
 
-// // 执行浏览器的任务
-// func (this *Task) runBrowser(
-// 	browserID int64,
-// 	callback func(string) error, //如果返回nil,则关闭浏览器,说明已经执行成功了
-// 	closeback func(),
-// 	urlchangeback func(string) error, // 如果不是nil,则关闭浏览器,说明url不允许执行
-// ) (*bs.Browser, error) {
-// 	brows, _ := bbs.New(browserID, bs.Options{
-// 		Url:      this.DefUrl,
-// 		JsStr:    this.ScriptStr,
-// 		Headless: !(this.Headless == 1),
-// 		Timeout:  time.Duration(time.Second * time.Duration(this.Timeout)),
-// 		Ctx:      Seched.Ctx,
-// 	})
+// 执行浏览器的任务
+func (this *Task) runBrowser(
+	browserID int64,
+	callback func(string) error, //如果返回nil,则关闭浏览器,说明已经执行成功了
+	closeback func(),
+	urlchangeback func(string) error, // 如果不是nil,则关闭浏览器,说明url不允许执行
+) (*bs.Browser, error) {
+	brows, _ := bs.BsManager.New(browserID, bs.Options{
+		Url:      this.DefUrl,
+		JsStr:    this.ScriptStr,
+		Headless: !(this.Headless == 1),
+		Timeout:  time.Duration(time.Second * time.Duration(this.Timeout)),
+		// Ctx:      this.tsk.GetCtx(),
+	}, true)
 
-// 	if closeback != nil {
-// 		brows.OnClosed(func() {
-// 			closeback()
-// 		})
-// 	}
+	if closeback != nil {
+		brows.OnClosed(func() {
+			closeback()
+		})
+	}
 
-// 	if callback != nil {
-// 		brows.OnConsole(func(args []*runtime.RemoteObject) {
-// 			for _, arg := range args {
-// 				if arg.Value != nil {
-// 					gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
-// 					if gs.Get("type").String() == "kaka" {
-// 						if err := callback(gs.Get("data").String()); err == nil {
-// 							brows.Close()
-// 						}
-// 					}
-// 				}
-// 			}
-// 		})
-// 	}
+	if callback != nil {
+		brows.OnConsole(func(args []*runtime.RemoteObject) {
+			for _, arg := range args {
+				if arg.Value != nil {
+					gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
+					if gs.Get("type").String() == "kaka" {
+						if err := callback(gs.Get("data").String()); err == nil {
+							brows.Close()
+						}
+					}
+				}
+			}
+		})
+	}
 
-// 	if urlchangeback != nil {
-// 		brows.OnURLChange(func(url string) {
-// 			if err := urlchangeback(url); err != nil {
-// 				brows.Close()
-// 			}
-// 		})
-// 	}
+	if urlchangeback != nil {
+		brows.OnURLChange(func(url string) {
+			if err := urlchangeback(url); err != nil {
+				brows.Close()
+			}
+		})
+	}
 
-// 	brows.OpenBrowser()
-// 	time.Sleep(time.Second * 1)
+	brows.OpenBrowser()
+	time.Sleep(time.Second * 1)
 
-// 	if this.DefUrl != "" {
-// 		brows.GoToUrl(this.DefUrl)
-// 	}
+	if this.DefUrl != "" {
+		brows.GoToUrl(this.DefUrl)
+	}
 
-// 	this.runnerBrowser[brows.ID] = brows
+	// this.runnerBrowser[brows.ID] = brows
 
-// 	go brows.RunJs(this.ScriptStr)
-// 	return brows, nil
-// }
+	go brows.RunJs(this.ScriptStr)
+	return brows, nil
+}
 
 // // 批量执行手机端任务
 // func (this *Task) runPhone(phoneIDs int64) {
