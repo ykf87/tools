@@ -45,6 +45,7 @@ func (s *Scheduler) NewRunner(task TaskFunc, timeout time.Duration) *Runner {
 	}
 
 	r := newRunner(ctx, cancel, task, s)
+	r.begin = time.Now()
 	r.id = uuid.NewString()
 	return r
 }

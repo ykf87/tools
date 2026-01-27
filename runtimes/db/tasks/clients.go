@@ -29,16 +29,14 @@ func (t *TaskClients) start() {
 		if err := t.acquire(); err != nil {
 			return
 		}
-		// defer t.release()
-
 		var runner Runner
 		switch t.tsk.Tp {
 		case 0:
-			runner = runweb.New()
+			runner = runweb.New(t.release)
 		case 1:
-			runner = runphone.New()
+			runner = runphone.New(t.release)
 		case 2:
-			runner = runhttp.New()
+			runner = runhttp.New(t.release)
 		default:
 			t.tsk.ErrMsg = "类型不被支持"
 			go t.tsk.Sent()
@@ -52,6 +50,7 @@ func (t *TaskClients) start() {
 			SetError(runner.OnError).
 			SetMaxTry(t.tsk.RetryMax).
 			SetRetryDelay(time.Second * 10)
+		runner.SetRunner(t.runner)
 		t.runner.RunNow()
 		fmt.Println(t.tsk.SeNum, t.tsk.Cycle, "---- 开启了taskclients", t.DeviceType, t.DeviceID, t.tsk.ID)
 	}()
@@ -63,13 +62,16 @@ func (t *TaskClients) acquire() error {
 		return errors.New("task 未初始化")
 	}
 
-	select {
-	case t.tsk.slots <- struct{}{}:
-		return nil
-	default:
-		// return t.tsk.ctx.Err()
-		return nil
-	}
+	t.tsk.slots <- struct{}{}
+	return nil
+	// select {
+	// case t.tsk.slots <- struct{}{}:
+	// 	fmt.Println("写入----")
+	// 	return nil
+	// default:
+	// 	// return t.tsk.ctx.Err()
+	// 	return nil
+	// }
 }
 
 // release

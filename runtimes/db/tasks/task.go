@@ -141,7 +141,7 @@ func init() {
 		// 	v.tsk.SetMaxTry(v.RetryMax)
 		// }
 		// v.tsk.Run()
-		v.Start(v.GetClients()...)
+		go v.Start(v.GetClients()...)
 	}
 }
 

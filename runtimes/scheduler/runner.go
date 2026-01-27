@@ -31,6 +31,11 @@ type Runner struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	begin     time.Time // 任务开始时间
+	startAt   time.Time // 单次任务开始执行时间
+	endAt     time.Time // 任务结束时间
+	runTimers int
+
 	mu sync.Mutex
 	s  *Scheduler
 }
@@ -56,6 +61,7 @@ func (r *Runner) execute() {
 		return
 	}
 
+	r.startAt = time.Now()
 	if err := r.task(r.ctx); err != nil {
 		n := r.tried.Add(1)
 
@@ -80,6 +86,7 @@ func (r *Runner) execute() {
 
 	// 成功
 	r.tried.Store(0)
+	r.runTimers++
 
 	// 只有成功，才进入周期调度
 	if r.interval > 0 && !r.closed.Load() {
@@ -98,6 +105,7 @@ func (r *Runner) execute() {
 
 func (r *Runner) Stop() {
 	if r.closed.CompareAndSwap(false, true) {
+		r.endAt = time.Now()
 		r.cancel()
 		if r.closeFun != nil {
 			r.closeFun()
@@ -167,4 +175,30 @@ func (r *Runner) GetID() string {
 
 func (r *Runner) GetCtx() context.Context {
 	return r.ctx
+}
+
+func (r *Runner) GetRunTimes() int {
+	return r.runTimers
+}
+
+func (r *Runner) GetSigleRunTime() float64 {
+	tm := time.Now()
+	if !r.endAt.IsZero() {
+		tm = r.endAt
+	}
+	cost := tm.Sub(r.startAt)
+	return cost.Seconds()
+}
+
+func (r *Runner) GetTotalTime() float64 {
+	tm := time.Now()
+	if !r.endAt.IsZero() {
+		tm = r.endAt
+	}
+	cost := tm.Sub(r.begin)
+	return cost.Seconds()
+}
+
+func (r *Runner) GetTryTimers() int {
+	return int(r.tried.Load())
 }

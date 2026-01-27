@@ -7,6 +7,7 @@ import (
 	"time"
 	"tools/runtimes/bs"
 	"tools/runtimes/db/jses"
+	"tools/runtimes/scheduler"
 
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/tidwall/gjson"
@@ -17,6 +18,7 @@ type Runner interface {
 	OnError(error)
 	OnClose()
 	OnChange(string) error
+	SetRunner(*scheduler.Runner)
 }
 
 func (t *Task) GetClients() []*TaskClients {
