@@ -12,6 +12,13 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+type Runner interface {
+	Start(context.Context) error
+	OnError(error)
+	OnClose()
+	OnChange(string) error
+}
+
 func (t *Task) GetClients() []*TaskClients {
 	var tcs []*TaskClients
 	if t.ID > 0 {
@@ -21,63 +28,30 @@ func (t *Task) GetClients() []*TaskClients {
 }
 
 // 如果没有设置执行设备,则默认使用golang内置的http发起相应的请求
-func (t *Task) Start(ctx context.Context, taskDevices ...*TaskClients) error {
-	var err error
-
-	defer func() {
-		if err != nil {
-			t.isRun.Store(false)
-			t.mu.Lock()
-			if t.cancle != nil {
-				t.cancle()
-				t.cancle = nil
+func (t *Task) Start(taskDevices ...*TaskClients) error {
+	if t.isRun.CompareAndSwap(false, true) {
+		if t.slots == nil {
+			if t.SeNum < 1 {
+				t.SeNum = 2
 			}
-			t.mu.Unlock()
+			t.slots = make(chan struct{}, t.SeNum)
 		}
-	}()
-	t.mu.Lock()
-	if t.isRun.Load() {
+
+		t.mu.Lock()
+		t.isRun.Store(true)
 		t.mu.Unlock()
-		return nil
-	}
-	if t.slots == nil {
-		if t.SeNum < 1 {
-			t.SeNum = 2
+
+		for _, v := range taskDevices {
+			v.tsk = t
+			v.start()
 		}
-		t.slots = make(chan struct{}, t.SeNum)
 	}
-
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	if t.Timeout > 0 {
-		t.ctx, t.cancle = context.WithTimeout(ctx, time.Duration(t.Timeout)*time.Second)
-	} else {
-		t.ctx, t.cancle = context.WithCancel(ctx)
-	}
-	t.isRun.Store(true)
-	t.mu.Unlock()
-
-	for _, v := range taskDevices {
-		v.tsk = t
-		v.start()
-	}
-
 	return nil
 }
 
 func (t *Task) Stop() {
 	if !t.isRun.CompareAndSwap(true, false) {
 		return
-	}
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if t.cancle != nil {
-		t.cancle()
-		t.cancle = nil
 	}
 }
 
@@ -357,9 +331,9 @@ func (this *Task) runInBrowser(browserID int64) {
 		})
 	}
 
-	if this.OnUrlchange != nil {
+	if this.OnChange != nil {
 		brows.OnURLChange(func(url string) {
-			if err := this.OnUrlchange(url); err != nil {
+			if err := this.OnChange(url); err != nil {
 				brows.Close()
 			}
 		})

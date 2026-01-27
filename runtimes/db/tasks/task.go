@@ -2,7 +2,6 @@
 package tasks
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -71,17 +70,16 @@ type Task struct {
 	Headless int          `json:"headless" gorm:"type:tinyint(1);default:0"` // 0为静默(不显示窗口) 1为显示窗口
 	// RunnerBrowser *browserdb.Browser    `json:"-" gorm:"-"`                                // 执行的浏览器
 	// RunnerPhone   *clients.Phone        `json:"-" gorm:"-"`                                // 执行的手机
-	mu          sync.Mutex              `json:"-" gorm:"-"` // 锁
-	isRuning    bool                    `json:"-" gorm:"-"` // 是否在执行
-	Callback    func(string) error      `json:"-" gorm:"-"` // 任务执行结果回调
-	OnError     func(error)             `json:"-" gorm:"-"` // 任务错误结果回调
-	OnClose     func()                  `json:"-" gorm:"-"` // 浏览器关闭回调
-	OnUrlchange func(string) error      `json:"-" gorm:"-"` // 当浏览器地址改变回调
-	slots       chan struct{}           `json:"-" gorm:"-"` // 启动的协程
-	runners     map[string]*TaskClients `json:"-" gorm:"-"` // 调度器中的任务
-	isRun       atomic.Bool             `json:"-" gorm:"-"` // 是否在执行中
-	ctx         context.Context         `json:"-" gorm:"-"`
-	cancle      context.CancelFunc      `json:"-" gorm:"-"`
+	ErrMsg   string                  `json:"err_msg" gorm:"-"` // 任务执行错误消息
+	mu       sync.Mutex              `json:"-" gorm:"-"`       // 锁
+	isRuning bool                    `json:"-" gorm:"-"`       // 是否在执行
+	Callback func(string) error      `json:"-" gorm:"-"`       // 任务执行结果回调
+	OnError  func(error)             `json:"-" gorm:"-"`       // 任务错误结果回调
+	OnClose  func()                  `json:"-" gorm:"-"`       // 浏览器关闭回调
+	OnChange func(string) error      `json:"-" gorm:"-"`       // 当浏览器地址改变回调
+	slots    chan struct{}           `json:"-" gorm:"-"`       // 启动的协程
+	runners  map[string]*TaskClients `json:"-" gorm:"-"`       // 任务中具体执行的设备
+	isRun    atomic.Bool             `json:"-" gorm:"-"`       // 是否在执行中
 	// runnerBrowser map[int64]*bs.Browser `json:"-" gorm:"-"` // 正在执行的bs
 	// Params    string   `json:"params" gorm:"default:null" parse:"json"`                            // 脚本参数
 }
@@ -143,7 +141,7 @@ func init() {
 		// 	v.tsk.SetMaxTry(v.RetryMax)
 		// }
 		// v.tsk.Run()
-		v.Start(nil, v.GetClients()...)
+		v.Start(v.GetClients()...)
 	}
 }
 
@@ -171,7 +169,7 @@ func (this *Task) Save(tx *gorm.DB) error {
 		if older.ID > 0 && older.Status != this.Status {
 			if this.Status == 1 {
 				fmt.Println("启动脚本")
-				this.Start(nil)
+				this.Start()
 				// this.tsk = Seched.NewRunner(func(ctx context.Context) error {
 				// 	return nil
 				// })

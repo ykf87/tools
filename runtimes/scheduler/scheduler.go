@@ -35,8 +35,15 @@ func (s *Scheduler) Stop() {
 	s.signal()
 }
 
-func (s *Scheduler) NewRunner(task TaskFunc) *Runner {
-	ctx, cancel := context.WithCancel(s.ctx)
+func (s *Scheduler) NewRunner(task TaskFunc, timeout time.Duration) *Runner {
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if timeout > 0 {
+		ctx, cancel = context.WithTimeout(s.ctx, timeout)
+	} else {
+		ctx, cancel = context.WithCancel(s.ctx)
+	}
+
 	r := newRunner(ctx, cancel, task, s)
 	r.id = uuid.NewString()
 	return r

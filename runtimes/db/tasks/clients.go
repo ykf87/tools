@@ -1,10 +1,12 @@
 package tasks
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
+	"tools/runtimes/db/tasks/runhttp"
+	"tools/runtimes/db/tasks/runphone"
+	"tools/runtimes/db/tasks/runweb"
 	"tools/runtimes/scheduler"
 )
 
@@ -27,24 +29,31 @@ func (t *TaskClients) start() {
 		if err := t.acquire(); err != nil {
 			return
 		}
-		t.runner = Seched.NewRunner(t.run)
-		if t.tsk.Cycle > 0 {
-			t.runner.Every(time.Second * time.Duration(t.tsk.Cycle))
-		}
-		if t.tsk.RetryMax > 0 {
-			t.runner.SetMaxTry(t.tsk.RetryMax)
+		// defer t.release()
+
+		var runner Runner
+		switch t.tsk.Tp {
+		case 0:
+			runner = runweb.New()
+		case 1:
+			runner = runphone.New()
+		case 2:
+			runner = runhttp.New()
+		default:
+			t.tsk.ErrMsg = "类型不被支持"
+			go t.tsk.Sent()
+			return
 		}
 
-		if t.tsk.OnClose != nil {
-			t.runner.SetCloser(t.tsk.OnClose)
-		}
-		if t.tsk.OnError != nil {
-			t.runner.SetError(t.tsk.OnError)
-		}
-		t.runner.SetRetryDelay(time.Second * 10)
-
+		t.runner = Seched.
+			NewRunner(runner.Start, time.Duration(t.tsk.Timeout)*time.Second).
+			Every(time.Duration(t.tsk.Cycle) * time.Second).
+			SetCloser(runner.OnClose).
+			SetError(runner.OnError).
+			SetMaxTry(t.tsk.RetryMax).
+			SetRetryDelay(time.Second * 10)
 		t.runner.RunNow()
-		fmt.Println("---- 开启了taskclients", t.DeviceType, t.DeviceID, t.tsk.ID)
+		fmt.Println(t.tsk.SeNum, t.tsk.Cycle, "---- 开启了taskclients", t.DeviceType, t.DeviceID, t.tsk.ID)
 	}()
 }
 
@@ -57,8 +66,9 @@ func (t *TaskClients) acquire() error {
 	select {
 	case t.tsk.slots <- struct{}{}:
 		return nil
-	case <-t.tsk.ctx.Done():
-		return t.tsk.ctx.Err()
+	default:
+		// return t.tsk.ctx.Err()
+		return nil
 	}
 }
 
@@ -89,36 +99,4 @@ func (t *TaskClients) acquireWithTimeout(d time.Duration) error {
 	case <-time.After(d):
 		return errors.New("acquire timeout")
 	}
-}
-
-// 执行入口
-func (t *TaskClients) run(ctx context.Context) error {
-	defer t.release()
-
-	switch t.tsk.Tp {
-	case 0:
-		return t.runBrowser()
-	case 1:
-		return t.runPhone()
-	case 2:
-		return t.runHttp()
-	default:
-		return fmt.Errorf("不支持的类型")
-	}
-}
-
-// 执行浏览器
-func (t *TaskClients) runBrowser() error {
-	time.Sleep(time.Second * 6)
-	return nil
-}
-
-// 执行手机
-func (t *TaskClients) runPhone() error {
-	return nil
-}
-
-// 执行http
-func (t *TaskClients) runHttp() error {
-	return nil
 }

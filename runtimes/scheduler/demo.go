@@ -12,11 +12,11 @@ func Test() {
 		fmt.Println("rrrr---")
 		time.Sleep(time.Second * 3)
 		return nil
-	}).SetMaxTry(3)
+	}, 0).SetMaxTry(3)
 	nn := s.NewRunner(func(ctx context.Context) error {
 		fmt.Println("nnnn--")
 		return fmt.Errorf("nnn error")
-	})
+	}, 0)
 	fmt.Println(rr.GetID(), nn.GetID())
 	rr.SetError(func(err error) {
 		fmt.Println("执行失败回调:", err)

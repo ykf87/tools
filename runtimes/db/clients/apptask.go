@@ -60,7 +60,7 @@ func init() {
 	s.NewRunner(func(ctx context.Context) error {
 		dbs.Where("addtime < ?", (time.Now().Unix() - rmvDay64)).Where("status != 0").Delete(&AppTask{})
 		return nil
-	}).Every(time.Second * time.Duration(rmvDay64)).SetMaxTry(3).Run()
+	}, 0).Every(time.Second * time.Duration(rmvDay64)).SetMaxTry(3).Run()
 }
 
 // func InitAppTask() {
