@@ -12,47 +12,73 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-func (t *Task) getClients() []*TaskClients {
+func (t *Task) GetClients() []*TaskClients {
 	var tcs []*TaskClients
 	if t.ID > 0 {
 		dbs.Model(&TaskClients{}).Where("task_id = ?", t.ID).Find(&tcs)
 	}
-	if len(tcs) < 1 {
-		tcs = append(tcs, &TaskClients{
-			DeviceID:   0,
-			DeviceType: 0,
-		})
-	}
 	return tcs
 }
-func (t *Task) Start(taskDevices ...*TaskClients) {
-	if len(taskDevices) < 1 { // 获取任务执行的设备
-		taskDevices = t.getClients()
+
+// 如果没有设置执行设备,则默认使用golang内置的http发起相应的请求
+func (t *Task) Start(ctx context.Context, taskDevices ...*TaskClients) error {
+	var err error
+
+	defer func() {
+		if err != nil {
+			t.isRun.Store(false)
+			t.mu.Lock()
+			if t.cancle != nil {
+				t.cancle()
+				t.cancle = nil
+			}
+			t.mu.Unlock()
+		}
+	}()
+	t.mu.Lock()
+	if t.isRun.Load() {
+		t.mu.Unlock()
+		return nil
+	}
+	if t.slots == nil {
+		if t.SeNum < 1 {
+			t.SeNum = 2
+		}
+		t.slots = make(chan struct{}, t.SeNum)
 	}
 
-	//设备需要分开启动,浏览器的和手机先隔离开
-	var borwsers []int64
-	var phones []int64
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if t.Timeout > 0 {
+		t.ctx, t.cancle = context.WithTimeout(ctx, time.Duration(t.Timeout)*time.Second)
+	} else {
+		t.ctx, t.cancle = context.WithCancel(ctx)
+	}
+	t.isRun.Store(true)
+	t.mu.Unlock()
 
 	for _, v := range taskDevices {
-		switch v.DeviceType {
-		case 0:
-			borwsers = append(borwsers, v.DeviceID)
-		case 1:
-			phones = append(phones, v.DeviceID)
-		}
+		v.tsk = t
+		v.start()
 	}
-	fmt.Println(borwsers, phones)
+
+	return nil
 }
 
 func (t *Task) Stop() {
+	if !t.isRun.CompareAndSwap(true, false) {
+		return
+	}
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	for _, v := range t.runners {
-		v.Stop()
+	if t.cancle != nil {
+		t.cancle()
+		t.cancle = nil
 	}
-	t.runners = nil
 }
 
 // import (

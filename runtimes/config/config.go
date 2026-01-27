@@ -90,6 +90,11 @@ var Mkdirs = map[string]*mkdirStruct{
 		Mode:    os.ModePerm,
 		IsHide:  false,
 	},
+	"mini": &mkdirStruct{
+		DirName: ".mini",
+		Mode:    os.ModePerm,
+		IsHide:  true,
+	},
 }
 
 func init() {

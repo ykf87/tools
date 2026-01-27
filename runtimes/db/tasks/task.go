@@ -2,9 +2,11 @@
 package tasks
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"tools/runtimes/db"
 	"tools/runtimes/listens/ws"
@@ -41,10 +43,11 @@ var Types = []DeviceType{
 // }
 
 // 任务表
+// 任务可以执行3种,使用Tp(type)表示:0-打开指纹浏览器执行  1-打开手机设备执行  2-执行内置http请求
 type Task struct {
 	ID        int64    `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
 	Title     string   `json:"title" gorm:"index;not null;type:varchar(32)" form:"title"`          // 任务名称
-	Tp        int      `json:"type" gorm:"index;default:0" form:"type"`                            // 任务类型,分2种, 0-web端  1-手机端
+	Tp        int      `json:"type" gorm:"index;default:0" form:"type"`                            // 任务类型,分2种, 0-web端  1-手机端  2-使用golang发起http请求
 	Addtime   int64    `json:"addtime" gorm:"index;default:0"`                                     // 创建时间
 	Tags      []string `json:"tags" gorm:"-" form:"tags"`                                          // 设备标签
 	Starttime int64    `json:"starttime" gorm:"index;default:0" form:"starttime" parse:"datetime"` // 任务开始时间
@@ -68,13 +71,17 @@ type Task struct {
 	Headless int          `json:"headless" gorm:"type:tinyint(1);default:0"` // 0为静默(不显示窗口) 1为显示窗口
 	// RunnerBrowser *browserdb.Browser    `json:"-" gorm:"-"`                                // 执行的浏览器
 	// RunnerPhone   *clients.Phone        `json:"-" gorm:"-"`                                // 执行的手机
-	mu          sync.Mutex          `json:"-" gorm:"-"` // 锁
-	isRuning    bool                `json:"-" gorm:"-"` // 是否在执行
-	Callback    func(string) error  `json:"-" gorm:"-"` // 任务执行结果回调
-	OnError     func()              `json:"-" gorm:"-"` // 任务错误结果回调
-	OnClose     func()              `json:"-" gorm:"-"` // 浏览器关闭回调
-	OnUrlchange func(string) error  `json:"-" gorm:"-"` // 当浏览器地址改变回调
-	runners     []*scheduler.Runner `json:"-" gorm:"-"` // 调度器中的任务
+	mu          sync.Mutex              `json:"-" gorm:"-"` // 锁
+	isRuning    bool                    `json:"-" gorm:"-"` // 是否在执行
+	Callback    func(string) error      `json:"-" gorm:"-"` // 任务执行结果回调
+	OnError     func(error)             `json:"-" gorm:"-"` // 任务错误结果回调
+	OnClose     func()                  `json:"-" gorm:"-"` // 浏览器关闭回调
+	OnUrlchange func(string) error      `json:"-" gorm:"-"` // 当浏览器地址改变回调
+	slots       chan struct{}           `json:"-" gorm:"-"` // 启动的协程
+	runners     map[string]*TaskClients `json:"-" gorm:"-"` // 调度器中的任务
+	isRun       atomic.Bool             `json:"-" gorm:"-"` // 是否在执行中
+	ctx         context.Context         `json:"-" gorm:"-"`
+	cancle      context.CancelFunc      `json:"-" gorm:"-"`
 	// runnerBrowser map[int64]*bs.Browser `json:"-" gorm:"-"` // 正在执行的bs
 	// Params    string   `json:"params" gorm:"default:null" parse:"json"`                            // 脚本参数
 }
@@ -97,13 +104,6 @@ type TaskLog struct {
 	Addtime   int64  `json:"addtime" gorm:"index;not null"`
 	LogStatus int    `json:"log_status" gorm:"index;default:0"`
 	Msg       string `json:"msg" gorm:"default:null"`
-}
-
-// 任务设备表
-type TaskClients struct {
-	TaskID     int64 `json:"task_id" gorm:"primaryKey"`     // 任务ID
-	DeviceID   int64 `json:"device_id" gorm:"primaryKey"`   // 设备id,在clients下的 browsers 或者 phones 表
-	DeviceType int   `json:"device_type" gorm:"primaryKey"` // 设备类型, 0-web端 1-手机端
 }
 
 // 任务对于的标签表
@@ -143,7 +143,7 @@ func init() {
 		// 	v.tsk.SetMaxTry(v.RetryMax)
 		// }
 		// v.tsk.Run()
-		v.Start()
+		v.Start(nil, v.GetClients()...)
 	}
 }
 
@@ -171,7 +171,7 @@ func (this *Task) Save(tx *gorm.DB) error {
 		if older.ID > 0 && older.Status != this.Status {
 			if this.Status == 1 {
 				fmt.Println("启动脚本")
-				this.Start()
+				this.Start(nil)
 				// this.tsk = Seched.NewRunner(func(ctx context.Context) error {
 				// 	return nil
 				// })
@@ -190,6 +190,10 @@ func (this *Task) Save(tx *gorm.DB) error {
 		}
 
 	}()
+
+	if this.SeNum < 1 {
+		this.SeNum = 2
+	}
 	if this.ID > 0 {
 		dbs.Model(&Task{}).Where("id = ?", this.ID).First(older)
 		return tx.Model(&Task{}).Where("id = ?", this.ID).
