@@ -10,6 +10,7 @@ import (
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/i18n"
+	"tools/runtimes/mainsignal"
 
 	"github.com/chromedp/chromedp"
 	jsoniter "github.com/json-iterator/go"
@@ -54,7 +55,7 @@ func (b *Browser) OpenBrowser() error {
 	if b.Opts.Ctx != nil {
 		ctxxxx = b.Opts.Ctx
 	} else {
-		ctxxxx = context.Background()
+		ctxxxx = mainsignal.MainCtx
 	}
 
 	allocCtx, allocCancel := chromedp.NewExecAllocator(ctxxxx, allocOpts...)

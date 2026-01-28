@@ -32,7 +32,17 @@ func (t *TaskClients) start() {
 		var runner Runner
 		switch t.tsk.Tp {
 		case 0:
-			runner = runweb.New(t.release)
+			runner = runweb.New(t.release, &runweb.Option{
+				Headless: !(t.tsk.Headless == 1),
+				Js:       t.tsk.GetRunJscript(),
+				Url:      t.tsk.DefUrl,
+				ID:       t.DeviceID,
+				Timeout:  time.Duration(t.tsk.Timeout) * time.Second,
+				OnError:  t.tsk.OnError,
+				OnClose:  t.tsk.OnClose,
+				OnChange: t.tsk.OnChange,
+				Callback: t.tsk.Callback,
+			})
 		case 1:
 			runner = runphone.New(t.release)
 		case 2:

@@ -31,6 +31,6 @@ func (t *runhttp) OnClose() {
 		t.release()
 	}
 }
-func (t *runhttp) OnChange(str string) error {
-	return nil
+func (t *runhttp) OnChange(str string) {
+
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"sync"
 	"time"
+	"tools/runtimes/mainsignal"
 
 	"github.com/google/uuid"
 )
@@ -19,7 +20,7 @@ type Scheduler struct {
 }
 
 func New() *Scheduler {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(mainsignal.MainCtx)
 	s := &Scheduler{
 		ctx:    ctx,
 		cancel: cancel,

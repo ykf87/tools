@@ -38,18 +38,15 @@ go build -ldflags "-s -w" -o tools.exe
 
 import (
 	"fmt"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 	_ "tools/runtimes"
-	"tools/runtimes/bs"
 	"tools/runtimes/config"
 	_ "tools/runtimes/db"
 	"tools/runtimes/db/tasks"
 	"tools/runtimes/i18n"
 	"tools/runtimes/listens/web"
+	"tools/runtimes/mainsignal"
 	_ "tools/runtimes/minio"
 	_ "tools/runtimes/subscribes/submqs"
 	_ "tools/runtimes/subscribes/subws"
@@ -68,16 +65,14 @@ func main() {
 	fmt.Println("欢迎使用小卡卡辅助工具.有任何问题可以随时在系统内联系开发者或者前往官网留言.祝您使用愉快!")
 	fmt.Println("系统UUID:", syncuuid.MachineUUID())
 	go web.Start(port)
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
+	// quit := make(chan os.Signal, 1)
+	// signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	// <-quit
+	<-mainsignal.MainCtx.Done()
+	mainsignal.MainStop()
 	fmt.Println("\n系统准备关闭,释放内存中,请稍后...")
+	flush()
 
-	web.WebCloseCh()
-	bs.Flush()
-	time.Sleep(time.Second)
-	tasks.Seched.Stop()
 	fmt.Println("系统已退出,感谢您的使用!")
 }
 
@@ -90,4 +85,11 @@ func checkLocal() error {
 		return fmt.Errorf("error")
 	}
 	return nil
+}
+
+func flush() {
+	tasks.Seched.Stop()
+	// bs.Flush()
+	web.WebCloseCh()
+	time.Sleep(time.Second)
 }

@@ -7,7 +7,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"tools/runtimes/bs"
 	"tools/runtimes/db"
+	"tools/runtimes/db/jses"
 	"tools/runtimes/listens/ws"
 	"tools/runtimes/scheduler"
 
@@ -70,16 +72,16 @@ type Task struct {
 	Headless int          `json:"headless" gorm:"type:tinyint(1);default:0"` // 0为静默(不显示窗口) 1为显示窗口
 	// RunnerBrowser *browserdb.Browser    `json:"-" gorm:"-"`                                // 执行的浏览器
 	// RunnerPhone   *clients.Phone        `json:"-" gorm:"-"`                                // 执行的手机
-	ErrMsg   string                  `json:"err_msg" gorm:"-"` // 任务执行错误消息
-	mu       sync.Mutex              `json:"-" gorm:"-"`       // 锁
-	isRuning bool                    `json:"-" gorm:"-"`       // 是否在执行
-	Callback func(string) error      `json:"-" gorm:"-"`       // 任务执行结果回调
-	OnError  func(error)             `json:"-" gorm:"-"`       // 任务错误结果回调
-	OnClose  func()                  `json:"-" gorm:"-"`       // 浏览器关闭回调
-	OnChange func(string) error      `json:"-" gorm:"-"`       // 当浏览器地址改变回调
-	slots    chan struct{}           `json:"-" gorm:"-"`       // 启动的协程
-	runners  map[string]*TaskClients `json:"-" gorm:"-"`       // 任务中具体执行的设备
-	isRun    atomic.Bool             `json:"-" gorm:"-"`       // 是否在执行中
+	ErrMsg   string                          `json:"err_msg" gorm:"-"` // 任务执行错误消息
+	mu       sync.Mutex                      `json:"-" gorm:"-"`       // 锁
+	isRuning bool                            `json:"-" gorm:"-"`       // 是否在执行
+	Callback func(string) error              `json:"-" gorm:"-"`       // 任务执行结果回调
+	OnError  func(error, *bs.Browser)        `json:"-" gorm:"-"`       // 任务错误结果回调
+	OnClose  func()                          `json:"-" gorm:"-"`       // 浏览器关闭回调
+	OnChange func(string, *bs.Browser) error `json:"-" gorm:"-"`       // 当浏览器地址改变回调
+	slots    chan struct{}                   `json:"-" gorm:"-"`       // 启动的协程
+	runners  map[string]*TaskClients         `json:"-" gorm:"-"`       // 任务中具体执行的设备
+	isRun    atomic.Bool                     `json:"-" gorm:"-"`       // 是否在执行中
 	// runnerBrowser map[int64]*bs.Browser `json:"-" gorm:"-"` // 正在执行的bs
 	// Params    string   `json:"params" gorm:"default:null" parse:"json"`                            // 脚本参数
 }
@@ -384,4 +386,24 @@ func DeleteByID(id any) error {
 	}
 
 	return nil
+}
+
+func (t *Task) GetRunJscript() string {
+	if t.ScriptStr == "" && t.Script > 0 {
+		js := jses.GetJsById(t.Script)
+		if js != nil && js.ID > 0 {
+			params := t.GetParams()
+			mp := make(map[string]any)
+			for _, v := range params {
+				mp[v.CodeName] = v.Value
+			}
+			t.ScriptStr = js.GetContent(mp)
+		}
+	}
+	return t.ScriptStr
+}
+
+// 清空任务
+func Flush() {
+
 }

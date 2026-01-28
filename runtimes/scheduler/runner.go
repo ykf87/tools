@@ -61,6 +61,8 @@ func (r *Runner) execute() {
 		return
 	}
 
+	// fmt.Println(r.id, "----")
+
 	r.startAt = time.Now()
 	if err := r.task(r.ctx); err != nil {
 		n := r.tried.Add(1)

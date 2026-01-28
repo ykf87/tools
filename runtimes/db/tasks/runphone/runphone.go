@@ -31,6 +31,6 @@ func (t *runphon) OnClose() {
 		t.release()
 	}
 }
-func (t *runphon) OnChange(str string) error {
-	return nil
+func (t *runphon) OnChange(str string) {
+
 }
