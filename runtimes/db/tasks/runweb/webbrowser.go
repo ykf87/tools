@@ -2,9 +2,11 @@ package runweb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 	"tools/runtimes/bs"
+	"tools/runtimes/eventbus"
 	"tools/runtimes/scheduler"
 
 	"github.com/chromedp/cdproto/runtime"
@@ -62,14 +64,32 @@ func (t *runweb) Start(ctx context.Context) error {
 	t.bs.OnURLChange(t.OnChange)
 
 	t.bs.OnConsole(func(args []*runtime.RemoteObject) {
+		fmt.Println("获得控制台0000000")
 		for _, arg := range args {
 			if arg.Value != nil {
 				gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
-				if gs.Get("type").String() == "kaka" {
-					if t.opt.Callback != nil {
-						if err := t.opt.Callback(gs.Get("data").String()); err != nil {
-							t.OnError(err)
+				tp := gs.Get("type").String()
+				data := gs.Get("data").String()
+				code := gs.Get("code").Int()
+				msg := gs.Get("msg").String()
+				fmt.Println("code:", code, "data", data)
+
+				if code > 0 {
+					if code == 200 {
+						if t.opt.Callback != nil {
+							if err := t.opt.Callback(data); err != nil {
+								if t.callback != nil {
+									t.callback()
+								}
+							}
+						} else {
+							eventbus.Bus.Publish(tp, data)
 						}
+
+						t.bs.Close()
+					} else {
+						err := errors.New(msg)
+						t.OnError(err)
 					}
 				}
 			}
