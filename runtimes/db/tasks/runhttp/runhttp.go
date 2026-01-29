@@ -34,3 +34,7 @@ func (t *runhttp) OnClose() {
 func (t *runhttp) OnChange(str string) {
 
 }
+
+func (t *runhttp) Close() {
+
+}

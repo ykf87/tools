@@ -3,7 +3,6 @@ package tasks
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -79,6 +78,7 @@ func Start(
 
 	go func() {
 		for _, v := range t.Clients {
+			rt.acquire()
 			var runner Runner
 			switch t.Tp {
 			case 0:
@@ -99,7 +99,6 @@ func Start(
 			case 2:
 				runner = runhttp.New(rt.release)
 			}
-
 			sr := Seched.
 				NewRunner(runner.Start, time.Duration(t.Timeout)*time.Second, rt.ctx).
 				Every(time.Duration(t.Cycle) * time.Second).
@@ -113,16 +112,11 @@ func Start(
 				s: sr,
 			}
 
-			rt.acquire()
 			sr.RunNow()
 		}
 	}()
 
 	WatchingTasks.Store(t.ID, rt)
-	WatchingTasks.Range(func(k, v any) bool {
-		fmt.Println(k, "--r")
-		return true
-	})
 	return rt
 }
 
@@ -175,16 +169,12 @@ func (t *Task) Start() *RuningTask {
 
 func (t *Task) Stop() {
 	rt, err := GetRunTask(t.ID)
-	WatchingTasks.Range(func(k, v any) bool {
-		fmt.Println(k, "--r")
-		return true
-	})
 	if err != nil {
 		return
 	}
-	for _, v := range rt.runners {
-		v.s.Stop()
-	}
+	// for _, v := range rt.runners {
+	// 	v.s.Stop()
+	// }
 	rt.cancle()
 	WatchingTasks.Delete(t.ID)
 }

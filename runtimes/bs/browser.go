@@ -52,10 +52,8 @@ func (b *Browser) OpenBrowser() error {
 	}
 
 	var ctxxxx context.Context
-	fmt.Println("检查ctx", b.Opts.Ctx, b.ctx)
 
 	if b.Opts.Ctx != nil {
-		fmt.Println("适用传入的ctx")
 		ctxxxx = b.Opts.Ctx
 	} else {
 		ctxxxx = mainsignal.MainCtx

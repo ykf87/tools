@@ -155,11 +155,9 @@ func (this *Task) Save(tx *gorm.DB) error {
 
 	defer func() {
 		if older.ID > 0 {
-			fmt.Println(older.Status, this.Status, "------")
 			if older.Status != this.Status {
 				if this.Status == 1 {
 					this.Clients = this.GetClients()
-					fmt.Println("与启动数量:", len(this.Clients))
 					go this.Start()
 				} else {
 					go this.Stop()
@@ -192,7 +190,8 @@ func (this *Task) Save(tx *gorm.DB) error {
 				"se_num": this.SeNum,
 				// "data_spec": this.DataSpec,
 				// "data_type": this.DataType,
-				"def_url": this.DefUrl,
+				"def_url":  this.DefUrl,
+				"headless": this.Headless,
 			}).Error
 	} else {
 		if this.Addtime < 1 {

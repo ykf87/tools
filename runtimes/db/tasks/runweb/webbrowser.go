@@ -57,14 +57,12 @@ func (t *runweb) Start(ctx context.Context) error {
 		return err
 	}
 	t.chs = make(chan struct{})
-	fmt.Println("执行任务:", t.scheduler.GetID())
 	t.bs = bs
 
 	t.bs.OnClosed(t.OnClose)
 	t.bs.OnURLChange(t.OnChange)
 
 	t.bs.OnConsole(func(args []*runtime.RemoteObject) {
-		fmt.Println("获得控制台0000000")
 		for _, arg := range args {
 			if arg.Value != nil {
 				gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
@@ -72,7 +70,6 @@ func (t *runweb) Start(ctx context.Context) error {
 				data := gs.Get("data").String()
 				code := gs.Get("code").Int()
 				msg := gs.Get("msg").String()
-				fmt.Println("code:", code, "data", data)
 
 				if code > 0 {
 					if code == 200 {
@@ -129,4 +126,8 @@ func (t *runweb) OnChange(str string) {
 			t.bs.Close()
 		}
 	}
+}
+
+func (t *runweb) Close() {
+	t.bs.Close()
 }

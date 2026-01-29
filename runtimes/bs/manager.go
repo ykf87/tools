@@ -85,7 +85,6 @@ func (m *Manager) New(id int64, opt Options, wait bool) (*Browser, error) {
 	b := &Browser{
 		ID:   id,
 		Opts: opt,
-		ctx:  opt.Ctx,
 	}
 
 	if _, err := MakeBrowserConfig(b.ID, b.Opts.Language, b.Opts.Timezone, b.Opts.Proxy); err != nil {

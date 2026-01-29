@@ -34,3 +34,7 @@ func (t *runphon) OnClose() {
 func (t *runphon) OnChange(str string) {
 
 }
+
+func (t *runphon) Close() {
+
+}
