@@ -38,7 +38,6 @@ func newManager(baseDir string) *Manager {
 func (m *Manager) New(id int64, opt Options, wait bool) (*Browser, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
 	if id < 1 {
 		TempIndex--
 		id = TempIndex
@@ -46,7 +45,6 @@ func (m *Manager) New(id int64, opt Options, wait bool) (*Browser, error) {
 	}
 
 	if b, ok := m.browsers[id]; ok {
-		fmt.Println("浏览器已经打开----", b.ID)
 		return b, nil
 	}
 	if b, ok := OpendBrowser.Load(id); ok {

@@ -54,6 +54,15 @@ func BaseData(c *gin.Context) {
 	jjs, _ := jses.GetJsList(finder)
 	for _, v := range jjs {
 		v.Name = fmt.Sprintf("%s:%s", v.Name, strings.Join(v.Tags, ","))
+
+		switch v.Tp {
+		case 0:
+			v.Name = "[浏览器]" + v.Name
+		case 1:
+			v.Name = "[手机端]" + v.Name
+		case 2:
+			v.Name = "[HTTP]" + v.Name
+		}
 	}
 
 	rsp := map[string]any{

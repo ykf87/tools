@@ -36,13 +36,16 @@ func (s *Scheduler) Stop() {
 	s.signal()
 }
 
-func (s *Scheduler) NewRunner(task TaskFunc, timeout time.Duration) *Runner {
+func (s *Scheduler) NewRunner(task TaskFunc, timeout time.Duration, pctx context.Context) *Runner {
+	if pctx == nil {
+		pctx = s.ctx
+	}
 	var ctx context.Context
 	var cancel context.CancelFunc
 	if timeout > 0 {
-		ctx, cancel = context.WithTimeout(s.ctx, timeout)
+		ctx, cancel = context.WithTimeout(pctx, timeout)
 	} else {
-		ctx, cancel = context.WithCancel(s.ctx)
+		ctx, cancel = context.WithCancel(pctx)
 	}
 
 	r := newRunner(ctx, cancel, task, s)

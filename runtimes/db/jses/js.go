@@ -20,6 +20,7 @@ type Js struct {
 	ID          int64      `json:"id" gorm:"primaryKey;autoIncrement"`
 	Code        string     `json:"code" gorm:"uniqueIndex;not null"`              // 唯一标识符
 	Name        string     `json:"name" gorm:"index"`                             // 名称
+	Tp          int        `json:"tp" gorm:"type:tinyint(1);index;default:0"`     // 脚本类型,适用什么设备的, 0-代表web端  1-代表手机端autos
 	IsSys       int        `json:"is_sys" gorm:"type:tinyint(1);index;default:0"` // 是否是从服务端获取的脚本,如果从服务器获取的脚本,将使用aes加密,1为系统获取, 0为用户自写
 	AdminID     int64      `json:"admin_id" gorm:"index;default:0"`               // 管理员id, 如果是系统的则为0,如果是用户自己写的,则对应用户的id
 	Content     string     `json:"content" gorm:"not null;type:longtext"`         // 执行的脚本

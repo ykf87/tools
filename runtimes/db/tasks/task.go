@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
-	"tools/runtimes/bs"
 	"tools/runtimes/db"
 	"tools/runtimes/db/jses"
 	"tools/runtimes/listens/ws"
@@ -66,22 +64,23 @@ type Task struct {
 	SeNum int `json:"se_num" gorm:"default:2" form:"se_num"` // 同时执行的设备数量,0表示所有设备同时执行
 	// DataSpec      string                `json:"data_spec" gorm:"default:null" form:"data_spec"` // 数据来源配置（JSON）,这种方式需要的参数
 	// DataType      string                `json:"data_type" gorm:"default:null" form:"data_type"` // 数据类型标识,我用哪一种“取数方式”
-	Devices  []int64      `json:"devices" gorm:"-" form:"devices"`           // 设备列表
-	Params   []*TaskParam `json:"params" gorm:"-" form:"params"`             // 参数
-	DefUrl   string       `json:"def_url" form:"def_url"`                    // 默认url地址
-	Headless int          `json:"headless" gorm:"type:tinyint(1);default:0"` // 0为静默(不显示窗口) 1为显示窗口
+	Devices  []int64        `json:"devices" gorm:"-" form:"devices"`           // 设备列表
+	Params   []*TaskParam   `json:"params" gorm:"-" form:"params"`             // 参数
+	DefUrl   string         `json:"def_url" form:"def_url"`                    // 默认url地址
+	Headless int            `json:"headless" gorm:"type:tinyint(1);default:0"` // 0为静默(不显示窗口) 1为显示窗口
+	Clients  []*TaskClients `json:"-" gorm:"-"`
 	// RunnerBrowser *browserdb.Browser    `json:"-" gorm:"-"`                                // 执行的浏览器
 	// RunnerPhone   *clients.Phone        `json:"-" gorm:"-"`                                // 执行的手机
-	ErrMsg   string                          `json:"err_msg" gorm:"-"` // 任务执行错误消息
-	mu       sync.Mutex                      `json:"-" gorm:"-"`       // 锁
-	isRuning bool                            `json:"-" gorm:"-"`       // 是否在执行
-	Callback func(string) error              `json:"-" gorm:"-"`       // 任务执行结果回调
-	OnError  func(error, *bs.Browser)        `json:"-" gorm:"-"`       // 任务错误结果回调
-	OnClose  func()                          `json:"-" gorm:"-"`       // 浏览器关闭回调
-	OnChange func(string, *bs.Browser) error `json:"-" gorm:"-"`       // 当浏览器地址改变回调
-	slots    chan struct{}                   `json:"-" gorm:"-"`       // 启动的协程
-	runners  map[string]*TaskClients         `json:"-" gorm:"-"`       // 任务中具体执行的设备
-	isRun    atomic.Bool                     `json:"-" gorm:"-"`       // 是否在执行中
+	// ErrMsg   string                          `json:"err_msg" gorm:"-"` // 任务执行错误消息
+	// mu       sync.Mutex                      `json:"-" gorm:"-"`       // 锁
+	// isRuning bool                            `json:"-" gorm:"-"`       // 是否在执行
+	// Callback func(string) error              `json:"-" gorm:"-"`       // 任务执行结果回调
+	// OnError  func(error, *bs.Browser)        `json:"-" gorm:"-"`       // 任务错误结果回调
+	// OnClose  func()                          `json:"-" gorm:"-"`       // 浏览器关闭回调
+	// OnChange func(string, *bs.Browser) error `json:"-" gorm:"-"`       // 当浏览器地址改变回调
+	// slots    chan struct{}                   `json:"-" gorm:"-"`       // 启动的协程
+	// runners  map[string]*TaskClients         `json:"-" gorm:"-"`       // 任务中具体执行的设备
+	// isRun atomic.Bool `json:"-" gorm:"-"` // 是否在执行中
 	// runnerBrowser map[int64]*bs.Browser `json:"-" gorm:"-"` // 正在执行的bs
 	// Params    string   `json:"params" gorm:"default:null" parse:"json"`                            // 脚本参数
 }
@@ -129,21 +128,8 @@ func init() {
 
 	Seched = scheduler.New()
 
-	for _, v := range tsks { // 要改，一个设备一个任务,而不是一个任务对于执行一个任务
-		// v.runnerBrowser = make(map[int64]*bs.Browser)
-		// v.tsk = Seched.NewRunner(v.runner).SetCloser(func() {
-		// 	fmt.Println("---- 关闭任务")
-		// }).SetError(func(err error) {
-		// 	fmt.Println("任务错误:", err)
-		// })
-		// if v.Cycle > 0 {
-		// 	v.tsk.Every(time.Second * time.Duration(v.Cycle))
-		// }
-		// if v.RetryMax > 0 {
-		// 	v.tsk.SetMaxTry(v.RetryMax)
-		// }
-		// v.tsk.Run()
-		go v.Start(v.GetClients()...)
+	for _, v := range tsks {
+		go v.Listen()
 	}
 }
 
@@ -168,24 +154,16 @@ func (this *Task) Save(tx *gorm.DB) error {
 	older := new(Task)
 
 	defer func() {
-		if older.ID > 0 && older.Status != this.Status {
-			if this.Status == 1 {
-				fmt.Println("启动脚本")
-				this.Start()
-				// this.tsk = Seched.NewRunner(func(ctx context.Context) error {
-				// 	return nil
-				// })
-				// if err := this.tsk.Run(); err != nil {
-				// 	fmt.Println("启动错误:", err)
-				// }
-				// dbTasks.Store(this.ID, this)
-				// fmt.Println("任务加入队列----", this.ID)
-			} else {
-				// fmt.Println("停止任务-----")
-				// scheduler.StopTask(this.ID)
-				// Seched.Remove(GenTaskID(this.ID))
-				// this.tsk.Stop()
-				this.Stop()
+		if older.ID > 0 {
+			fmt.Println(older.Status, this.Status, "------")
+			if older.Status != this.Status {
+				if this.Status == 1 {
+					this.Clients = this.GetClients()
+					fmt.Println("与启动数量:", len(this.Clients))
+					go this.Start()
+				} else {
+					go this.Stop()
+				}
 			}
 		}
 
