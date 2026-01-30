@@ -33,7 +33,7 @@ var autoLoaderUser sync.Map
 var today string
 
 func autoStart() {
-	return
+	// return
 	// for {
 	// 	autoLoaderUser.Range(func(k, v any) bool {
 	// 		if mu, ok := v.(*MediaUser); ok {

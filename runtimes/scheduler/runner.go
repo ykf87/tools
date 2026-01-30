@@ -38,6 +38,8 @@ type Runner struct {
 
 	mu sync.Mutex
 	s  *Scheduler
+
+	firstRun atomic.Bool // 🔥 是否已经执行过
 }
 
 func newRunner(ctx context.Context, cancel context.CancelFunc, task TaskFunc, s *Scheduler) *Runner {
@@ -56,6 +58,8 @@ func (r *Runner) execute() {
 		return
 	}
 	defer r.running.Store(false)
+	// 🔥 标记：已经至少执行过一次
+	r.firstRun.Store(true)
 
 	if r.task == nil || r.ctx.Err() != nil {
 		return

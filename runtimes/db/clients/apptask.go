@@ -10,6 +10,7 @@ import (
 	"tools/runtimes/config"
 	"tools/runtimes/db"
 	"tools/runtimes/db/configs"
+	"tools/runtimes/mainsignal"
 	"tools/runtimes/scheduler"
 
 	"gorm.io/gorm"
@@ -56,7 +57,7 @@ func init() {
 	}
 
 	rmvDay64 := int64(rmvDay * 86400)
-	s := scheduler.New()
+	s := scheduler.New(mainsignal.MainCtx)
 	s.NewRunner(func(ctx context.Context) error {
 		dbs.Where("addtime < ?", (time.Now().Unix() - rmvDay64)).Where("status != 0").Delete(&AppTask{})
 		return nil

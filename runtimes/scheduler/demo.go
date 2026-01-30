@@ -7,7 +7,7 @@ import (
 )
 
 func Test() {
-	s := New()
+	s := New(context.Background())
 	rr := s.NewRunner(func(ctx context.Context) error {
 		fmt.Println("rrrr---")
 		time.Sleep(time.Second * 3)

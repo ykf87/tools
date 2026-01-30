@@ -9,7 +9,6 @@ import (
 	"tools/runtimes/db"
 	"tools/runtimes/db/jses"
 	"tools/runtimes/listens/ws"
-	"tools/runtimes/scheduler"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -112,7 +111,8 @@ type TaskToTag struct {
 }
 
 var dbs = db.TaskDB
-var Seched *scheduler.Scheduler
+
+// var Seched *scheduler.Scheduler
 
 func init() {
 	dbs.AutoMigrate(&Task{})
@@ -126,7 +126,7 @@ func init() {
 	var tsks []*Task
 	dbs.Model(&Task{}).Where("status = 1").Find(&tsks)
 
-	Seched = scheduler.New()
+	// Seched = scheduler.New()
 
 	for _, v := range tsks {
 		go v.Listen()
@@ -378,9 +378,4 @@ func (t *Task) GetRunJscript() string {
 		}
 	}
 	return t.ScriptStr
-}
-
-// 清空任务
-func Flush() {
-
 }

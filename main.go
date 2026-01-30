@@ -88,7 +88,7 @@ func checkLocal() error {
 }
 
 func flush() {
-	tasks.Seched.Stop()
+	tasks.Flush()
 	// bs.Flush()
 	web.WebCloseCh()
 	time.Sleep(time.Second)

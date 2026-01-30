@@ -26,6 +26,7 @@ type RuningTask struct {
 	OnChange func(string) error     // 当浏览器地址改变回调
 	slots    chan struct{}          // 启动的协程
 	runners  map[string]*RunnerData // 任务中具体执行的设备
+	sec      *scheduler.Scheduler   // 调度器
 	isRun    atomic.Bool            // 是否在执行中
 	ctx      context.Context
 	cancle   context.CancelFunc
@@ -76,6 +77,13 @@ func Start(
 	}
 	rt.ctx, rt.cancle = context.WithCancel(mainsignal.MainCtx)
 
+	if t.SeNum > 0 {
+		rt.sec = scheduler.NewWithLimit(rt.ctx, t.SeNum)
+	} else {
+		rt.sec = scheduler.New(rt.ctx)
+	}
+	rt.sec.SetJitter(time.Second * 30)
+
 	go func() {
 		for _, v := range t.Clients {
 			rt.acquire()
@@ -99,9 +107,9 @@ func Start(
 			case 2:
 				runner = runhttp.New(rt.release)
 			}
-			sr := Seched.
-				NewRunner(runner.Start, time.Duration(t.Timeout)*time.Second, rt.ctx).
-				Every(time.Duration(t.Cycle) * time.Second).
+			sr := rt.sec.
+				NewRunner(runner.Start, time.Duration(t.Timeout)*time.Second, nil).
+				Every(time.Duration(t.Cycle) * time.Minute).
 				SetCloser(runner.OnClose).
 				SetError(runner.OnError).
 				SetMaxTry(t.RetryMax).
@@ -172,9 +180,19 @@ func (t *Task) Stop() {
 	if err != nil {
 		return
 	}
-	// for _, v := range rt.runners {
-	// 	v.s.Stop()
-	// }
+	rt.Stop()
+}
+
+func (rt *RuningTask) Stop() {
 	rt.cancle()
-	WatchingTasks.Delete(t.ID)
+	WatchingTasks.Delete(rt.ID)
+}
+
+func Flush() {
+	WatchingTasks.Range(func(k, v any) bool {
+		if tk, ok := v.(*RuningTask); ok {
+			tk.Stop()
+		}
+		return true
+	})
 }
