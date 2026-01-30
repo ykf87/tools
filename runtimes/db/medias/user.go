@@ -1,10 +1,8 @@
 package medias
 
 import (
-	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
@@ -32,10 +30,7 @@ type MediaUser struct {
 	Tags         []string        `json:"tags" gorm:"-"`                                        // 标签
 	Clients      map[int][]int64 `json:"clients" gorm:"-"`                                     // 使用的客户端
 	Proxys       []int64         `json:"proxys" gorm:"-"`                                      // 使用的代理列表
-	ctx          context.Context `json:"-" gorm:"-"`                                           //
-	done         chan bool       `json:"-" gorm:"-"`                                           // 执行句柄
 	Isruner      bool            `json:"isruner" gorm:"-"`                                     // 是否正在执行
-	mu           sync.Mutex      `json:"-" gorm:"-"`                                           // 锁
 	trans        string          `json:"-" gorm:"-"`                                           // 代理
 }
 
@@ -55,6 +50,15 @@ type MediaUserToClient struct {
 type MediaUserProxy struct {
 	MUID    int64 `json:"mu_id" gorm:"primaryKey;not null"`
 	ProxyID int64 `json:"proxy_id" gorm:"primaryKey;not null"`
+}
+
+// 用户每天的粉丝作品等数据
+type MediaUserDay struct {
+	MUID  int64  `json:"m_uid" gorm:"primaryKey;not null;"` // media_users表的id
+	Ymd   string `json:"ymd" gorm:"primaryKey;not null"`    // 年月日的时间格式
+	Works int64  `json:"works" gorm:"index;default:-1"`     // 发布作品数量
+	Fans  int64  `json:"fans" gorm:"index;default:-1"`      // 粉丝数
+	Zan   int64  `json:"zan" gorm:"index;default:-1"`       // 获赞数
 }
 
 func (this *MediaUser) Save(tx *gorm.DB) error {
@@ -225,4 +229,12 @@ func (this *MediaUser) EmptyTag(tx *gorm.DB) error {
 		tx = dbs
 	}
 	return tx.Where("user_id = ?", this.Id).Delete(&MediaUserToTag{}).Debug().Error
+}
+
+// 获取需要更新或者下载的用户
+func GetAutoUsers() []*MediaUser {
+	var mus []*MediaUser
+	dbs.Model(&MediaUser{}).Where("auto_download = ? Or autoinfo = ?", 1, 1).Find(&mus)
+
+	return mus
 }

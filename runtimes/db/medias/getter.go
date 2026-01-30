@@ -1,6 +1,7 @@
 package medias
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,25 +15,110 @@ import (
 	"tools/runtimes/eventbus"
 	"tools/runtimes/funcs"
 	"tools/runtimes/listens/ws"
+	"tools/runtimes/mainsignal"
+	"tools/runtimes/scheduler"
 	"tools/runtimes/videos/downloader/parser"
 
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/tidwall/gjson"
 )
 
-// 用户每天的粉丝作品等数据
-type MediaUserDay struct {
-	MUID  int64  `json:"m_uid" gorm:"primaryKey;not null;"` // media_users表的id
-	Ymd   string `json:"ymd" gorm:"primaryKey;not null"`    // 年月日的时间格式
-	Works int64  `json:"works" gorm:"index;default:-1"`     // 发布作品数量
-	Fans  int64  `json:"fans" gorm:"index;default:-1"`      // 粉丝数
-	Zan   int64  `json:"zan" gorm:"index;default:-1"`       // 获赞数
+type AutoInfo struct {
+	MID int64
+
+	ctx    context.Context
+	cancle context.CancelFunc
+	runner *scheduler.Runner
 }
 
-var autoLoaderUser sync.Map
-var today string
+type AutoDown struct {
+	MID    int64
+	ctx    context.Context
+	cancle context.CancelFunc
+	runner *scheduler.Runner
+	bs     *bs.Browser
+}
 
-func autoStart() {
+var autodown sync.Map // 自动下载
+var autoinfo sync.Map // 自动获取信息
+var today string
+var downsch *scheduler.Scheduler // 自动下载调度器
+var infosch *scheduler.Scheduler // 自动获取信息调度器
+
+func runstart() {
+	downsch = scheduler.NewWithLimit(mainsignal.MainCtx, 10)
+	infosch = scheduler.NewWithLimit(mainsignal.MainCtx, 5)
+	for _, v := range GetAutoUsers() {
+		v.AutoStart()
+	}
+}
+
+func (mu *MediaUser) AutoStart() {
+	if mu.AutoDownload == 1 && mu.DownFreq > 0 {
+		fmt.Println("自动下载:", mu.Id)
+		if _, ok := autodown.Load(mu.Id); ok {
+			return
+		}
+		ad := &AutoDown{
+			MID: mu.Id,
+		}
+		ad.ctx, ad.cancle = context.WithCancel(mainsignal.MainCtx)
+		runner := downsch.NewRunner(func(ctx context.Context) error {
+			bs, err := mu.StartGetter(
+				func(str string, bs *bs.Browser) {
+					dt := gjson.Parse(str)
+					if fans := dt.Get("fans").Int(); fans > 0 {
+						mu.Fans = fans
+					}
+					if works := dt.Get("works").Int(); works > 0 {
+						mu.Works = works
+					}
+					if local := dt.Get("local").String(); local != "" {
+						mu.Local = local
+					}
+					if account := dt.Get("account").String(); account != "" {
+						mu.Account = account
+					}
+					if dt.Get("lists").Exists() {
+						var vids []string
+						for _, v := range dt.Get("lists").Array() {
+							vids = append(vids, v.String())
+						}
+						fmt.Println("找到带下载视频列表:", vids)
+						mu.autodownload(vids)
+					}
+					mu.LastDownTime = time.Now().Unix()
+					mu.Save(nil)
+					mu.Commpare()
+					bs.Close()
+				},
+				func() {
+					eventbus.Bus.Publish("media_user_info", mu)
+				},
+				func(url string) {
+
+				},
+			)
+			if err != nil {
+				return nil
+			}
+			ad.bs = bs
+			return nil
+		}, time.Second*120, ad.ctx)
+
+		runner.Every(time.Duration(mu.DownFreq) * time.Minute).SetCloser(func() {
+			fmt.Println("关闭自动下载任务")
+		}).SetError(func(err error) {
+			fmt.Println("自动下载错误:", err)
+		}).RunNow()
+	}
+
+	if mu.Autoinfo == 1 && mu.AutoTimer > 0 {
+		if _, ok := autoinfo.Load(mu.Id); ok {
+			return
+		}
+	}
+
 	// return
 	// for {
 	// 	autoLoaderUser.Range(func(k, v any) bool {
@@ -51,73 +137,88 @@ func autoStart() {
 	// }
 }
 
+func (mu *MediaUser) Stop() {
+	if v, ok := autodown.Load(mu.Id); ok {
+		if vv, ok := v.(*AutoDown); ok {
+			vv.cancle()
+		}
+		autodown.Delete(mu.Id)
+	}
+	if v, ok := autoinfo.Load(mu.Id); ok {
+		if vv, ok := v.(*AutoInfo); ok {
+			vv.cancle()
+		}
+		autoinfo.Delete(mu.Id)
+	}
+}
+
 func (t *MediaUser) runner() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
+	// t.mu.Lock()
+	// defer t.mu.Unlock()
 
-	fmt.Println(t.Id, "------")
-	// 如果存在自动下载
-	if t.AutoDownload == 1 {
+	// fmt.Println(t.Id, "------")
+	// // 如果存在自动下载
+	// if t.AutoDownload == 1 {
 
-	}
+	// }
 
-	t.done = make(chan bool)
-	bs, err := t.StartGetter(
-		func(str string, bs *bs.Browser) {
-			dt := gjson.Parse(str)
-			if fans := dt.Get("fans").Int(); fans > 0 {
-				t.Fans = fans
-			}
-			if works := dt.Get("works").Int(); works > 0 {
-				t.Works = works
-			}
-			if local := dt.Get("local").String(); local != "" {
-				t.Local = local
-			}
-			if account := dt.Get("account").String(); account != "" {
-				t.Account = account
-			}
-			if t.AutoDownload == 1 && dt.Get("lists").Exists() {
-				var vids []string
-				for _, v := range dt.Get("lists").Array() {
-					vids = append(vids, v.String())
-				}
-				fmt.Println("找到带下载视频列表:", vids)
-				t.autodownload(vids)
-			}
-			t.LastDownTime = time.Now().Unix()
-			t.Save(nil)
-			t.Commpare()
-			bs.Close()
-			close(t.done)
-		},
-		func() {
-			eventbus.Bus.Publish("media_user_info", t)
-		},
-		func(url string) {
+	// t.done = make(chan bool)
+	// bs, err := t.StartGetter(
+	// 	func(str string, bs *bs.Browser) {
+	// 		dt := gjson.Parse(str)
+	// 		if fans := dt.Get("fans").Int(); fans > 0 {
+	// 			t.Fans = fans
+	// 		}
+	// 		if works := dt.Get("works").Int(); works > 0 {
+	// 			t.Works = works
+	// 		}
+	// 		if local := dt.Get("local").String(); local != "" {
+	// 			t.Local = local
+	// 		}
+	// 		if account := dt.Get("account").String(); account != "" {
+	// 			t.Account = account
+	// 		}
+	// 		if t.AutoDownload == 1 && dt.Get("lists").Exists() {
+	// 			var vids []string
+	// 			for _, v := range dt.Get("lists").Array() {
+	// 				vids = append(vids, v.String())
+	// 			}
+	// 			fmt.Println("找到带下载视频列表:", vids)
+	// 			t.autodownload(vids)
+	// 		}
+	// 		t.LastDownTime = time.Now().Unix()
+	// 		t.Save(nil)
+	// 		t.Commpare()
+	// 		bs.Close()
+	// 		close(t.done)
+	// 	},
+	// 	func() {
+	// 		eventbus.Bus.Publish("media_user_info", t)
+	// 	},
+	// 	func(url string) {
 
-		},
-	)
-	if err == nil {
-		t.Isruner = true
-		go func() {
-			sleep := 30 * time.Second
-			timer := time.NewTimer(sleep)
-			defer timer.Stop()
-			for {
-				select {
-				case <-timer.C:
-					if bs.IsArrive() {
-						bs.Close()
-						return
-					}
-					timer.Reset(sleep)
-				case <-t.done:
-					return
-				}
-			}
-		}()
-	}
+	// 	},
+	// )
+	// if err == nil {
+	// 	t.Isruner = true
+	// 	go func() {
+	// 		sleep := 30 * time.Second
+	// 		timer := time.NewTimer(sleep)
+	// 		defer timer.Stop()
+	// 		for {
+	// 			select {
+	// 			case <-timer.C:
+	// 				if bs.IsArrive() {
+	// 					bs.Close()
+	// 					return
+	// 				}
+	// 				timer.Reset(sleep)
+	// 			case <-t.done:
+	// 				return
+	// 			}
+	// 		}
+	// 	}()
+	// }
 }
 
 func (t *MediaUser) StartGetter(consoleFun func(str string, bs *bs.Browser), closeFun func(), urlchangeFun func(url string)) (*bs.Browser, error) {

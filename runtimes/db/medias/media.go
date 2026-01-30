@@ -42,14 +42,15 @@ func init() {
 	dbs.AutoMigrate(&MediaUserToClient{})
 	dbs.AutoMigrate(&MediaUserProxy{})
 	dbs.AutoMigrate(&MediaUserDay{})
+	runstart()
 
-	var mus []*MediaUser
-	dbs.Model(&MediaUser{}).Where("autoinfo = 1 or auto_download = 1").Find(&mus)
-	for _, v := range mus {
-		autoLoaderUser.Store(v.Id, v)
-	}
+	// var mus []*MediaUser
+	// dbs.Model(&MediaUser{}).Where("autoinfo = 1 or auto_download = 1").Find(&mus)
+	// for _, v := range mus {
+	// 	autoLoaderUser.Store(v.Id, v)
+	// }
 
-	go autoStart()
+	// go autoStart()
 }
 
 func GetDb() *gorm.DB {
