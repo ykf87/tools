@@ -5,6 +5,7 @@ import (
 	"strings"
 	"tools/runtimes/config"
 	"tools/runtimes/db/admins"
+	"tools/runtimes/db/tasks"
 	"tools/runtimes/listens/ws"
 	"tools/runtimes/services"
 
@@ -36,11 +37,10 @@ func init() {
 }
 
 func WsHandler(c *gin.Context) {
-	u, ok := c.Get("_user")
-	if !ok {
+	user, err := admins.GetAdminUser(c)
+	if err != nil {
 		return
 	}
-	user := u.(*admins.Admin)
 
 	conn, err := ws.Connect(c, user.Id)
 	if err != nil {
@@ -50,7 +50,7 @@ func WsHandler(c *gin.Context) {
 	// ws.SentMsg(user.Id, []byte(fmt.Sprintf(`{"type":"version", "data":"%s"}`, config.VERSION)))
 
 	if user.Group != "" {
-		for _, v := range strings.Split(user.Group, ",") {
+		for v := range strings.SplitSeq(user.Group, ",") {
 			ws.AddGroup(v, conn)
 		}
 		if strings.Contains(user.Group, "admin") == true {
@@ -74,6 +74,7 @@ func WsHandler(c *gin.Context) {
 			}
 		}
 	}
+	ws.SentBus(0, "task", tasks.GetRuningTasks(user.Id), "")
 
 	// go func() {
 	// 	time.Sleep(time.Second * 10)

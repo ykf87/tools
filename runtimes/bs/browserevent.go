@@ -66,7 +66,9 @@ func (b *Browser) Close() {
 		<-maxNumsCh
 	}()
 
+	BsManager.mu.Lock()
 	delete(BsManager.browsers, b.ID)
+	BsManager.mu.Unlock()
 
 	if _, ok := OpendBrowser.Load(b.ID); ok {
 		OpendBrowser.Delete(b.ID)

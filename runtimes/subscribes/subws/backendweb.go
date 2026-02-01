@@ -25,6 +25,7 @@ func init() {
 	notify()
 	proxyPing()
 	getMediaUserInfo()
+	task()
 }
 
 // 注册发送到前端的websocket事件
@@ -165,4 +166,22 @@ func getMediaUserInfo() {
 			}
 		}
 	})
+}
+
+func task() {
+	// eventbus.Bus.Subscribe("task", func(dt any) {
+	// 	if info, ok := dt.(*tasks.Task); ok {
+	// 		mmv := map[string]any{
+	// 			"type": "task",
+	// 			"data": info.GetRunners(),
+	// 		}
+	// 		if msg, err := config.Json.Marshal(mmv); err == nil {
+	// 			if info.AdminId > 0 {
+	// 				ws.SentMsg(info.AdminId, msg)
+	// 				return
+	// 			}
+	// 			ws.Broadcost(msg)
+	// 		}
+	// 	}
+	// })
 }

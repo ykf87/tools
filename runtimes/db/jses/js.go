@@ -28,6 +28,7 @@ type Js struct {
 	ReplaceEnd  string     `json:"replace_end"`                                   // 变量替换后缀
 	Icon        string     `json:"icon"`                                          // 此js的图标
 	Addtime     int64      `json:"addtime" gorm:"index;default:0"`                // 添加时间
+	Def         string     `json:"def" gorm:"default:null"`                       // 默认网址或者app
 	Tags        []string   `json:"tags" gorm:"-"`                                 // 标签
 	Params      []*JsParam `json:"params" gorm:"-"`                               // 参数
 }

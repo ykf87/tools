@@ -38,3 +38,7 @@ func (t *runhttp) OnChange(str string) {
 func (t *runhttp) Close() {
 
 }
+
+func (t *runhttp) OnStatusChange(str string) {
+
+}

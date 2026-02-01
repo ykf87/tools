@@ -43,21 +43,22 @@ var Types = []DeviceType{
 // 任务表
 // 任务可以执行3种,使用Tp(type)表示:0-打开指纹浏览器执行  1-打开手机设备执行  2-执行内置http请求
 type Task struct {
-	ID        int64    `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
-	Title     string   `json:"title" gorm:"index;not null;type:varchar(32)" form:"title"`          // 任务名称
-	Tp        int      `json:"type" gorm:"index;default:0" form:"type"`                            // 任务类型,分2种, 0-web端  1-手机端  2-使用golang发起http请求
-	Addtime   int64    `json:"addtime" gorm:"index;default:0"`                                     // 创建时间
-	Tags      []string `json:"tags" gorm:"-" form:"tags"`                                          // 设备标签
-	Starttime int64    `json:"starttime" gorm:"index;default:0" form:"starttime" parse:"datetime"` // 任务开始时间
-	Endtime   int64    `json:"endtime" gorm:"index;default:0" form:"endtime" parse:"datetime"`     // 任务结束时间
-	Status    int      `json:"status" gorm:"type:tinyint(1);default:0;index" form:"status"`        // 任务状态, 1-可执行 0-不可执行
-	Script    int64    `json:"script" gorm:"index;not null" form:"script"`                         // 任务脚本
-	ScriptStr string   `json:"script_str"`                                                         // 执行的脚本字符串
-	Errmsg    string   `json:"errmsg" gorm:"default:null" form:"errmsg"`                           // 错误信息
-	AdminId   int64    `json:"admin_id" gorm:"index;not null"`                                     // 管理员id
-	Cycle     int64    `json:"cycle" gorm:"default:0" form:"cycle"`                                // 任务周期,单位秒,0为不重复执行,大于0表示间隔多久自动重复执行
-	RetryMax  int      `json:"retry_max" gorm:"default:0" form:"retry_max"`                        // 最大重试次数
-	Timeout   int64    `json:"timeout" gorm:"default:0" form:"timeout"`                            // 单次超时（秒）
+	ID         int64    `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
+	Title      string   `json:"title" gorm:"index;not null;type:varchar(32)" form:"title"`          // 任务名称
+	Tp         int      `json:"type" gorm:"index;default:0" form:"type"`                            // 任务类型,分2种, 0-web端  1-手机端  2-使用golang发起http请求
+	Addtime    int64    `json:"addtime" gorm:"index;default:0"`                                     // 创建时间
+	Tags       []string `json:"tags" gorm:"-" form:"tags"`                                          // 设备标签
+	Starttime  int64    `json:"starttime" gorm:"index;default:0" form:"starttime" parse:"datetime"` // 任务开始时间
+	Endtime    int64    `json:"endtime" gorm:"index;default:0" form:"endtime" parse:"datetime"`     // 任务结束时间
+	Status     int      `json:"status" gorm:"type:tinyint(1);default:0;index" form:"status"`        // 任务状态, 1-可执行 0-不可执行
+	Script     int64    `json:"script" gorm:"index;not null" form:"script"`                         // 任务脚本
+	ScriptStr  string   `json:"script_str"`                                                         // 执行的脚本字符串
+	Errmsg     string   `json:"errmsg" gorm:"default:null" form:"errmsg"`                           // 错误信息
+	AdminId    int64    `json:"admin_id" gorm:"index;not null"`                                     // 管理员id
+	Cycle      int64    `json:"cycle" gorm:"default:0" form:"cycle"`                                // 任务周期,单位秒,0为不重复执行,大于0表示间隔多久自动重复执行
+	CycleDelay int64    `json:"cycle_delay" gorm:"default:30"`                                      // 并发间隔时间,秒
+	RetryMax   int      `json:"retry_max" gorm:"default:0" form:"retry_max"`                        // 最大重试次数
+	Timeout    int64    `json:"timeout" gorm:"default:0" form:"timeout"`                            // 单次超时（秒）
 	// Priority      int                   `json:"priority" gorm:"default:0" form:"priority"`                          // 优先级
 	// CatchUp       bool                  `json:"catch_up" gorm:"default:false" form:"catch_up"`                      // 补跑漏掉的周期
 	SeNum int `json:"se_num" gorm:"default:2" form:"se_num"` // 同时执行的设备数量,0表示所有设备同时执行
@@ -71,7 +72,7 @@ type Task struct {
 	// RunnerBrowser *browserdb.Browser    `json:"-" gorm:"-"`                                // 执行的浏览器
 	// RunnerPhone   *clients.Phone        `json:"-" gorm:"-"`                                // 执行的手机
 	// ErrMsg   string                          `json:"err_msg" gorm:"-"` // 任务执行错误消息
-	// mu       sync.Mutex                      `json:"-" gorm:"-"`       // 锁
+	_mu sync.Mutex `json:"-" gorm:"-"` // 锁
 	// isRuning bool                            `json:"-" gorm:"-"`       // 是否在执行
 	// Callback func(string) error              `json:"-" gorm:"-"`       // 任务执行结果回调
 	// OnError  func(error, *bs.Browser)        `json:"-" gorm:"-"`       // 任务错误结果回调
@@ -129,7 +130,7 @@ func init() {
 	// Seched = scheduler.New()
 
 	for _, v := range tsks {
-		go v.Listen()
+		go v.Start()
 	}
 }
 
@@ -155,14 +156,19 @@ func (this *Task) Save(tx *gorm.DB) error {
 
 	defer func() {
 		if older.ID > 0 {
-			if older.Status != this.Status {
-				if this.Status == 1 {
-					this.Clients = this.GetClients()
-					go this.Start()
-				} else {
-					go this.Stop()
-				}
+			if this.Status == 1 {
+				go this.ReStart()
+			} else {
+				go this.Stop()
 			}
+			// if older.Status != this.Status {
+			// 	fmt.Println("任务修改结果反馈2")
+			// 	if this.Status == 1 {
+			// 		go this.ReStart()
+			// 	} else {
+			// 		go this.Stop()
+			// 	}
+			// }
 		}
 
 	}()
@@ -174,16 +180,17 @@ func (this *Task) Save(tx *gorm.DB) error {
 		dbs.Model(&Task{}).Where("id = ?", this.ID).First(older)
 		return tx.Model(&Task{}).Where("id = ?", this.ID).
 			Updates(map[string]any{
-				"title":     this.Title,
-				"tp":        this.Tp,
-				"starttime": this.Starttime,
-				"endtime":   this.Endtime,
-				"status":    this.Status,
-				"errmsg":    this.Errmsg,
-				"admin_id":  this.AdminId,
-				"cycle":     this.Cycle,
-				"retry_max": this.RetryMax,
-				"timeout":   this.Timeout,
+				"title":       this.Title,
+				"tp":          this.Tp,
+				"starttime":   this.Starttime,
+				"endtime":     this.Endtime,
+				"status":      this.Status,
+				"errmsg":      this.Errmsg,
+				"admin_id":    this.AdminId,
+				"cycle":       this.Cycle,
+				"cycle_delay": this.CycleDelay,
+				"retry_max":   this.RetryMax,
+				"timeout":     this.Timeout,
 				// "priority":  this.Priority,
 				// "catch_up":  this.CatchUp,
 				"script": this.Script,
@@ -375,6 +382,9 @@ func (t *Task) GetRunJscript() string {
 				mp[v.CodeName] = v.Value
 			}
 			t.ScriptStr = js.GetContent(mp)
+			if js.Def != "" {
+				t.DefUrl = js.Def
+			}
 		}
 	}
 	return t.ScriptStr

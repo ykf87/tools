@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"tools/runtimes/logs"
 )
 
 type TaskFunc func(ctx context.Context) error
@@ -34,6 +35,7 @@ type Runner struct {
 	begin     time.Time // 任务开始时间
 	startAt   time.Time // 单次任务开始执行时间
 	endAt     time.Time // 任务结束时间
+	stopAt    time.Time // 自动停止时间
 	runTimers int
 
 	mu sync.Mutex
@@ -61,6 +63,12 @@ func (r *Runner) execute() {
 	// 🔥 标记：已经至少执行过一次
 	r.firstRun.Store(true)
 
+	// 🔥 截止时间判断
+	if !r.stopAt.IsZero() && time.Now().After(r.stopAt) {
+		r.Stop()
+		return
+	}
+
 	if r.task == nil || r.ctx.Err() != nil {
 		return
 	}
@@ -69,6 +77,7 @@ func (r *Runner) execute() {
 
 	r.startAt = time.Now()
 	if err := r.task(r.ctx); err != nil {
+		logs.Error(err.Error())
 		n := r.tried.Add(1)
 
 		if n >= int32(r.maxTry) {
@@ -207,4 +216,11 @@ func (r *Runner) GetTotalTime() float64 {
 
 func (r *Runner) GetTryTimers() int {
 	return int(r.tried.Load())
+}
+
+func (r *Runner) StopAt(t time.Time) *Runner {
+	if !t.IsZero() {
+		r.stopAt = t
+	}
+	return r
 }

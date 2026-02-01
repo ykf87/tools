@@ -38,3 +38,7 @@ func (t *runphon) OnChange(str string) {
 func (t *runphon) Close() {
 
 }
+
+func (t *runphon) OnStatusChange(str string) {
+
+}

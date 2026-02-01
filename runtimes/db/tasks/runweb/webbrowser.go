@@ -2,11 +2,9 @@ package runweb
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 	"tools/runtimes/bs"
-	"tools/runtimes/eventbus"
 	"tools/runtimes/scheduler"
 
 	"github.com/chromedp/cdproto/runtime"
@@ -14,16 +12,17 @@ import (
 )
 
 type Option struct {
-	Url      string
-	ID       int64
-	Js       string
-	Headless bool
-	Timeout  time.Duration
-	Ctx      context.Context
-	Callback func(string) error
-	OnError  func(error, *bs.Browser)
-	OnClose  func()
-	OnChange func(string, *bs.Browser) error
+	Url            string
+	ID             int64
+	Js             string
+	Headless       bool
+	Timeout        time.Duration
+	Ctx            context.Context
+	Callback       func(string, string) error
+	OnError        func(error, *bs.Browser)
+	OnClose        func()
+	OnChange       func(string, *bs.Browser) error
+	OnStatusChange func(string)
 }
 
 type runweb struct {
@@ -54,6 +53,7 @@ func (t *runweb) Start(ctx context.Context) error {
 		Ctx:      t.opt.Ctx,
 	}, true)
 	if err != nil {
+		fmt.Println("浏览器打开错误:", err)
 		return err
 	}
 	t.chs = make(chan struct{})
@@ -66,29 +66,42 @@ func (t *runweb) Start(ctx context.Context) error {
 		for _, arg := range args {
 			if arg.Value != nil {
 				gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
-				tp := gs.Get("type").String()
-				data := gs.Get("data").String()
-				code := gs.Get("code").Int()
-				msg := gs.Get("msg").String()
 
-				if code > 0 {
-					if code == 200 {
-						if t.opt.Callback != nil {
-							if err := t.opt.Callback(data); err != nil {
-								if t.callback != nil {
-									t.callback()
-								}
-							}
-						} else {
-							eventbus.Bus.Publish(tp, data)
+				if t.opt.Callback != nil {
+					var rid string
+					if t.scheduler != nil {
+						rid = t.scheduler.GetID()
+					}
+					if err := t.opt.Callback(gs.String(), rid); err != nil {
+						if t.callback != nil {
+							t.callback()
 						}
-
-						t.bs.Close()
-					} else {
-						err := errors.New(msg)
-						t.OnError(err)
 					}
 				}
+
+				// tp := gs.Get("type").String() // type选项为 done, notify, error, done代表完成，notify 表示状态改变的通知, error 代表执行错误
+				// data := gs.Get("data").String()
+				// code := gs.Get("code").Int()
+				// msg := gs.Get("msg").String()
+
+				// if code > 0 {
+				// 	if code == 200 {
+				// 		if t.opt.Callback != nil {
+				// 			if err := t.opt.Callback(gs.String()); err != nil {
+				// 				if t.callback != nil {
+				// 					t.callback()
+				// 				}
+				// 			}
+				// 		} else {
+				// 			eventbus.Bus.Publish(tp, data)
+				// 		}
+
+				// 		t.bs.Close()
+				// 	} else {
+				// 		err := errors.New(msg)
+				// 		t.OnError(err)
+				// 	}
+				// }
 			}
 		}
 	})
@@ -118,7 +131,7 @@ func (t *runweb) OnClose() {
 		t.opt.OnClose()
 	}
 	t.chs <- struct{}{}
-	fmt.Println("任务结束,总执行时间:", t.scheduler.GetTotalTime(), ".重试:", t.scheduler.GetTryTimers())
+	fmt.Println("本次任务结束,本次执行时间:", t.scheduler.GetTotalTime(), ".重试:", t.scheduler.GetTryTimers())
 }
 func (t *runweb) OnChange(str string) {
 	if t.opt.OnChange != nil {
@@ -130,4 +143,10 @@ func (t *runweb) OnChange(str string) {
 
 func (t *runweb) Close() {
 	t.bs.Close()
+}
+
+func (t *runweb) OnStatusChange(str string) {
+	if t.opt.OnStatusChange != nil {
+		t.opt.OnStatusChange(str)
+	}
 }

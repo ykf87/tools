@@ -27,6 +27,7 @@ func New(ctx context.Context) *Scheduler {
 	return NewWithLimit(ctx, 50)
 }
 
+// 执行并发现在的创建
 func NewWithLimit(parentCtx context.Context, limit int) *Scheduler {
 	if parentCtx == nil {
 		parentCtx = mainsignal.MainCtx
@@ -175,6 +176,14 @@ func (s *Scheduler) NewRunner(task TaskFunc, timeout time.Duration, pctx context
 }
 
 func (s *Scheduler) enqueue(r *Runner) {
+	if r.closed.Load() {
+		return
+	}
+	if !r.stopAt.IsZero() && time.Now().After(r.stopAt) {
+		r.Stop()
+		return
+	}
+
 	s.mu.Lock()
 	heap.Push(&s.pq, r)
 	s.mu.Unlock()

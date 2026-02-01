@@ -153,3 +153,11 @@ func Delete(c *gin.Context) {
 	// 停止任务 todo...
 	response.Success(c, nil, "删除成功")
 }
+
+func RuningTasks(c *gin.Context) {
+	if admin, err := admins.GetAdminUser(c); err == nil {
+		response.Success(c, tasks.GetRuningTasks(admin.Id), "")
+		return
+	}
+	response.Error(c, http.StatusBadRequest, "", nil)
+}
