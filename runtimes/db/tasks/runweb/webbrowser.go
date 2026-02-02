@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 	"tools/runtimes/bs"
+	"tools/runtimes/logs"
 	"tools/runtimes/scheduler"
 
 	"github.com/chromedp/cdproto/runtime"
@@ -12,6 +13,7 @@ import (
 )
 
 type Option struct {
+	UUID           string
 	Url            string
 	ID             int64
 	Js             string
@@ -53,7 +55,8 @@ func (t *runweb) Start(ctx context.Context) error {
 		Ctx:      t.opt.Ctx,
 	}, true)
 	if err != nil {
-		fmt.Println("浏览器打开错误:", err)
+		// fmt.Println("浏览器打开错误:", err)
+		logs.Error(err.Error())
 		return err
 	}
 	t.chs = make(chan struct{})
@@ -68,11 +71,7 @@ func (t *runweb) Start(ctx context.Context) error {
 				gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
 
 				if t.opt.Callback != nil {
-					var rid string
-					if t.scheduler != nil {
-						rid = t.scheduler.GetID()
-					}
-					if err := t.opt.Callback(gs.String(), rid); err != nil {
+					if err := t.opt.Callback(gs.String(), t.opt.UUID); err != nil {
 						if t.callback != nil {
 							t.callback()
 						}

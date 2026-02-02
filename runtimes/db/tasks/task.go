@@ -43,36 +43,36 @@ var Types = []DeviceType{
 // 任务表
 // 任务可以执行3种,使用Tp(type)表示:0-打开指纹浏览器执行  1-打开手机设备执行  2-执行内置http请求
 type Task struct {
-	ID         int64    `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
-	Title      string   `json:"title" gorm:"index;not null;type:varchar(32)" form:"title"`          // 任务名称
-	Tp         int      `json:"type" gorm:"index;default:0" form:"type"`                            // 任务类型,分2种, 0-web端  1-手机端  2-使用golang发起http请求
-	Addtime    int64    `json:"addtime" gorm:"index;default:0"`                                     // 创建时间
-	Tags       []string `json:"tags" gorm:"-" form:"tags"`                                          // 设备标签
-	Starttime  int64    `json:"starttime" gorm:"index;default:0" form:"starttime" parse:"datetime"` // 任务开始时间
-	Endtime    int64    `json:"endtime" gorm:"index;default:0" form:"endtime" parse:"datetime"`     // 任务结束时间
-	Status     int      `json:"status" gorm:"type:tinyint(1);default:0;index" form:"status"`        // 任务状态, 1-可执行 0-不可执行
-	Script     int64    `json:"script" gorm:"index;not null" form:"script"`                         // 任务脚本
-	ScriptStr  string   `json:"script_str"`                                                         // 执行的脚本字符串
-	Errmsg     string   `json:"errmsg" gorm:"default:null" form:"errmsg"`                           // 错误信息
-	AdminId    int64    `json:"admin_id" gorm:"index;not null"`                                     // 管理员id
-	Cycle      int64    `json:"cycle" gorm:"default:0" form:"cycle"`                                // 任务周期,单位秒,0为不重复执行,大于0表示间隔多久自动重复执行
-	CycleDelay int64    `json:"cycle_delay" gorm:"default:30"`                                      // 并发间隔时间,秒
-	RetryMax   int      `json:"retry_max" gorm:"default:0" form:"retry_max"`                        // 最大重试次数
-	Timeout    int64    `json:"timeout" gorm:"default:0" form:"timeout"`                            // 单次超时（秒）
+	ID         int64          `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
+	Title      string         `json:"title" gorm:"index;not null;type:varchar(32)" form:"title"`          // 任务名称
+	Tp         int            `json:"type" gorm:"index;default:0" form:"type"`                            // 任务类型,分2种, 0-web端  1-手机端  2-使用golang发起http请求
+	Addtime    int64          `json:"addtime" gorm:"index;default:0"`                                     // 创建时间
+	Tags       []string       `json:"tags" gorm:"-" form:"tags"`                                          // 设备标签
+	Starttime  int64          `json:"starttime" gorm:"index;default:0" form:"starttime" parse:"datetime"` // 任务开始时间
+	Endtime    int64          `json:"endtime" gorm:"index;default:0" form:"endtime" parse:"datetime"`     // 任务结束时间
+	Status     int            `json:"status" gorm:"type:tinyint(1);default:0;index" form:"status"`        // 任务状态, 1-可执行 0-不可执行
+	Script     int64          `json:"script" gorm:"index;not null" form:"script"`                         // 任务脚本
+	ScriptStr  string         `json:"script_str"`                                                         // 执行的脚本字符串
+	Errmsg     string         `json:"errmsg" gorm:"default:null" form:"errmsg"`                           // 错误信息
+	AdminId    int64          `json:"admin_id" gorm:"index;not null"`                                     // 管理员id
+	Cycle      int64          `json:"cycle" gorm:"default:0" form:"cycle"`                                // 任务周期,单位秒,0为不重复执行,大于0表示间隔多久自动重复执行
+	CycleDelay int64          `json:"cycle_delay" gorm:"default:30"`                                      // 并发间隔时间,秒
+	RetryMax   int            `json:"retry_max" gorm:"default:0" form:"retry_max"`                        // 最大重试次数
+	Timeout    int64          `json:"timeout" gorm:"default:0" form:"timeout"`                            // 单次超时（秒）
+	SeNum      int            `json:"se_num" gorm:"default:2" form:"se_num"`                              // 同时执行的设备数量,0表示所有设备同时执行
+	Devices    []int64        `json:"devices" gorm:"-" form:"devices"`                                    // 设备列表
+	Params     []*TaskParam   `json:"params" gorm:"-" form:"params"`                                      // 参数
+	DefUrl     string         `json:"def_url" form:"def_url"`                                             // 默认url地址
+	Headless   int            `json:"headless" gorm:"type:tinyint(1);default:0"`                          // 0为静默(不显示窗口) 1为显示窗口
+	_mu        sync.Mutex     `json:"-" gorm:"-"`                                                         // 锁
+	Clients    []*TaskClients `json:"-" gorm:"-"`
 	// Priority      int                   `json:"priority" gorm:"default:0" form:"priority"`                          // 优先级
 	// CatchUp       bool                  `json:"catch_up" gorm:"default:false" form:"catch_up"`                      // 补跑漏掉的周期
-	SeNum int `json:"se_num" gorm:"default:2" form:"se_num"` // 同时执行的设备数量,0表示所有设备同时执行
 	// DataSpec      string                `json:"data_spec" gorm:"default:null" form:"data_spec"` // 数据来源配置（JSON）,这种方式需要的参数
 	// DataType      string                `json:"data_type" gorm:"default:null" form:"data_type"` // 数据类型标识,我用哪一种“取数方式”
-	Devices  []int64        `json:"devices" gorm:"-" form:"devices"`           // 设备列表
-	Params   []*TaskParam   `json:"params" gorm:"-" form:"params"`             // 参数
-	DefUrl   string         `json:"def_url" form:"def_url"`                    // 默认url地址
-	Headless int            `json:"headless" gorm:"type:tinyint(1);default:0"` // 0为静默(不显示窗口) 1为显示窗口
-	Clients  []*TaskClients `json:"-" gorm:"-"`
 	// RunnerBrowser *browserdb.Browser    `json:"-" gorm:"-"`                                // 执行的浏览器
 	// RunnerPhone   *clients.Phone        `json:"-" gorm:"-"`                                // 执行的手机
 	// ErrMsg   string                          `json:"err_msg" gorm:"-"` // 任务执行错误消息
-	_mu sync.Mutex `json:"-" gorm:"-"` // 锁
 	// isRuning bool                            `json:"-" gorm:"-"`       // 是否在执行
 	// Callback func(string) error              `json:"-" gorm:"-"`       // 任务执行结果回调
 	// OnError  func(error, *bs.Browser)        `json:"-" gorm:"-"`       // 任务错误结果回调
@@ -86,24 +86,6 @@ type Task struct {
 }
 
 // 任务执行表
-type TaskRun struct {
-	ID        int64  `json:"id" gorm:"primaryKey;autoIncrement"`
-	TaskID    int64  `json:"task_id" gorm:"index;not null"`
-	RunStatus int    `json:"run_status" gorm:"index;default:0"` // 0-表示执行中 1-执行成功 -1-执行失败
-	StatusMsg string `json:"status_msg" gorm:"default:null"`    // 执行结果
-	RunTime   int64  `json:"run_time" gorm:"index;not null"`    // 本次执行开始时间
-	DoneTime  int64  `json:"done_time" gorm:"index;default:0"`  // 本次执行完成时间
-}
-
-// TaskLog 任务执行详细日志表
-type TaskLog struct {
-	ID        int64  `json:"id" gorm:"primaryKey;autoIncrement"`
-	TaskID    int64  `json:"task_id" gorm:"index;not null"`
-	TaskRunID int64  `json:"task_run_id" gorm:"index;not null"`
-	Addtime   int64  `json:"addtime" gorm:"index;not null"`
-	LogStatus int    `json:"log_status" gorm:"index;default:0"`
-	Msg       string `json:"msg" gorm:"default:null"`
-}
 
 // 任务对于的标签表
 type TaskToTag struct {
@@ -120,8 +102,6 @@ func init() {
 	dbs.AutoMigrate(&TaskClients{})
 	dbs.AutoMigrate(&TaskTag{})
 	dbs.AutoMigrate(&TaskToTag{})
-	dbs.AutoMigrate(&TaskRun{})
-	dbs.AutoMigrate(&TaskLog{})
 	dbs.AutoMigrate(&TaskParam{})
 
 	var tsks []*Task
@@ -135,6 +115,9 @@ func init() {
 }
 
 func (this *Task) Save(tx *gorm.DB) error {
+	if this.ID < 0 {
+		return nil
+	}
 	if tx == nil {
 		tx = dbs
 	}
@@ -161,14 +144,6 @@ func (this *Task) Save(tx *gorm.DB) error {
 			} else {
 				go this.Stop()
 			}
-			// if older.Status != this.Status {
-			// 	fmt.Println("任务修改结果反馈2")
-			// 	if this.Status == 1 {
-			// 		go this.ReStart()
-			// 	} else {
-			// 		go this.Stop()
-			// 	}
-			// }
 		}
 
 	}()

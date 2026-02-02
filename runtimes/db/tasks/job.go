@@ -8,12 +8,10 @@ import (
 	"sync/atomic"
 	"time"
 	"tools/runtimes/bs"
-	"tools/runtimes/config"
 	"tools/runtimes/db/tasks/runhttp"
 	"tools/runtimes/db/tasks/runphone"
 	"tools/runtimes/db/tasks/runweb"
 	"tools/runtimes/funcs"
-	"tools/runtimes/listens/ws"
 	"tools/runtimes/mainsignal"
 	"tools/runtimes/scheduler"
 
@@ -24,27 +22,29 @@ var WatchingTasks sync.Map
 var taskTickerStart sync.Map
 
 type RuningTask struct {
-	ID       int64                  `json:"id"`      // 任务的编号
-	UUID     string                 `json:"uuid"`    // 任务唯一编号
-	Title    string                 `json:"title"`   // 任务名称
-	Tags     []string               `json:"tags"`    // 任务标签
-	ErrMsg   string                 `json:"err_msg"` // 任务执行错误消息
-	Msg      chan string            `json:"msg"`     // 任务执行实时消息
-	Callback func(string) error     `json:"-"`       // 任务执行结果回调
-	OnError  func(error)            `json:"-"`       // 任务错误结果回调
-	OnClose  func()                 `json:"-"`       // 浏览器关闭回调
-	OnChange func(string) error     `json:"-"`       // 当浏览器地址改变回调
-	mu       sync.Mutex             // 锁
-	runners  map[string]*RunnerData // 任务中具体执行的设备
-	sec      *scheduler.Scheduler   // 调度器
-	isRun    atomic.Bool            // 是否在执行中
-	ctx      context.Context
-	cancle   context.CancelFunc
+	ID      int64                  `json:"id"`       // 任务的编号
+	AdminID int64                  `json:"admin_id"` // 管理员id
+	UUID    string                 `json:"uuid"`     // 任务唯一编号
+	Title   string                 `json:"title"`    // 任务名称
+	Tags    []string               `json:"tags"`     // 任务标签
+	ErrMsg  string                 `json:"err_msg"`  // 任务执行错误消息
+	Msg     chan string            `json:"-"`        // 任务执行实时消息
+	StartAt int64                  `json:"start_at"` // 开启时间
+	EndAt   int64                  `json:"end_at"`   // 结束时间
+	Total   int                    `json:"total"`    // 执行总数
+	mu      sync.Mutex             // 锁
+	runners map[string]*RunnerData // 任务中具体执行的设备
+	sec     *scheduler.Scheduler   // 调度器
+	isRun   atomic.Bool            // 是否在执行中
+	ctx     context.Context
+	cancle  context.CancelFunc
 }
 
 type RunnerData struct {
-	r Runner
-	s *scheduler.Runner
+	r     Runner
+	s     *scheduler.Runner
+	Title string `json:"title"`
+	UUID  string `json:"uuid"`
 }
 
 type Runner interface {
@@ -91,6 +91,9 @@ func Start(
 		Title:   t.Title,
 		Tags:    t.Tags,
 		UUID:    funcs.RoundmUuid(),
+		AdminID: t.AdminId,
+		Total:   len(t.Clients),
+		StartAt: time.Now().Unix(),
 	}
 	rt.ctx, rt.cancle = context.WithCancel(mainsignal.MainCtx)
 
@@ -102,17 +105,11 @@ func Start(
 	if t.CycleDelay > 0 {
 		rt.sec.SetJitter(time.Second * time.Duration(t.CycleDelay))
 	}
-	// 发送任务的通知
-
-	bt, _ := config.Json.Marshal(map[string]any{
-		"type": "task",
-		"data": rt.genRunnerMsg(),
-	})
-	ws.SentMsg(t.AdminId, bt)
 	go func() {
 		for _, v := range t.Clients {
+			tcUUID := v.GetUUID()
 			var runner Runner
-			switch t.Tp {
+			switch v.DeviceType {
 			case 0:
 				runner = runweb.New(nil, &runweb.Option{
 					Headless: !(t.Headless == 1),
@@ -125,6 +122,7 @@ func Start(
 					OnChange: OnChange,
 					Callback: Callback,
 					Ctx:      rt.ctx,
+					UUID:     tcUUID,
 				})
 			case 1:
 				runner = runphone.New(nil)
@@ -144,15 +142,25 @@ func Start(
 			if t.Endtime > 0 {
 				sr.StopAt(time.Unix(t.Endtime, 0))
 			}
-			rt.runners[v.GetName()] = &RunnerData{
-				r: runner,
-				s: sr,
+			rt.runners[tcUUID] = &RunnerData{
+				r:     runner,
+				s:     sr,
+				Title: v.GetName(),
+				UUID:  tcUUID,
 			}
 
 			sr.RunNow()
 		}
 	}()
 	WatchingTasks.Store(t.ID, rt)
+
+	rt.Sent("")
+	// 发送任务的通知
+	// bt, _ := config.Json.Marshal(map[string]any{
+	// 	"type": "task",
+	// 	"data": rt.genRunnerMsg(),
+	// })
+	// ws.SentMsg(t.AdminId, bt)
 	return rt
 }
 
@@ -181,7 +189,7 @@ func (t *Task) Start() *RuningTask {
 		return nil
 	}
 
-	return Start(t, func(data string, runnerID string) error {
+	return Start(t, func(data string, uuid string) error {
 		gs := gjson.Parse(data)
 		switch gs.Get("type").String() {
 		case "done": //任务完成
