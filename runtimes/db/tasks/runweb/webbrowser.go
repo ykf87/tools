@@ -47,7 +47,7 @@ func (t *runweb) SetRunner(s *scheduler.Runner) {
 }
 
 func (t *runweb) Start(ctx context.Context) error {
-	bs, err := bs.BsManager.New(t.opt.ID, bs.Options{
+	bs, err := bs.BsManager.New(t.opt.ID, &bs.Options{
 		Url:      t.opt.Url,
 		JsStr:    t.opt.Js,
 		Headless: t.opt.Headless,

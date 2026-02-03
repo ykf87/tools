@@ -100,7 +100,7 @@ func GetInfo(c *gin.Context) {
 	} else {
 		go func() {
 			// bbs := bs.NewManager("")
-			brows, _ := bs.BsManager.New(0, bs.Options{
+			brows, _ := bs.BsManager.New(0, &bs.Options{
 				Url:      fmt.Sprintf("https://www.douyin.com/user/%s", mu.Uuid),
 				JsStr:    dyinfojs,
 				Headless: true,

@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	rt "github.com/chromedp/cdproto/runtime"
+	"github.com/tidwall/gjson"
 )
 
 // 控制器
@@ -35,7 +36,7 @@ func newManager(baseDir string) *Manager {
 }
 
 // 仅对控制器执行增减操作,并不启动浏览器
-func (m *Manager) New(id int64, opt Options, wait bool) (*Browser, error) {
+func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if id < 1 {
@@ -76,10 +77,10 @@ func (m *Manager) New(id int64, opt Options, wait bool) (*Browser, error) {
 		opt.UserDir = userDir
 	}
 	if opt.Width == 0 {
-		opt.Width = 800
+		opt.Width = 1024
 	}
 	if opt.Height == 0 {
-		opt.Height = 600
+		opt.Height = 960
 	}
 
 	b := &Browser{
@@ -91,8 +92,70 @@ func (m *Manager) New(id int64, opt Options, wait bool) (*Browser, error) {
 		return nil, err
 	}
 
-	b.onURLChange.Store((func(string))(nil))
-	b.onConsole.Store((func([]*rt.RemoteObject))(nil))
+	// b.onURLChange.Store((func(string))(nil))
+	// b.onConsole.Store((func([]*rt.RemoteObject))(nil))
+	//
+	b.onURLChange.Store(func(url string) {
+		if b.Opts.JsStr != "" {
+			b.RunJs(b.Opts.JsStr)
+		}
+	})
+	b.onConsole.Store(func(args []*rt.RemoteObject) {
+		for _, arg := range args {
+			if arg.Value != nil {
+				gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
+				// fmt.Println(gs.String())
+				if gs.Get("version").String() == "" {
+					continue
+				}
+				switch gs.Get("type").String() {
+				case "success":
+					if b.Opts.Msg != nil {
+						select {
+						case b.Opts.Msg <- gs.Get("data").String():
+						case <-b.ctx.Done():
+						}
+					}
+					b.Close()
+				case "fail":
+					if b.Opts.Msg != nil {
+						select {
+						case b.Opts.Msg <- gs.Get("data").String():
+						case <-b.ctx.Done():
+						}
+					}
+					b.Close()
+				case "notify":
+					if b.Opts.Msg != nil {
+						select {
+						case b.Opts.Msg <- gs.Get("data").String():
+						case <-b.ctx.Done():
+						}
+					}
+				case "upload": // 调用系统的上传功能
+					var fls []string
+					for _, v := range gs.Get("data.files").Array() {
+						fls = append(fls, v.String())
+					}
+					b.Upload(fls, gs.Get("data.node").String(), gs.Get("data.upnode").String())
+					if b.Opts.Msg != nil {
+						select {
+						case b.Opts.Msg <- "上传文件":
+						case <-b.ctx.Done():
+						}
+					}
+				case "input": // 输入
+					b.InputTxt(gs.Get("data.text").String(), gs.Get("data.node").String())
+					if b.Opts.Msg != nil {
+						select {
+						case b.Opts.Msg <- "输入数据":
+						case <-b.ctx.Done():
+						}
+					}
+				}
+			}
+		}
+	})
 
 	m.browsers[id] = b
 	OpendBrowser.Store(id, b)
@@ -133,4 +196,12 @@ func (m *Manager) IsArride(id int64) bool {
 		return bs.survival.Load()
 	}
 	return false
+}
+
+// 获取浏览器
+func (m *Manager) GetBrowser(id int64) (*Browser, error) {
+	if bs, ok := m.browsers[id]; ok {
+		return bs, nil
+	}
+	return nil, fmt.Errorf("浏览器 %d 不存在", id)
 }

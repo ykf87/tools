@@ -16,7 +16,7 @@ import (
 	"sync"
 
 	// "sync"
-	"time"
+
 	"tools/runtimes/config"
 	"tools/runtimes/db/admins"
 	"tools/runtimes/db/medias"
@@ -321,7 +321,7 @@ func Download(c *gin.Context) {
 	// }
 
 	// 开启选择的代理
-	rand.Seed(time.Now().UnixNano())
+	// rand.Seed(time.Now().UnixNano())
 	proxyObjs := make(map[int64]*proxy.ProxyConfig)
 	if len(dt.Proxys) > 0 {
 		proxyid := dt.Proxys[rand.Intn(len(dt.Proxys))]

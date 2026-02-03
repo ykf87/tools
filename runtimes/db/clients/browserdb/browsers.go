@@ -9,7 +9,6 @@ import (
 	"tools/runtimes/eventbus"
 	"tools/runtimes/proxy"
 
-	"github.com/chromedp/cdproto/runtime"
 	"gorm.io/gorm"
 )
 
@@ -28,9 +27,9 @@ type Browser struct {
 	AdminID     int64  `json:"admin_id" gorm:"index;default:0"`                       // 后台用户的登录id
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
-	Tags        []string    `json:"tags" gorm:"-" form:"tags"` // 标签
-	Bs          *bs.Browser `json:"-" gorm:"-" form:"-"`       // 浏览器
-	Opend       bool        `json:"opend" gorm:"-" form:"-"`   // 是否启动
+	Tags        []string `json:"tags" gorm:"-" form:"tags"` // 标签
+	// Bs          *bs.Browser `json:"-" gorm:"-" form:"-"`       // 浏览器
+	Opend bool `json:"opend" gorm:"-" form:"-"` // 是否启动
 }
 
 func init() {
@@ -74,57 +73,57 @@ func (this *Browser) Save(tx *gorm.DB) error {
 	}
 }
 
-func (this *Browser) Open() error {
-	if this.Opend == true {
-		return nil
+func (this *Browser) Open(opt *bs.Options) error {
+	if bs.BsManager.IsArride(this.Id) {
+		return fmt.Errorf("浏览器已经打开")
 	}
-	var proxyUrl string
-	if this.Proxy > 0 {
-		px := proxys.GetById(this.Proxy)
-		if px != nil && px.Id > 0 {
-			if pc, err := px.Start(false); err == nil {
-				proxyUrl = pc.Listened()
+	if opt.Proxy == "" {
+		if this.Proxy > 0 {
+			px := proxys.GetById(this.Proxy)
+			if px != nil && px.Id > 0 {
+				if pc, err := px.Start(false); err == nil {
+					opt.Proxy = pc.Listened()
+				}
 			}
 		}
-	}
-	if proxyUrl == "" && this.ProxyConfig != "" {
-		if pc, err := proxy.Client(this.ProxyConfig, "", 0); err == nil {
-			if _, err := pc.Run(false); err == nil {
-				proxyUrl = pc.Listened()
+		if opt.Proxy == "" && this.ProxyConfig != "" {
+			if pc, err := proxy.Client(this.ProxyConfig, "", 0); err == nil {
+				if _, err := pc.Run(false); err == nil {
+					opt.Proxy = pc.Listened()
+				}
 			}
 		}
 	}
 
-	bbs, err := bs.BsManager.New(this.Id, bs.Options{
-		Proxy:    proxyUrl,
-		Width:    this.Width,
-		Height:   this.Height,
-		Language: this.Lang,
-		Timezone: this.Timezone,
-	}, true)
+	opt.Width = this.Width
+	opt.Height = this.Height
+	opt.Language = this.Lang
+	opt.Timezone = this.Timezone
+
+	bbs, err := bs.BsManager.New(this.Id, opt, true)
 	if err != nil {
 		return err
 	}
-	this.Bs = bbs
+	// this.Bs = bbs
 
-	this.Bs.OnClosed(func() {
-		this.Opend = false
-		eventbus.Bus.Publish("browser-close", this)
-	})
-	this.Bs.OnConsole(func(args []*runtime.RemoteObject) {
-		fmt.Println(args, "args-----")
-	})
+	// this.Bs.OnClosed(func() {
+	// 	this.Opend = false
+	// 	eventbus.Bus.Publish("browser-close", this)
+	// })
+	// this.Bs.OnConsole(func(args []*runtime.RemoteObject) {
+	// 	fmt.Println(args, "args-----")
+	// })
 
-	this.Bs.OnURLChange(func(url string) {
-		if this.Bs.Opts.JsStr != "" {
-			this.Bs.RunJs(this.Bs.Opts.JsStr)
-		}
-	})
+	// this.Bs.OnURLChange(func(url string) {
+	// 	if this.Bs.Opts.JsStr != "" {
+	// 		this.Bs.RunJs(this.Bs.Opts.JsStr)
+	// 	}
+	// })
 
-	if err := this.Bs.OpenBrowser(); err != nil {
+	if err := bbs.OpenBrowser(); err != nil {
 		return err
 	}
-	this.Opend = true
+	// this.Opend = true
 	return nil
 
 }
@@ -168,5 +167,9 @@ func (this *Browser) GetId() int64 {
 
 // 获取客户端
 func (this *Browser) GetClient() *bs.Browser {
-	return this.Bs
+	b, err := bs.BsManager.GetBrowser(this.Id)
+	if err == nil {
+		return b
+	}
+	return nil
 }

@@ -99,6 +99,10 @@ func (b *Browser) OpenBrowser() error {
 		<-ctx.Done()
 		b.Close()
 	}(b)
+
+	if b.Opts.JsStr != "" {
+		b.RunJs(b.Opts.JsStr)
+	}
 	return nil
 }
 
@@ -133,7 +137,7 @@ func (b *Browser) RunJs(js string) (any, error) {
 	}
 	var rs any
 	if js != "" {
-		if err := b.Run(chromedp.Evaluate(js, &rs)); err != nil {
+		if err := b.Run(chromedp.Evaluate(b.packagingJs(js), &rs)); err != nil {
 			return nil, err
 		}
 	} else {
@@ -141,6 +145,11 @@ func (b *Browser) RunJs(js string) (any, error) {
 	}
 
 	return rs, nil
+}
+
+// 封装js
+func (this *Browser) packagingJs(js string) string {
+	return fmt.Sprintf("(async () => {\n%s\n%s\n})()", config.BrowserReportJs, js)
 }
 
 // 从chromedp上传

@@ -53,6 +53,7 @@ var ApiPort int
 var WebPort int
 var ApiUrl = ""
 var WebUrl = ""
+var BrowserReportJs = ""
 
 var Mkdirs = map[string]*mkdirStruct{
 	"log": &mkdirStruct{
@@ -109,6 +110,9 @@ func init() {
 			}
 		}
 	}
+
+	// 还要autojs的上报封装,最好能从服务端获取最新的
+	BrowserReportJs = `class Callback{constructor(options={}){this.app=options.app||'unknown'this.env=options.env||'dev'this.enable=options.enable!==false this.version="1.3.26"}report(payload){if(!this.enable)return const body={app:this.app,env:this.env,version:this.version,time:Date.now(),...payload}console.log(JSON.stringify(body))}success(msg,data=null){this.report({type:'success',msg,data})}fail(msg,error=null){this.report({type:'fail',msg,data:error})}notify(msg,data=null){this.report({type:'notify',msg,data})}invoke(name,params=null){this.report({type:'invoke',msg:name,data:params})}state(name,value){this.report({type:'state',msg:name,data:value})}event(name,data=null){this.report({type:'event',msg:name,data})}metric(name,value,unit=''){this.report({type:'metric',msg:name,data:{value,unit}})}}`
 }
 
 func FullPath(pathName ...string) string {

@@ -682,6 +682,7 @@ type VirtualBrowserConfig struct {
 
 // 执行打开浏览器的参数
 type Options struct {
+	ID        int64
 	ExecPath  string
 	UserDir   string
 	Url       string
@@ -695,13 +696,14 @@ type Options struct {
 	Timeout   time.Duration
 	Temp      bool // 是否临时浏览器
 	JsStr     string
+	Msg       chan string
 	Ctx       context.Context
 }
 
 // 浏览器
 type Browser struct {
 	ID     int64
-	Opts   Options
+	Opts   *Options
 	ctx    context.Context
 	cancel context.CancelFunc
 	alloc  context.CancelFunc

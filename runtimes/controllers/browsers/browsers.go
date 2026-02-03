@@ -286,7 +286,7 @@ func Start(c *gin.Context) {
 		response.Error(c, http.StatusNotFound, i18n.T("无法启动"), nil)
 		return
 	}
-	if err := bs.Open(); err != nil {
+	if err := bs.Open(nil); err != nil {
 		response.Error(c, http.StatusNotFound, err.Error(), nil)
 		return
 	}

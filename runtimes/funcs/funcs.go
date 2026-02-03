@@ -356,8 +356,6 @@ func Md5File(reader io.Reader) string {
 // RandomMAC 生成一个随机 MAC 地址
 // prefix 可以为空，例如 "00:1A:2B" 表示指定厂商前缀
 func RandomMAC(prefix string) string {
-	rand.Seed(time.Now().UnixNano())
-
 	mac := make([]byte, 6)
 
 	if prefix != "" {
