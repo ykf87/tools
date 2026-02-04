@@ -5,7 +5,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"tools/runtimes/logs"
 )
 
 type TaskFunc func(ctx context.Context) error
@@ -77,13 +76,12 @@ func (r *Runner) execute() {
 
 	r.startAt = time.Now()
 	if err := r.task(r.ctx); err != nil {
-		logs.Error(err.Error())
+		if r.errFunc != nil {
+			r.errFunc(err)
+		}
 		n := r.tried.Add(1)
 
 		if n >= int32(r.maxTry) {
-			if r.errFunc != nil {
-				r.errFunc(err)
-			}
 			r.Stop()
 			return
 		}
@@ -223,4 +221,12 @@ func (r *Runner) StopAt(t time.Time) *Runner {
 		r.stopAt = t
 	}
 	return r
+}
+
+func (r *Runner) GetStartAt() time.Time {
+	return r.startAt
+}
+
+func (r *Runner) IsRuning() bool {
+	return !r.closed.Load()
 }

@@ -154,7 +154,7 @@ func Start(
 	}()
 	WatchingTasks.Store(t.ID, rt)
 
-	rt.Sent("")
+	// rt.Sent("")
 	// 发送任务的通知
 	// bt, _ := config.Json.Marshal(map[string]any{
 	// 	"type": "task",

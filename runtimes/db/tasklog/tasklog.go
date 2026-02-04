@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"sync"
 	"time"
-	"tools/runtimes/bs"
-	"tools/runtimes/db/clients"
 	"tools/runtimes/mainsignal"
 	"tools/runtimes/scheduler"
 )
@@ -18,27 +16,12 @@ type Task struct {
 	Title   string                 `json:"title"`    // 任务名称
 	BeginAt int64                  `json:"begin_at"` // 开始于什么时间
 	MaxCh   int                    `json:"max_ch"`   // 并发控制
+	IsTemp  bool                   `json:"is_temp"`  // 是否是临时任务
 	sch     *scheduler.Scheduler   `json:"-"`        // 调度器
 	mu      sync.RWMutex           `json:"-"`        // 读写锁
 	runners map[string]*TaskRunner `json:"-"`        // 执行的任务
-}
-
-// 具体执行的任务
-type TaskRunner struct {
-	ID       string               `json:"id"`       // 调用方设置的id
-	Title    string               `json:"title"`    // 执行的标题
-	StartAt  int64                `json:"start_at"` // 开始执行时间
-	Runner   *scheduler.Runner    `json:"-"`        // 执行器
-	CallBack func(string) error   `json:"-"`        // 内容回调
-	opt      any                  `json:"-"`        //配置
-	msg      chan string          `json:"-"`        // 消息接收器
-	sch      *scheduler.Scheduler `json:"-"`        // 调度器,和Task调度器一致
-	Bss      *bs.Browser          `json:"-"`        // 浏览器
-	Phone    clients.Phone        `json:"-"`        // 手机端
-	ctx      context.Context      `json:"-"`        //上下文
-	// callback scheduler.TaskFunc   `json:"-"`        // 执行回调
-	// onerror  scheduler.ErrFun     `json:"-"`        // 错误回调
-	// onclose  scheduler.CloseFun   `json:"-"`        // 结束回调
+	ctx     context.Context        `json:"-"`        // 上下文
+	cancle  context.CancelFunc     `json:"-"`        // 关闭
 }
 
 type TaskLog struct {
@@ -56,7 +39,7 @@ var RunnerTask sync.Map
 // title 任务名称
 // maxch 并发控制
 // jitter 并发随机时间,秒
-func NewTaskLog(taskID, title string, maxch, jitter int) *Task {
+func NewTaskLog(taskID, title string, maxch, jitter int, temp bool) *Task {
 	if to, ok := RunnerTask.Load(taskID); ok {
 		if t, ok := to.(*Task); ok {
 			return t
@@ -68,19 +51,26 @@ func NewTaskLog(taskID, title string, maxch, jitter int) *Task {
 		BeginAt: time.Now().Unix(),
 		MaxCh:   maxch,
 		runners: make(map[string]*TaskRunner),
-	}
-	if maxch > 0 {
-		t.sch = scheduler.NewWithLimit(mainsignal.MainCtx, maxch)
-		t.sch.SetJitter(time.Second * time.Duration(jitter))
-	} else {
-		t.sch = scheduler.New(mainsignal.MainCtx)
+		IsTemp:  temp,
 	}
 
+	t.ctx, t.cancle = context.WithCancel(mainsignal.MainCtx)
+
+	if maxch > 0 {
+		t.sch = scheduler.NewWithLimit(t.ctx, maxch)
+		t.sch.SetJitter(time.Second * time.Duration(jitter))
+	} else {
+		t.sch = scheduler.New(t.ctx)
+	}
+
+	RunnerTask.Store(taskID, t)
+	t.Sent()
 	return t
 }
 
 // 添加周期执行任务
-func (t *Task) Append(ctx context.Context, runid, title string, callback func(string) error) *TaskRunner {
+// 回调函数接收 *TaskRunner, 设置内容并向 msg chan string 发送消息才算完成一次回调
+func (t *Task) Append(ctx context.Context, runid, title string, callback func(string, *TaskRunner) error) *TaskRunner {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if rr, ok := t.runners[runid]; ok {
@@ -92,82 +82,51 @@ func (t *Task) Append(ctx context.Context, runid, title string, callback func(st
 		ID:       runid,
 		Title:    title,
 		ctx:      ctx,
-		msg:      make(chan string),
-		CallBack: callback,
+		Msg:      make(chan string),
+		callBack: callback,
+		taskID:   t.TaskID,
 	}
+
+	tr.ctx, tr.cancle = context.WithCancel(t.ctx)
+
+	go func() {
+		for {
+			select {
+			case msg := <-tr.Msg:
+				go tr.Sent(msg)
+			case msg := <-tr.ErrMsg:
+				go tr.SentErr(msg)
+			case <-tr.ctx.Done():
+				tr.endAt = time.Now().Unix()
+				go tr.Sent("任务结束")
+				return
+			}
+		}
+	}()
+
 	t.runners[runid] = tr
+	tr.Sent("任务等待开始...")
 	return tr
 }
 
-// 添加回调函数
-// func (tr *TaskRunner) SetCallback(callback scheduler.TaskFunc) *TaskRunner {
-// 	tr.callback = callback
-// 	return tr
-// }
-// func (tr *TaskRunner) SetError(fun scheduler.ErrFun) *TaskRunner {
-// 	tr.onerror = fun
-// 	return tr
-// }
-// func (tr *TaskRunner) SetClose(fun scheduler.CloseFun) *TaskRunner {
-// 	tr.onclose = fun
-// 	return tr
-// }
-
-func (tr *TaskRunner) callweb(ctx context.Context) error {
-	opt, ok := tr.opt.(*bs.Options)
-	if !ok {
-		return fmt.Errorf("option error")
-	}
-	opt.Ctx = ctx
-	bss, err := bs.BsManager.New(opt.ID, opt, true)
-	if err != nil {
-		return err
-	}
-
-	bss.Opts.Msg = tr.msg
-	tr.Bss = bss
-
-	if err := tr.Bss.OpenBrowser(); err != nil {
-		return err
-	}
-
-	if opt.Url != "" {
-		bss.GoToUrl(opt.Url)
-	}
-	go bss.RunJs(opt.JsStr)
-	// fmt.Println(opt.JsStr, "====")
-
-	myctx, mycancle := context.WithCancel(ctx)
-	defer mycancle()
-
-	for {
-		select {
-		case msg := <-tr.msg:
-			if err := tr.CallBack(msg); err != nil {
-				return err
+// 获取所有在执行的任务
+func GetRuningTasks() []*TaskWs {
+	var tsk []*TaskWs
+	RunnerTask.Range(func(k, v any) bool {
+		fmt.Println("有任务在哦,", k)
+		if t, ok := v.(*Task); ok {
+			if tskk := t.Sent(); tskk != nil {
+				tsk = append(tsk, tskk)
+				t.mu.Lock()
+				for _, v := range t.runners {
+					if v.Runner.IsRuning() {
+						v.Sent("")
+					}
+				}
+				t.mu.Unlock()
 			}
-		case <-myctx.Done():
-			goto CLOSER
 		}
-	}
-CLOSER:
-	return nil
-}
-
-// 启动执行任务
-// ctx上下文
-// browserID 浏览器执行id
-func (t *TaskRunner) StartWeb(opt *bs.Options, timeout time.Duration) error {
-	if opt.Ctx == nil {
-		opt.Ctx = t.ctx
-	}
-	t.opt = opt
-
-	t.Runner = t.sch.NewRunner(t.callweb, timeout, t.ctx)
-
-	return nil
-}
-
-func (t *TaskRunner) StartPhone(ctx context.Context, timeout time.Duration) {
-
+		return true
+	})
+	return tsk
 }

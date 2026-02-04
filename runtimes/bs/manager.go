@@ -104,7 +104,6 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 		for _, arg := range args {
 			if arg.Value != nil {
 				gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
-				// fmt.Println(gs.String())
 				if gs.Get("version").String() == "" {
 					continue
 				}

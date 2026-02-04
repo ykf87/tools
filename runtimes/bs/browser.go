@@ -137,7 +137,9 @@ func (b *Browser) RunJs(js string) (any, error) {
 	}
 	var rs any
 	if js != "" {
-		if err := b.Run(chromedp.Evaluate(b.packagingJs(js), &rs)); err != nil {
+		js = b.packagingJs(js)
+		// fmt.Println(js, "=-=====")
+		if err := b.Run(chromedp.Evaluate(js, &rs)); err != nil {
 			return nil, err
 		}
 	} else {
@@ -202,6 +204,11 @@ func (this *Browser) InputTxt(text, clickNode string) error {
 // 当前浏览器是否存活
 func (this *Browser) IsArrive() bool {
 	return this.survival.Load() && !this.closed.Load()
+}
+
+// 获取浏览器运行的上下文
+func (this *Browser) GetCtx() context.Context {
+	return this.ctx
 }
 
 // 释放所有已打开的浏览器

@@ -155,9 +155,9 @@ func Delete(c *gin.Context) {
 }
 
 func RuningTasks(c *gin.Context) {
-	if admin, err := admins.GetAdminUser(c); err == nil {
-		response.Success(c, tasks.GetRuningTasks(admin.Id), "")
-		return
-	}
+	// if admin, err := admins.GetAdminUser(c); err == nil {
+	// 	response.Success(c, tasks.GetRuningTasks(admin.Id), "")
+	// 	return
+	// }
 	response.Error(c, http.StatusBadRequest, "", nil)
 }
