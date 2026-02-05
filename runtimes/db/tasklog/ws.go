@@ -29,6 +29,7 @@ type TaskRunnerWs struct {
 	Total    float64 `json:"total"`     // 执行总量,比如下载文件总大小,或者执行养号总数
 	Doned    float64 `json:"doned"`     // 已执行次数或已完成数量
 	Percent  float64 `json:"percent"`   // 执行百分比
+	ProxyUrl string  `json:"proxy_url"` // 代理地址
 }
 
 // 发送任务
@@ -74,6 +75,7 @@ func (v *TaskRunner) newWs(msg, errmsg string) ([]byte, error) {
 		Total:    v.Total,
 		Doned:    v.Doned,
 		Percent:  per,
+		ProxyUrl: v.ProxyUrl,
 	}
 	return config.Json.Marshal(map[string]any{
 		"type": "taskrunner",

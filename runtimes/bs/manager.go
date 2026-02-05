@@ -115,7 +115,8 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 						case <-b.ctx.Done():
 						}
 					}
-					b.Close()
+					// fmt.Println("执行成功了啊")
+					// b.Close()
 				case "fail":
 					if b.Opts.Msg != nil {
 						select {
@@ -123,7 +124,8 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 						case <-b.ctx.Done():
 						}
 					}
-					b.Close()
+					// fmt.Println("执行失败了啊")
+					// b.Close()
 				case "notify":
 					if b.Opts.Msg != nil {
 						select {

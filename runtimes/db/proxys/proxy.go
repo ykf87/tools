@@ -2,6 +2,7 @@ package proxys
 
 import (
 	"errors"
+	"fmt"
 	"time"
 	"tools/runtimes/aess"
 	"tools/runtimes/db"
@@ -142,6 +143,21 @@ func (this *Proxy) Start(keep bool) (*proxy.ProxyConfig, error) {
 	}
 
 	return p.Run(keep)
+}
+
+// 通过代理id获得 *ProxyConfig
+func GetProxyConfigByID(id int64) (*proxy.ProxyConfig, error) {
+	p := GetById(id)
+	if p == nil || p.Id < 1 {
+		return nil, fmt.Errorf("代理不存在")
+	}
+
+	pc, err := proxy.Client(p.GetConfig(), "", p.Port, p.GetTransfer())
+	if err != nil {
+		return nil, err
+	}
+
+	return pc, nil
 }
 
 // 停止配置的代理

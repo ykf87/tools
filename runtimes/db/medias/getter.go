@@ -53,119 +53,35 @@ func runstart() {
 	downsch = scheduler.NewWithLimit(mainsignal.MainCtx, 10)
 	infosch = scheduler.NewWithLimit(mainsignal.MainCtx, 5)
 
-	TaskLogger = tasklog.NewTaskLog("autoupdatemediauser", "自动更新用户信息", 10, 30, false)
+	TaskLogger = tasklog.NewTaskLog("autoupdatemediauser", "自动更新/下载用户信息", 10, 30, false)
 	for _, v := range GetAutoUsers() {
 		v.AutoStart()
 	}
 }
 
-func (mu *MediaUser) AutoStart() {
+func (mu *MediaUser) AutoStart() error {
+	if opt, err := getRunnerOption(mu.Id); err == nil {
+		opt.stop()
+	}
 	if mu.AutoDownload == 1 && mu.DownFreq > 0 {
-		var jscode string
-		var runurl string
-		switch mu.Platform {
-		case "douyin":
-			jscode = "douyin-info"
-			runurl = fmt.Sprintf("https://www.douyin.com/user/%s", mu.Uuid)
-		default:
-			logs.Error(fmt.Sprintf("暂时不支持 %s 获取获取信息", mu.Platform))
-			return
+		opt, err := getOptions(mu)
+		if err != nil {
+			logs.Error(err.Error())
+			return err
 		}
 
-		js := jses.GetJsByCode(jscode)
-		if js == nil || js.ID < 1 {
-			logs.Error("获取账号信息脚本不存在")
-			return
-		}
-		runjs := js.GetContent(nil)
-
-		r := TaskLogger.Append(
+		opt.runner = TaskLogger.Append(
 			mainsignal.MainCtx,
 			fmt.Sprintf("muautodown-%d", mu.Id),
 			fmt.Sprintf("%s 自动下载", mu.Name),
-			func(msg string, tr *tasklog.TaskRunner) error {
-				// fmt.Println(msg, "------ run")
-
-				// dt := gjson.Parse(msg)
-				// if fans := dt.Get("fans").Int(); fans > 0 {
-				// 	mu.Fans = fans
-				// }
-				// if works := dt.Get("works").Int(); works > 0 {
-				// 	mu.Works = works
-				// }
-				// if local := dt.Get("local").String(); local != "" {
-				// 	mu.Local = local
-				// }
-				// if account := dt.Get("account").String(); account != "" {
-				// 	mu.Account = account
-				// }
-				// if dt.Get("lists").Exists() {
-				// 	var vids []string
-				// 	for _, v := range dt.Get("lists").Array() {
-				// 		vids = append(vids, v.String())
-				// 	}
-				// 	fmt.Println("找到带下载视频列表:", vids)
-				// 	mu.autodownload(vids)
-				// }
-				if tr.Msg != nil {
-					tr.Msg <- "本次任务完成-来自getter"
-				}
-				return nil
-			},
+			opt.FmtDownload,
 		)
-		r.StartWeb(&bs.Options{
-			Url:      runurl,
-			JsStr:    runjs,
-			Headless: false,
-			Timeout:  time.Duration(time.Second * 120),
-		}, time.Second*60)
-		fmt.Println("----下载频率", mu.DownFreq)
-		r.Runner.Every(time.Duration(mu.DownFreq) * time.Minute).SetMaxTry(5).RunNow()
-		// TaskLogger.Append(
-		// 	fmt.Sprintf("muautodown-%d", mu.Id),
-		// 	fmt.Sprintf("%s 自动下载", mu.Name),
-		// ).SetCallback(func(ctx context.Context) error {
-		// 	bs, err := mu.StartGetter(
-		// 		func(str string, bs *bs.Browser) {
-		// 			dt := gjson.Parse(str)
-		// 			if fans := dt.Get("fans").Int(); fans > 0 {
-		// 				mu.Fans = fans
-		// 			}
-		// 			if works := dt.Get("works").Int(); works > 0 {
-		// 				mu.Works = works
-		// 			}
-		// 			if local := dt.Get("local").String(); local != "" {
-		// 				mu.Local = local
-		// 			}
-		// 			if account := dt.Get("account").String(); account != "" {
-		// 				mu.Account = account
-		// 			}
-		// 			if dt.Get("lists").Exists() {
-		// 				var vids []string
-		// 				for _, v := range dt.Get("lists").Array() {
-		// 					vids = append(vids, v.String())
-		// 				}
-		// 				fmt.Println("找到带下载视频列表:", vids)
-		// 				mu.autodownload(vids)
-		// 			}
-		// 			mu.LastDownTime = time.Now().Unix()
-		// 			mu.Save(nil)
-		// 			mu.Commpare()
-		// 			bs.Close()
-		// 		},
-		// 		func() {
-		// 			eventbus.Bus.Publish("media_user_info", mu)
-		// 		},
-		// 		func(url string) {
-
-		// 		})
-		// 	return nil
-		// }).SetClose(func() {
-
-		// }).SetError(func(err error) {
-
-		// }).Start(mainsignal.MainCtx, time.Minute*30)
+		if err := opt.Start(); err != nil {
+			logs.Error(err.Error())
+			return err
+		}
 	}
+	return nil
 }
 
 func (mu *MediaUser) AutoStarts() {

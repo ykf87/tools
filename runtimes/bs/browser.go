@@ -44,9 +44,17 @@ func (b *Browser) OpenBrowser() error {
 		chromedp.Flag("worker-id", fmt.Sprintf("%d", b.ID)),
 	)
 
-	if b.Opts.Proxy != "" {
+	if b.Opts.Proxy == "" {
+		if b.Opts.Pc != nil {
+			if _, err := b.Opts.Pc.Run(false); err == nil {
+				b.Opts.Proxy = b.Opts.Pc.Listened()
+				allocOpts = append(allocOpts, chromedp.ProxyServer(b.Opts.Proxy))
+			}
+		}
+	} else {
 		allocOpts = append(allocOpts, chromedp.ProxyServer(b.Opts.Proxy))
 	}
+
 	if b.Opts.UserAgent != "" {
 		allocOpts = append(allocOpts, chromedp.UserAgent(b.Opts.UserAgent))
 	}
@@ -77,6 +85,7 @@ func (b *Browser) OpenBrowser() error {
 	// })
 
 	if err := chromedp.Run(ctx); err != nil {
+		fmt.Println("浏览器 browser 启动失败:", err)
 		cancel()
 		allocCancel()
 		return err
@@ -88,17 +97,9 @@ func (b *Browser) OpenBrowser() error {
 		url = b.Opts.Url
 	}
 	b.GoToUrl(url)
-	// if b.opts.JsStr != "" {
-	// 	b.RunJs(b.opts.JsStr)
-	// }
 
 	b.watchClose()
 	go b.startEventLoop()
-
-	go func(b *Browser) {
-		<-ctx.Done()
-		b.Close()
-	}(b)
 
 	if b.Opts.JsStr != "" {
 		b.RunJs(b.Opts.JsStr)

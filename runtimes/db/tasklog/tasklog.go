@@ -98,7 +98,7 @@ func (t *Task) Append(ctx context.Context, runid, title string, callback func(st
 				go tr.SentErr(msg)
 			case <-tr.ctx.Done():
 				tr.endAt = time.Now().Unix()
-				go tr.Sent("任务结束")
+				go tr.Sent("")
 				return
 			}
 		}

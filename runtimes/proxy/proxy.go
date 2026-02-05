@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -9,6 +10,7 @@ import (
 	"sync"
 	"time"
 	"tools/runtimes/config"
+	"tools/runtimes/eventbus"
 	"tools/runtimes/funcs"
 	"tools/runtimes/i18n"
 	"tools/runtimes/ipinfos"
@@ -139,7 +141,7 @@ func (this *ProxyConfig) Run(guard bool) (*ProxyConfig, error) {
 		return nil, err
 	}
 	if server == nil {
-		return nil, fmt.Errorf(i18n.T("Proxy created error"))
+		return nil, errors.New(i18n.T("Proxy created error"))
 	}
 
 	if err := server.Start(); err != nil {
@@ -148,6 +150,9 @@ func (this *ProxyConfig) Run(guard bool) (*ProxyConfig, error) {
 	this.server = server
 
 	proxysMap.Store(this.ConfMd5, this)
+	eventbus.Bus.Publish("proxy-start", map[string]string{
+		this.ConfMd5: this.Listened(),
+	})
 
 	return this, nil
 }
@@ -159,6 +164,7 @@ func (this *ProxyConfig) IsRuning() bool {
 
 // 关闭代理
 func (this *ProxyConfig) Close(enforce bool) error {
+	fmt.Println("代理发起关闭-----")
 	if this.Guard == true && enforce == false {
 		return fmt.Errorf(i18n.T("The daemon agent cannot be shut down"))
 	}

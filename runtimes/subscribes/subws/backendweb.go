@@ -118,6 +118,12 @@ func proxyChange() {
 			}()
 		}
 	})
+
+	eventbus.Bus.Subscribe("proxy-start", func(dt any) {
+		if bt, err := config.Json.Marshal(dt); err == nil {
+			ws.Broadcost(bt)
+		}
+	})
 }
 
 // 发送消息通知给客户端

@@ -6,24 +6,50 @@ import (
 	"fmt"
 	"time"
 	"tools/runtimes/bs"
+	"tools/runtimes/logs"
 )
+
+func (tr *TaskRunner) SetMsg(msg string) {
+	if tr.Msg != nil {
+		tr.Msg <- msg
+	}
+}
+func (tr *TaskRunner) SetErrMsg(msg string) {
+	if tr.ErrMsg != nil {
+		tr.ErrMsg <- msg
+	}
+}
 
 func (tr *TaskRunner) callweb(ctx context.Context) error {
 	opt, ok := tr.opt.(*bs.Options)
 	if !ok {
-		return fmt.Errorf("option error")
+		// tr.SetErrMsg("配置错误,任务未开始执行")
+		return fmt.Errorf("配置错误,任务未开始执行")
 	}
+
 	opt.Ctx = ctx
 	bss, err := bs.BsManager.New(opt.ID, opt, true)
 	if err != nil {
-		return err
+		// tr.SetErrMsg("浏览器创建失败:" + err.Error())
+		return fmt.Errorf("浏览器创建失败: %s", err.Error())
 	}
 
-	bss.Opts.Msg = make(chan string)
-	tr.bss = bss
+	if bss.Opts.Proxy == "" && bss.Opts.Pc != nil {
+		if _, err := bss.Opts.Pc.Run(false); err == nil {
+			bss.Opts.Proxy = bss.Opts.Pc.Listened()
+		}
+	}
+	if bss.Opts.Proxy != "" {
+		tr.ProxyUrl = bss.Opts.Proxy
+	}
+	tr.SetMsg("任务开始,获取信息中...")
 
-	if err := tr.bss.OpenBrowser(); err != nil {
-		return err
+	bss.Opts.Msg = make(chan string)
+	tr.Bss = bss
+
+	if err := tr.Bss.OpenBrowser(); err != nil {
+		// tr.SetErrMsg("浏览器打开失败:" + err.Error())
+		return fmt.Errorf("浏览器打开失败: %s", err.Error())
 	}
 
 	ctxx := tr.Runner.GetCtx()
@@ -41,6 +67,8 @@ func (tr *TaskRunner) callweb(ctx context.Context) error {
 			// 	return fmt.Errorf("被主动关闭")
 			// }
 			goto CLOSER
+		case <-bss.GetCtx().Done():
+			goto CLOSER
 		}
 	}
 CLOSER:
@@ -56,6 +84,7 @@ func (tr *TaskRunner) StartWeb(opt *bs.Options, timeout time.Duration) error {
 	tr.Runner.SetError(func(err error) {
 		select {
 		case tr.ErrMsg <- err.Error():
+			logs.Error("taskRunner StartWeb error:" + err.Error())
 		case <-tr.ctx.Done():
 			return
 		}

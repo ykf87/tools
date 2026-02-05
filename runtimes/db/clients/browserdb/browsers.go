@@ -125,7 +125,6 @@ func (this *Browser) Open(opt *bs.Options) error {
 	}
 	// this.Opend = true
 	return nil
-
 }
 
 // rmv是否彻底删除

@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -117,6 +118,7 @@ func (r *Runner) execute() {
 /**************** Runner 生命周期 ****************/
 
 func (r *Runner) Stop() {
+	fmt.Println("任务执行关闭了--------")
 	if r.closed.CompareAndSwap(false, true) {
 		r.endAt = time.Now()
 		r.cancel()
@@ -131,6 +133,7 @@ func (r *Runner) Stop() {
 // Run：加入调度器，但不立即执行
 func (r *Runner) Run() {
 	if r.closed.Load() {
+		fmt.Println("任务正在执行-----~~~~~~~~")
 		return
 	}
 
@@ -178,6 +181,11 @@ func (r *Runner) SetCloser(fn CloseFun) *Runner {
 }
 
 func (r *Runner) SetRetryDelay(d time.Duration) *Runner {
+	r.retryDelay = d
+	return r
+}
+
+func (r *Runner) SetOnStart(d time.Duration) *Runner {
 	r.retryDelay = d
 	return r
 }

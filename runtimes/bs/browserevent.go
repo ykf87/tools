@@ -86,7 +86,11 @@ func (b *Browser) Close() {
 		if cb, ok := b.onClose.Load().(func()); ok {
 			go safeClosed(cb)
 		}
+		if b.Opts.Pc != nil {
+			b.Opts.Pc.Close(false)
+		}
 	}
+
 	b.closed.Store(true)
 }
 

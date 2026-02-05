@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"tools/runtimes/proxy"
 
 	"github.com/go-rod/rod"
 )
@@ -698,6 +699,7 @@ type Options struct {
 	JsStr     string
 	Msg       chan string
 	Ctx       context.Context
+	Pc        *proxy.ProxyConfig
 }
 
 // 浏览器
