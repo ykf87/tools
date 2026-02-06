@@ -90,6 +90,9 @@ func (b *Browser) Close() {
 			b.Opts.Pc.Close(false)
 		}
 	}
+	if b.Opts.Msg != nil {
+		close(b.Opts.Msg)
+	}
 
 	b.closed.Store(true)
 }

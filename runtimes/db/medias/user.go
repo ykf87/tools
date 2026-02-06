@@ -1,12 +1,25 @@
 package medias
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"math/rand"
 	"strings"
 	"time"
+	"tools/runtimes/bs"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
+	"tools/runtimes/db/clients/browserdb"
+	"tools/runtimes/db/jses"
+	"tools/runtimes/db/proxys"
+	"tools/runtimes/eventbus"
+	"tools/runtimes/logs"
+	"tools/runtimes/mainsignal"
+	"tools/runtimes/proxy"
+	"tools/runtimes/runner"
 
+	"github.com/tidwall/gjson"
 	"gorm.io/gorm"
 )
 
@@ -237,4 +250,178 @@ func GetAutoUsers() []*MediaUser {
 	dbs.Model(&MediaUser{}).Where("auto_download = ? Or autoinfo = ?", 1, 1).Find(&mus)
 
 	return mus
+}
+
+// 获取可用的client
+// 返回客户端类型和客户端id
+func (mu *MediaUser) GetCanUseClient() (int, int64) {
+	cls := mu.GetClients()
+	var idx int
+	var clientType int
+	var clientId int64
+	for { // 循环检测客户端是否可用,不可用则换
+		if clientID, clientType, ok := RandomInt64Fast(cls); ok {
+			clientId, clientType = clientID, clientType
+			if runner.IsRuning(clientType, clientId) {
+				break
+			}
+		}
+		idx++
+		if idx >= 10 {
+			break
+		}
+	}
+	return clientType, clientId
+}
+
+// 获取用户的主页url和执行js
+func (mu *MediaUser) GetJsAndUrl() (string, string, error) {
+	var jscode string
+	var runurl string
+	switch mu.Platform {
+	case "douyin":
+		jscode = "douyin-info"
+		runurl = fmt.Sprintf("https://www.douyin.com/user/%s", mu.Uuid)
+	default:
+		err := fmt.Errorf("暂时不支持 %s 获取获取信息", mu.Platform)
+		return "", "", err
+	}
+
+	js := jses.GetJsByCode(jscode)
+	if js == nil || js.ID < 1 {
+		err := fmt.Errorf("获取账号信息脚本不存在")
+		return "", "", err
+	}
+	return runurl, js.GetContent(nil), nil
+}
+
+// 获取用户代理
+func (mu *MediaUser) GetMyProxy() {
+
+}
+
+func (mu *MediaUser) GenBrowserOpt(id int64) (*bs.Options, error) {
+	gotourl, jsstr, err := mu.GetJsAndUrl()
+	if err != nil {
+		return nil, err
+	}
+
+	var proxyID int64
+	var proxyCongig string
+	bopt := &bs.Options{
+		ID:    id,
+		Url:   gotourl,
+		JsStr: jsstr,
+	}
+
+	// 代理
+	if id > 0 {
+		bbs, err := browserdb.GetBrowserById(id)
+		if err != nil {
+			id = 0
+			bopt.ID = 0
+		} else {
+			bopt.Height = bbs.Height
+			bopt.Width = bbs.Width
+			bopt.Language = bbs.Lang
+			bopt.Timezone = bbs.Timezone
+			// bopt.Msg = make(chan string)
+			bopt.Headless = true
+			proxyID = bbs.Proxy
+			proxyCongig = bbs.ProxyConfig
+		}
+	} else {
+		if ps := mu.GetProxys(); len(ps) > 0 {
+			proxyID = ps[rand.Intn(len(ps))]
+		}
+	}
+	if proxyID > 0 {
+		if bopt.Pc, err = proxys.GetProxyConfigByID(proxyID); err != nil {
+			logs.Error("自动获取用户信息错误: " + err.Error())
+		}
+	} else if proxyCongig != "" {
+		if bopt.Pc, err = proxy.Client(proxyCongig, "", 0, ""); err != nil {
+			logs.Error("自动获取用户信息错误: " + err.Error())
+		}
+	}
+	return bopt, nil
+}
+
+// 获取用户信息
+func (mu *MediaUser) GetInfoFromPlatform(ch chan byte) error {
+	tp, id := mu.GetCanUseClient()
+	var opt any
+	var err error
+	var r runner.Runner
+	switch tp {
+	case 0:
+		bopt, err := mu.GenBrowserOpt(id)
+		if err != nil {
+			return err
+		}
+
+		var cacle context.CancelFunc
+		bopt.Ctx, cacle = context.WithTimeout(mainsignal.MainCtx, time.Second*30)
+		bopt.Msg = make(chan string)
+		opt = bopt
+		go func() {
+			var idx int
+			for {
+				select {
+				case <-bopt.Ctx.Done():
+					fmt.Println("----浏览器执行结束")
+					goto BREAK
+				case msg := <-bopt.Msg:
+					if mu.ParseUserInfoData(msg) {
+						if r != nil {
+							r.Stop()
+						}
+						goto BREAK
+					} else if r != nil {
+						idx++
+						if idx >= 5 {
+							goto BREAK
+						}
+						r.Start()
+					}
+				}
+			}
+		BREAK:
+			cacle()
+			if ch != nil {
+				ch <- 1
+			}
+			eventbus.Bus.Publish("media_user_info", mu)
+		}()
+	case 1:
+		return errors.New("暂不支持手机端获取")
+	case 2:
+		return errors.New("不支持HTTP方式获取")
+	}
+
+	r, err = runner.GetRunner(tp, opt)
+	if err != nil {
+		return err
+	}
+	return r.Start()
+}
+
+// 解析返回的用户信息数据
+func (mu *MediaUser) ParseUserInfoData(data string) bool {
+	gs := gjson.Parse(data)
+	if fans := gs.Get("fans").Int(); fans > 0 {
+		mu.Fans = fans
+	}
+	if works := gs.Get("works").Int(); works > 0 {
+		mu.Works = works
+	}
+	if local := gs.Get("local").String(); local != "" {
+		mu.Local = local
+	}
+	if account := gs.Get("account").String(); account != "" {
+		mu.Account = account
+	}
+	mu.Save(nil)
+	mu.Commpare()
+	return true
 }

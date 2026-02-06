@@ -1,17 +1,12 @@
 package users
 
 import (
-	"fmt"
+	"net/http"
 	"strconv"
-	"time"
-	"tools/runtimes/bs"
 	"tools/runtimes/db/medias"
-	"tools/runtimes/eventbus"
 	"tools/runtimes/response"
 
-	"github.com/chromedp/cdproto/runtime"
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/gjson"
 )
 
 var dyinfojs = `(async () => {
@@ -95,67 +90,75 @@ func GetInfo(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Query("id"))
 	id64 := int64(id)
 	mu := medias.GetMediaUserByID(id64)
-	if len(mu.Clients) > 0 {
 
-	} else {
-		go func() {
-			// bbs := bs.NewManager("")
-			brows, _ := bs.BsManager.New(0, &bs.Options{
-				Url:      fmt.Sprintf("https://www.douyin.com/user/%s", mu.Uuid),
-				JsStr:    dyinfojs,
-				Headless: true,
-				Timeout:  time.Duration(time.Second * 30),
-			}, true)
-
-			brows.OnClosed(func() {
-				eventbus.Bus.Publish("media_user_info", mu)
-			})
-			brows.OnConsole(func(args []*runtime.RemoteObject) {
-				for _, arg := range args {
-					if arg.Value != nil {
-						gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
-						if gs.Get("type").String() == "kaka" {
-							dt := gs.Get("data")
-							if fans := dt.Get("fans").Int(); fans > 0 {
-								mu.Fans = fans
-							}
-							if works := dt.Get("works").Int(); works > 0 {
-								mu.Works = works
-							}
-							if local := dt.Get("local").String(); local != "" {
-								mu.Local = local
-							}
-							if account := dt.Get("account").String(); account != "" {
-								mu.Account = account
-							}
-							mu.Save(nil)
-							mu.Commpare()
-							brows.Close()
-						}
-					} else if arg.Description != "" {
-						// fmt.Println(arg.Description, "description")
-					} else {
-						// fmt.Println("[unknown console arg]")
-					}
-				}
-			})
-
-			brows.OnURLChange(func(url string) {
-				// fmt.Println("------")
-				// brows.RunJs(dyinfojs)
-			})
-
-			brows.OpenBrowser()
-			time.Sleep(time.Second * 1)
-			go brows.RunJs(dyinfojs)
-
-			go func() {
-				time.Sleep(time.Second * 30)
-				if brows.IsArrive() {
-					brows.Close()
-				}
-			}()
-		}()
+	// ch := make(chan byte)
+	if err := mu.GetInfoFromPlatform(nil); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
 	}
+	// <-ch
+	// eventbus.Bus.Publish("media_user_info", mu)
+	// if len(mu.Clients) > 0 {
+
+	// } else {
+	// 	go func() {
+	// 		// bbs := bs.NewManager("")
+	// 		brows, _ := bs.BsManager.New(0, &bs.Options{
+	// 			Url:      fmt.Sprintf("https://www.douyin.com/user/%s", mu.Uuid),
+	// 			JsStr:    dyinfojs,
+	// 			Headless: true,
+	// 			Timeout:  time.Duration(time.Second * 30),
+	// 		}, true)
+
+	// 		brows.OnClosed(func() {
+	// 			eventbus.Bus.Publish("media_user_info", mu)
+	// 		})
+	// 		brows.OnConsole(func(args []*runtime.RemoteObject) {
+	// 			for _, arg := range args {
+	// 				if arg.Value != nil {
+	// 					gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
+	// 					if gs.Get("type").String() == "kaka" {
+	// 						dt := gs.Get("data")
+	// 						if fans := dt.Get("fans").Int(); fans > 0 {
+	// 							mu.Fans = fans
+	// 						}
+	// 						if works := dt.Get("works").Int(); works > 0 {
+	// 							mu.Works = works
+	// 						}
+	// 						if local := dt.Get("local").String(); local != "" {
+	// 							mu.Local = local
+	// 						}
+	// 						if account := dt.Get("account").String(); account != "" {
+	// 							mu.Account = account
+	// 						}
+	// 						mu.Save(nil)
+	// 						mu.Commpare()
+	// 						brows.Close()
+	// 					}
+	// 				} else if arg.Description != "" {
+	// 					// fmt.Println(arg.Description, "description")
+	// 				} else {
+	// 					// fmt.Println("[unknown console arg]")
+	// 				}
+	// 			}
+	// 		})
+
+	// 		brows.OnURLChange(func(url string) {
+	// 			// fmt.Println("------")
+	// 			// brows.RunJs(dyinfojs)
+	// 		})
+
+	// 		brows.OpenBrowser()
+	// 		time.Sleep(time.Second * 1)
+	// 		go brows.RunJs(dyinfojs)
+
+	// 		go func() {
+	// 			time.Sleep(time.Second * 30)
+	// 			if brows.IsArrive() {
+	// 				brows.Close()
+	// 			}
+	// 		}()
+	// 	}()
+	// }
 	response.Success(c, mu, "")
 }

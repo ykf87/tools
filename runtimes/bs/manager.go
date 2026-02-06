@@ -36,6 +36,7 @@ func newManager(baseDir string) *Manager {
 }
 
 // 仅对控制器执行增减操作,并不启动浏览器
+// wait 如果浏览器在其他地方执行,是否等待执行完成
 func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -115,8 +116,6 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 						case <-b.ctx.Done():
 						}
 					}
-					// fmt.Println("执行成功了啊")
-					// b.Close()
 				case "fail":
 					if b.Opts.Msg != nil {
 						select {
@@ -124,8 +123,6 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 						case <-b.ctx.Done():
 						}
 					}
-					// fmt.Println("执行失败了啊")
-					// b.Close()
 				case "notify":
 					if b.Opts.Msg != nil {
 						select {

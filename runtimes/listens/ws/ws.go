@@ -1,7 +1,7 @@
 package ws
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"sync"
 	"tools/runtimes/eventbus"
@@ -67,7 +67,7 @@ func SentMsg(id int64, date []byte) error {
 			return nil
 		}
 	}
-	return fmt.Errorf(i18n.T("ws: %d not Connected", id))
+	return errors.New(i18n.T("ws: %d not Connected", id))
 }
 
 // 订阅消息
