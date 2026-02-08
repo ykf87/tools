@@ -1,18 +1,18 @@
 package runbrowser
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 	"tools/runtimes/bs"
 	"tools/runtimes/mainsignal"
-
-	"github.com/chromedp/cdproto/runtime"
-
-	"github.com/tidwall/gjson"
 )
 
 type RunBrowser struct {
 	Browser *bs.Browser
+	ctx     context.Context
+	cancle  context.CancelFunc
 }
 
 func New(opt any, wait bool) (*RunBrowser, error) {
@@ -30,9 +30,12 @@ func New(opt any, wait bool) (*RunBrowser, error) {
 	}, nil
 }
 
-func (r *RunBrowser) Start() error {
+func (r *RunBrowser) Start(timeout time.Duration, callback func(str string) error) error {
 	if r.Browser.Opts.Ctx == nil {
-		r.Browser.Opts.Ctx = mainsignal.MainCtx
+		r.ctx, r.cancle = context.WithTimeout(mainsignal.MainCtx, timeout)
+		r.Browser.Opts.Ctx = r.ctx
+	} else {
+		r.ctx, r.cancle = context.WithTimeout(r.Browser.Opts.Ctx, timeout)
 	}
 
 	if r.Browser.Opts.Proxy == "" && r.Browser.Opts.Pc != nil {
@@ -41,35 +44,43 @@ func (r *RunBrowser) Start() error {
 		}
 	}
 
-	r.Browser.OnConsole(func(args []*runtime.RemoteObject) {
-		for _, arg := range args {
-			if arg.Value != nil {
-				gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
-				if gs.Get("version").String() == "" {
-					continue
-				}
-				switch gs.Get("type").String() {
-				case "upload": // 调用系统的上传功能
-					var fls []string
-					for _, v := range gs.Get("data.files").Array() {
-						fls = append(fls, v.String())
-					}
-					r.Browser.Upload(fls, gs.Get("data.node").String(), gs.Get("data.upnode").String())
-					r.sendMsg("上传文件")
-				case "input": // 输入
-					r.Browser.InputTxt(gs.Get("data.text").String(), gs.Get("data.node").String())
-					r.sendMsg("输入数据")
-				default:
-					r.sendMsg(gs.Get("data").String())
-				}
-			}
-		}
-	})
-
 	if err := r.Browser.OpenBrowser(); err != nil {
 		return fmt.Errorf("浏览器打开失败: %s", err.Error())
 	}
+	r.Browser.Opts.Msg = make(chan string)
 
+	var idx int
+	bbctx := r.Browser.GetCtx()
+	for {
+		select {
+		case <-r.ctx.Done():
+			fmt.Println("超时结束")
+			goto BREAK
+		case msg := <-r.Browser.Opts.Msg:
+			if callback != nil {
+				if err := callback(msg); err != nil {
+					idx++
+					if idx >= 5 {
+						goto BREAK
+					}
+					r.Start(timeout, callback)
+				} else {
+					r.Stop()
+				}
+			}
+		case <-bbctx.Done():
+			if errors.Is(bbctx.Err(), context.DeadlineExceeded) {
+				fmt.Println("浏览器超时了")
+			}
+			if errors.Is(bbctx.Err(), context.Canceled) {
+				fmt.Println("浏览器被关闭")
+			}
+			fmt.Println("浏览器关闭了111111")
+			goto BREAK
+		}
+	}
+BREAK:
+	r.cancle()
 	return nil
 }
 

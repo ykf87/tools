@@ -59,26 +59,60 @@ func runstart() {
 	}
 }
 
+func (mu *MediaUser) DownID() string {
+	return fmt.Sprintf("muautodown-%d", mu.Id)
+}
+
+func (mu *MediaUser) InfoID() string {
+	return fmt.Sprintf("muautoinfo-%d", mu.Id)
+}
+
 func (mu *MediaUser) AutoStart() error {
 	if opt, err := getRunnerOption(mu.Id); err == nil {
-		opt.stop()
+		opt.Stop()
 	}
 	if mu.AutoDownload == 1 && mu.DownFreq > 0 {
-		opt, err := getOptions(mu)
-		if err != nil {
-			logs.Error(err.Error())
-			return err
-		}
+		did := mu.DownID()
+		if tsk := TaskLogger.GetRunner(did); tsk == nil {
+			opt, err := GetOptions(mu)
+			if err != nil {
+				logs.Error(err.Error())
+				return err
+			}
 
-		opt.runner = TaskLogger.Append(
-			mainsignal.MainCtx,
-			fmt.Sprintf("muautodown-%d", mu.Id),
-			fmt.Sprintf("%s 自动下载", mu.Name),
-			opt.FmtDownload,
-		)
-		if err := opt.Start(); err != nil {
-			logs.Error(err.Error())
-			return err
+			opt.runner = TaskLogger.Append(
+				mainsignal.MainCtx,
+				did,
+				fmt.Sprintf("%s 自动下载", mu.Name),
+				opt.FmtDownload,
+			)
+			if err := opt.Start(); err != nil {
+				logs.Error(err.Error())
+				return err
+			}
+		}
+	}
+	if mu.Autoinfo == 1 && mu.AutoTimer != 0 {
+		iID := mu.InfoID()
+		h, m, s := funcs.MsToHMS(mu.AutoTimer)
+		if tsk := TaskLogger.GetRunner(iID); tsk == nil {
+			opt, err := GetOptions(mu)
+			if err != nil {
+				logs.Error(err.Error())
+				return err
+			}
+			opt.runner = TaskLogger.Append(
+				mainsignal.MainCtx,
+				iID,
+				fmt.Sprintf("%s 自动更新用户数据", mu.Name),
+				func(msg string, tr *tasklog.TaskRunner) error {
+					return mu.ParseUserInfoData(msg)
+				},
+			)
+			if err := opt.StartDailyRandomAt(h, m, s, 20); err != nil {
+				logs.Error(err.Error())
+				return err
+			}
 		}
 	}
 	return nil

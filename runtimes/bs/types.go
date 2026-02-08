@@ -687,7 +687,6 @@ type Options struct {
 	ExecPath  string
 	UserDir   string
 	Url       string
-	Proxy     string
 	UserAgent string
 	Timezone  string
 	Language  string
@@ -700,6 +699,7 @@ type Options struct {
 	Msg       chan string
 	Ctx       context.Context
 	Pc        *proxy.ProxyConfig
+	Proxy     string
 }
 
 // 浏览器

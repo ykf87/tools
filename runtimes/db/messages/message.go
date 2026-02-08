@@ -12,6 +12,24 @@ type Message struct {
 	Duration int64  `json:"duration"`
 }
 
+func ErrorMsg(str string) {
+	msg := &Message{
+		Type:     "error",
+		Content:  str,
+		Duration: 6000,
+	}
+	msg.Send()
+}
+
+func SuccessMsg(str string) {
+	msg := &Message{
+		Type:     "success",
+		Content:  str,
+		Duration: 6000,
+	}
+	msg.Send()
+}
+
 func (t *Message) Send() {
 	if dt, err := config.Json.Marshal(map[string]any{"type": "message", "data": t}); err == nil {
 		eventbus.Bus.Publish("message", dt)

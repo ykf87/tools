@@ -88,7 +88,7 @@ func Client(configStr, addr string, port int, transfers ...string) (*ProxyConfig
 		port = p
 	} else { // 如果指定了端口,则检查端口是否已被占用
 		if ok := funcs.IsPortAvailable(port); !ok {
-			return nil, fmt.Errorf(i18n.T("Port %d is already in use", port))
+			return nil, errors.New(i18n.T("Port %d is already in use", port))
 		}
 	}
 
@@ -166,7 +166,7 @@ func (this *ProxyConfig) IsRuning() bool {
 func (this *ProxyConfig) Close(enforce bool) error {
 	fmt.Println("代理发起关闭-----")
 	if this.Guard == true && enforce == false {
-		return fmt.Errorf(i18n.T("The daemon agent cannot be shut down"))
+		return errors.New(i18n.T("The daemon agent cannot be shut down"))
 	}
 	if this.server != nil {
 		if err := this.server.Close(); err != nil {
@@ -244,7 +244,7 @@ func (this *ProxyConfig) Listened() string {
 func (this *ProxyConfig) Delay(urls []string) (map[string]int64, error) {
 	if this.server == nil {
 		if _, err := this.Run(false); err != nil {
-			return nil, fmt.Errorf("Proxy start error:" + err.Error())
+			return nil, fmt.Errorf("Proxy start error: %s", err.Error())
 		}
 		defer this.Close(false)
 	}
@@ -262,7 +262,7 @@ func (this *ProxyConfig) Delay(urls []string) (map[string]int64, error) {
 		start := time.Now()
 		resp, err := client.Get(urlRow)
 		if err != nil {
-			fmt.Println(err, "----")
+			fmt.Println(err, "---- runtime/proxy/proxy.go 265")
 			rsmap[urlRow] = -1
 			continue
 		}
@@ -294,7 +294,7 @@ func GetLocal(configStr string, transfers ...string) (*ipinfos.Ipinfo, error) {
 	}
 
 	if pc.server == nil || pc.ListenAddr == "" {
-		return nil, fmt.Errorf(i18n.T("The proxy is not enabled"))
+		return nil, errors.New(i18n.T("The proxy is not enabled"))
 	}
 	defer pc.Close(false)
 

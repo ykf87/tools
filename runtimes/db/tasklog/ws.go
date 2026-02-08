@@ -24,12 +24,13 @@ type TaskRunnerWs struct {
 	Msg      string  `json:"msg"`
 	ErrMsg   string  `json:"err_msg"`
 	StartAt  int64   `json:"start_at"`
-	EndAt    int64   `json:"end_at"`
+	EndAt    int64   `json:"end_at"`    // 存在end_at表示任务结束
 	RunTimes int     `json:"run_times"` // 已执行次数, 周期任务
 	Total    float64 `json:"total"`     // 执行总量,比如下载文件总大小,或者执行养号总数
 	Doned    float64 `json:"doned"`     // 已执行次数或已完成数量
 	Percent  float64 `json:"percent"`   // 执行百分比
 	ProxyUrl string  `json:"proxy_url"` // 代理地址
+	Status   int     `json:"status"`    // 状态
 }
 
 // 发送任务

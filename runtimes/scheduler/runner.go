@@ -163,6 +163,48 @@ func (r *Runner) Every(d time.Duration) *Runner {
 	return r
 }
 
+// DailyRandomAt(3, 0, 0, 10, nil)
+// 每天 03:00 ±10 分钟
+func (r *Runner) DailyRandomAt(
+	hour, min, sec int,
+	jitterMinutes int,
+	loc *time.Location,
+) *Runner {
+	fmt.Println("执行时间: ", hour, min, sec)
+	if loc == nil {
+		loc = time.Local
+	}
+
+	// 包一层 task（只包一次）
+	originTask := r.task
+	r.task = func(ctx context.Context) error {
+		err := originTask(ctx)
+
+		// 不管成功失败，都算明天
+		next := NextDailyRandomTime(
+			time.Now(),
+			hour, min, sec,
+			jitterMinutes,
+			loc,
+		)
+
+		r.nextRun = next
+		r.s.enqueue(r)
+
+		return err
+	}
+
+	// 第一次执行时间
+	r.nextRun = NextDailyRandomTime(
+		time.Now(),
+		hour, min, sec,
+		jitterMinutes,
+		loc,
+	)
+
+	return r
+}
+
 func (r *Runner) SetMaxTry(n int) *Runner {
 	if n > 0 {
 		r.maxTry = n

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"tools/runtimes/funcs"
 
 	jsoniter "github.com/json-iterator/go"
@@ -54,6 +55,7 @@ var WebPort int
 var ApiUrl = ""
 var WebUrl = ""
 var BrowserReportJs = ""
+var AdminWidthAndHeight sync.Map
 
 var Mkdirs = map[string]*mkdirStruct{
 	"log": &mkdirStruct{

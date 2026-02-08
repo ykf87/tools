@@ -567,3 +567,25 @@ func SaveFile(path string, r io.Reader, opts ...SaveOption) error {
 func RandomNumber(min, max int) int {
 	return rand.Intn(max-min+1) + min
 }
+
+// 把毫秒值，映射到 0～23:59:59
+func MsToHMS(ms int64) (hour, min, sec int) {
+	const (
+		hourMs = int64(3600 * 1000)
+		minMs  = int64(60 * 1000)
+		dayMs  = int64(24 * hourMs)
+	)
+
+	// 固定 +8 偏移
+	ms += 8 * hourMs
+
+	// 映射到当天
+	ms = ((ms % dayMs) + dayMs) % dayMs
+
+	hour = int(ms / hourMs)
+	ms %= hourMs
+	min = int(ms / minMs)
+	sec = int((ms % minMs) / 1000)
+
+	return
+}

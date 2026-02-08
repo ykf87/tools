@@ -6,6 +6,7 @@ import (
 	"tools/runtimes/controllers/js"
 	"tools/runtimes/controllers/phones"
 	"tools/runtimes/controllers/proxys"
+	"tools/runtimes/controllers/public"
 	"tools/runtimes/controllers/suggs"
 	"tools/runtimes/controllers/tags"
 	"tools/runtimes/controllers/task"
@@ -31,6 +32,7 @@ func router() {
 	ROUTER.GET("client/api", phones.Api) // app 的api连接
 	AuthRoutes := ROUTER
 	AuthRoutes.Use(AuthMiddleware)
+	AuthRoutes.GET("clientwh", public.SetWH)
 
 	userGroup := AuthRoutes.Group("user")
 	{
@@ -123,6 +125,7 @@ func router() {
 			spiderUserGroup.POST("delete", users.Delete)
 			spiderUserGroup.POST("edit", users.Editer)
 			spiderUserGroup.GET("getinfo", users.GetInfo)
+			spiderUserGroup.GET("usermeidas", users.UserMeidas)
 		}
 	}
 

@@ -1,7 +1,6 @@
 package medias
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -13,6 +12,7 @@ import (
 	"tools/runtimes/db/clients/browserdb"
 	"tools/runtimes/db/jses"
 	"tools/runtimes/db/proxys"
+	"tools/runtimes/db/tasklog"
 	"tools/runtimes/eventbus"
 	"tools/runtimes/logs"
 	"tools/runtimes/mainsignal"
@@ -40,6 +40,7 @@ type MediaUser struct {
 	AutoDownload int             `json:"auto_download" gorm:"index;default:0;type:tinyint(1)"` // 自动下载视频
 	DownFreq     int             `json:"down_freq" gorm:"default:30"`                          // 自动下载视频执行频率,单位是分钟
 	LastDownTime int64           `json:"last_down_time" gorm:"default:0"`                      // 上一次下载的时间
+	ShowWin      int             `json:"show_win" gorm:"default:0"`                            // 是否显示窗口,0不显示, 1显示
 	Tags         []string        `json:"tags" gorm:"-"`                                        // 标签
 	Clients      map[int][]int64 `json:"clients" gorm:"-"`                                     // 使用的客户端
 	Proxys       []int64         `json:"proxys" gorm:"-"`                                      // 使用的代理列表
@@ -110,6 +111,12 @@ func (this *MediaUser) Save(tx *gorm.DB) error {
 		this.Addtime = time.Now().Unix()
 		return tx.Create(this).Error
 	}
+}
+
+func GetUserMedias(id any) []*Media {
+	var mus []*Media
+	dbs.Model(&Media{}).Where("user_id = ?", id).Find(&mus)
+	return mus
 }
 
 func (this *MediaUser) GetTags() []*MediaUserTag {
@@ -259,9 +266,9 @@ func (mu *MediaUser) GetCanUseClient() (int, int64) {
 	var idx int
 	var clientType int
 	var clientId int64
+	var ok bool
 	for { // 循环检测客户端是否可用,不可用则换
-		if clientID, clientType, ok := RandomInt64Fast(cls); ok {
-			clientId, clientType = clientID, clientType
+		if clientId, clientType, ok = RandomInt64Fast(cls); ok {
 			if runner.IsRuning(clientType, clientId) {
 				break
 			}
@@ -308,10 +315,15 @@ func (mu *MediaUser) GenBrowserOpt(id int64) (*bs.Options, error) {
 
 	var proxyID int64
 	var proxyCongig string
+	hdless := false
+	if mu.ShowWin == 1 {
+		hdless = false
+	}
 	bopt := &bs.Options{
-		ID:    id,
-		Url:   gotourl,
-		JsStr: jsstr,
+		ID:       id,
+		Url:      gotourl,
+		JsStr:    jsstr,
+		Headless: hdless,
 	}
 
 	// 代理
@@ -326,7 +338,6 @@ func (mu *MediaUser) GenBrowserOpt(id int64) (*bs.Options, error) {
 			bopt.Language = bbs.Lang
 			bopt.Timezone = bbs.Timezone
 			// bopt.Msg = make(chan string)
-			bopt.Headless = true
 			proxyID = bbs.Proxy
 			proxyCongig = bbs.ProxyConfig
 		}
@@ -359,40 +370,7 @@ func (mu *MediaUser) GetInfoFromPlatform(ch chan byte) error {
 		if err != nil {
 			return err
 		}
-
-		var cacle context.CancelFunc
-		bopt.Ctx, cacle = context.WithTimeout(mainsignal.MainCtx, time.Second*30)
-		bopt.Msg = make(chan string)
 		opt = bopt
-		go func() {
-			var idx int
-			for {
-				select {
-				case <-bopt.Ctx.Done():
-					fmt.Println("----浏览器执行结束")
-					goto BREAK
-				case msg := <-bopt.Msg:
-					if mu.ParseUserInfoData(msg) {
-						if r != nil {
-							r.Stop()
-						}
-						goto BREAK
-					} else if r != nil {
-						idx++
-						if idx >= 5 {
-							goto BREAK
-						}
-						r.Start()
-					}
-				}
-			}
-		BREAK:
-			cacle()
-			if ch != nil {
-				ch <- 1
-			}
-			eventbus.Bus.Publish("media_user_info", mu)
-		}()
 	case 1:
 		return errors.New("暂不支持手机端获取")
 	case 2:
@@ -403,11 +381,15 @@ func (mu *MediaUser) GetInfoFromPlatform(ch chan byte) error {
 	if err != nil {
 		return err
 	}
-	return r.Start()
+	go func() {
+		r.Start(time.Second*30, mu.ParseUserInfoData)
+		eventbus.Bus.Publish("media_user_info", mu)
+	}()
+	return nil
 }
 
 // 解析返回的用户信息数据
-func (mu *MediaUser) ParseUserInfoData(data string) bool {
+func (mu *MediaUser) ParseUserInfoData(data string) error {
 	gs := gjson.Parse(data)
 	if fans := gs.Get("fans").Int(); fans > 0 {
 		mu.Fans = fans
@@ -423,5 +405,19 @@ func (mu *MediaUser) ParseUserInfoData(data string) bool {
 	}
 	mu.Save(nil)
 	mu.Commpare()
-	return true
+	eventbus.Bus.Publish("media_user_info", mu)
+	return nil
+}
+
+// 下载用户视频
+func (mu *MediaUser) DownMedia(srcs []string) error {
+	opt, err := GetOptions(mu)
+	if err != nil {
+		return err
+	}
+
+	tl := tasklog.NewTaskLog(fmt.Sprintf("handledmudown%d", mu.Id), fmt.Sprintf("用户: %s 视频下载", mu.Name), 1, 0, true)
+	opt.runner = tl.Append(mainsignal.MainCtx, fmt.Sprintf("%d", mu.Id), fmt.Sprintf("用户: %s 视频下载", mu.Name), opt.FmtDownload)
+	opt.runner.Runner.SetMaxTry(3).RunNow()
+	return nil
 }

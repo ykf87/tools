@@ -42,6 +42,101 @@ type Options struct {
 
 var MURUNNERS sync.Map
 
+func GetOptions(mu *MediaUser) (*Options, error) {
+	if opt, err := getRunnerOption(mu.Id); err == nil {
+		return opt, nil
+	}
+	opt := &Options{
+		MUID:    mu.Id,
+		mu:      mu,
+		Timeout: time.Second * 300,
+	}
+	if err := opt.getJsAndUrl(); err != nil {
+		return nil, err
+	}
+
+	if err := opt.getProxyAndClient(); err != nil {
+		return nil, err
+	}
+	return opt, nil
+}
+
+// 启动周期性自动任务
+func (opt *Options) Start() error {
+	switch opt.ClientType {
+	case 0:
+		// runner.GenWebOpt()
+		bsopt := &bs.Options{
+			Url:      opt.Url,
+			JsStr:    opt.Js,
+			Headless: opt.Headless,
+			Timeout:  opt.Timeout,
+			Pc:       opt.ProxyConfig,
+			ID:       opt.ClientID,
+		}
+		if opt.runner != nil { // 周期性任务
+			if err := opt.runner.StartWeb(bsopt, opt.Timeout); err != nil {
+				return err
+			}
+			MURUNNERS.Store(opt.MUID, opt)
+			opt.runner.SetMsg("任务加入队列准备执行...")
+			opt.runner.Runner.Every(time.Duration(opt.mu.DownFreq) * time.Minute).SetError(func(err error) {
+				fmt.Println("执行失败:", err)
+			}).SetMaxTry(5).Run()
+		} else {
+			// opt.runner = TaskLogger.Append(
+			// 	mainsignal.MainCtx,
+			// 	fmt.Sprintf("muautodown-%d", mu.Id),
+			// 	fmt.Sprintf("%s 自动下载", mu.Name),
+			// 	opt.FmtDownload,
+			// )
+		}
+	case 1:
+		return fmt.Errorf("手机端暂未支持")
+	case 2:
+		return fmt.Errorf("HTTP端暂未支持")
+	}
+	return nil
+}
+
+// 启动每天的定点任务
+func (opt *Options) StartDailyRandomAt(h, m, s, j int) error {
+	switch opt.ClientType {
+	case 0:
+		bsopt := &bs.Options{
+			Url:      opt.Url,
+			JsStr:    opt.Js,
+			Headless: opt.Headless,
+			Timeout:  opt.Timeout,
+			Pc:       opt.ProxyConfig,
+			ID:       opt.ClientID,
+		}
+		if opt.runner != nil { // 定时任务
+			if err := opt.runner.StartWeb(bsopt, opt.Timeout); err != nil {
+				return err
+			}
+			MURUNNERS.Store(opt.MUID, opt)
+			opt.runner.SetMsg("任务加入定点队列准备执行...")
+			opt.runner.Runner.DailyRandomAt(h, m, s, j, nil).SetError(func(err error) {
+				fmt.Println("执行失败:", err)
+			}).SetMaxTry(5).Run()
+		}
+	case 1:
+		return fmt.Errorf("手机端暂未支持")
+	case 2:
+		return fmt.Errorf("HTTP端暂未支持")
+	}
+	return nil
+}
+
+// 停止任务
+func (opt *Options) Stop() {
+	if opt.runner != nil {
+		opt.runner.Runner.Stop()
+	}
+	MURUNNERS.Delete(opt.MUID)
+}
+
 func RandomInt64Fast(m map[int][]int64) (int64, int, bool) {
 	if len(m) == 0 {
 		return 0, 0, false
@@ -71,32 +166,6 @@ func getRunnerOption(id int64) (*Options, error) {
 		}
 	}
 	return nil, fmt.Errorf("未执行")
-}
-
-func getOptions(mu *MediaUser) (*Options, error) {
-	if opt, err := getRunnerOption(mu.Id); err == nil {
-		return opt, nil
-	}
-	opt := &Options{
-		MUID:    mu.Id,
-		mu:      mu,
-		Timeout: time.Second * 300,
-	}
-	if err := opt.getJsAndUrl(); err != nil {
-		return nil, err
-	}
-
-	if err := opt.getProxyAndClient(); err != nil {
-		return nil, err
-	}
-	return opt, nil
-}
-
-func (opt *Options) stop() {
-	if opt.runner != nil {
-		opt.runner.Runner.Stop()
-	}
-	MURUNNERS.Delete(opt.MUID)
 }
 
 func (opt *Options) getJsAndUrl() error {
@@ -297,41 +366,4 @@ func (opt *Options) autodownload(srcs []string) {
 	}
 
 	// opt.mu.Id
-}
-
-// 启动下载任务
-func (opt *Options) Start() error {
-	switch opt.ClientType {
-	case 0:
-		bsopt := &bs.Options{
-			Url:      opt.Url,
-			JsStr:    opt.Js,
-			Headless: opt.Headless,
-			Timeout:  opt.Timeout,
-			Pc:       opt.ProxyConfig,
-			ID:       opt.ClientID,
-		}
-		if opt.runner != nil { // 周期性任务
-			if err := opt.runner.StartWeb(bsopt, opt.Timeout); err != nil {
-				return err
-			}
-			MURUNNERS.Store(opt.MUID, opt)
-			opt.runner.SetMsg("任务加入队列准备执行...")
-			opt.runner.Runner.Every(time.Duration(opt.mu.DownFreq) * time.Minute).SetError(func(err error) {
-				fmt.Println("执行失败:", err)
-			}).SetMaxTry(5).RunNow()
-		} else {
-			// opt.runner = TaskLogger.Append(
-			// 	mainsignal.MainCtx,
-			// 	fmt.Sprintf("muautodown-%d", mu.Id),
-			// 	fmt.Sprintf("%s 自动下载", mu.Name),
-			// 	opt.FmtDownload,
-			// )
-		}
-	case 1:
-		return fmt.Errorf("手机端暂未支持")
-	case 2:
-		return fmt.Errorf("HTTP端暂未支持")
-	}
-	return nil
 }

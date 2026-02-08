@@ -59,15 +59,11 @@ func (b *Browser) OpenBrowser() error {
 		allocOpts = append(allocOpts, chromedp.UserAgent(b.Opts.UserAgent))
 	}
 
-	var ctxxxx context.Context
-
-	if b.Opts.Ctx != nil {
-		ctxxxx = b.Opts.Ctx
-	} else {
-		ctxxxx = mainsignal.MainCtx
+	if b.Opts.Ctx == nil {
+		b.Opts.Ctx = mainsignal.MainCtx
 	}
 
-	allocCtx, allocCancel := chromedp.NewExecAllocator(ctxxxx, allocOpts...)
+	allocCtx, allocCancel := chromedp.NewExecAllocator(b.Opts.Ctx, allocOpts...)
 	ctx, cancel := chromedp.NewContext(allocCtx, chromedp.WithLogf(func(string, ...any) {}))
 
 	b.alloc = allocCancel
@@ -85,11 +81,12 @@ func (b *Browser) OpenBrowser() error {
 	// })
 
 	if err := chromedp.Run(ctx); err != nil {
-		fmt.Println("浏览器 browser 启动失败:", err)
+		fmt.Println("浏览器 browser 启动失败:", b.ID, err)
 		cancel()
 		allocCancel()
 		return err
 	}
+	fmt.Println(b.ID, "---- 启动成功")
 	b.survival.Store(true)
 
 	url := "about:blank"

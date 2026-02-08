@@ -106,6 +106,10 @@ func (t *Task) Append(ctx context.Context, runid, title string, callback func(st
 
 	t.runners[runid] = tr
 	tr.Sent("任务等待开始...")
+	// tl := &TaskLog{
+	// 	TaskID:  t.TaskID,
+	// 	RunerID: tr.ID,
+	// }
 	return tr
 }
 
@@ -129,4 +133,15 @@ func GetRuningTasks() []*TaskWs {
 		return true
 	})
 	return tsk
+}
+
+// 获取在执行的子任务
+func (t *Task) GetRunner(id string) *TaskRunner {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if r, ok := t.runners[id]; ok {
+		return r
+	}
+	return nil
 }

@@ -50,7 +50,6 @@ func sendws() {
 // 注册前端message通知的中间件,并且发送message类型的ws消息给前端
 func message() {
 	eventbus.Bus.Subscribe("message", func(data any) {
-		fmt.Println("发起message通知---")
 		if dt, ok := data.([]byte); ok {
 			ws.Broadcost(dt)
 		}

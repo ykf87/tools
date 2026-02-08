@@ -162,3 +162,7 @@ func GetInfo(c *gin.Context) {
 	// }
 	response.Success(c, mu, "")
 }
+
+func UserMeidas(c *gin.Context) {
+	response.Success(c, medias.GetUserMedias(c.Query("id")), "success")
+}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"tools/runtimes/db/messages"
 
 	rt "github.com/chromedp/cdproto/runtime"
 	"github.com/tidwall/gjson"
@@ -51,6 +52,7 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 	}
 	if b, ok := OpendBrowser.Load(id); ok {
 		if bbs, ok := b.(*Browser); ok {
+			fmt.Println("浏览器已经打开")
 			if wait == true {
 				if bbs.Locker != nil {
 					<-bbs.Locker
@@ -110,19 +112,19 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 				}
 				switch gs.Get("type").String() {
 				case "success":
+					if gs.Get("msg").String() != "" {
+						messages.SuccessMsg(gs.Get("msg").String())
+					}
 					if b.Opts.Msg != nil {
 						select {
 						case b.Opts.Msg <- gs.Get("data").String():
 						case <-b.ctx.Done():
 						}
 					}
+					// b.Close()
 				case "fail":
-					if b.Opts.Msg != nil {
-						select {
-						case b.Opts.Msg <- gs.Get("data").String():
-						case <-b.ctx.Done():
-						}
-					}
+					messages.ErrorMsg(gs.Get("msg").String())
+					// b.Close()
 				case "notify":
 					if b.Opts.Msg != nil {
 						select {
