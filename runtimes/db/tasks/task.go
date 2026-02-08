@@ -98,20 +98,20 @@ var dbs = db.TaskDB
 // var Seched *scheduler.Scheduler
 
 func init() {
-	dbs.AutoMigrate(&Task{})
-	dbs.AutoMigrate(&TaskClients{})
-	dbs.AutoMigrate(&TaskTag{})
-	dbs.AutoMigrate(&TaskToTag{})
-	dbs.AutoMigrate(&TaskParam{})
+	// dbs.AutoMigrate(&Task{})
+	// dbs.AutoMigrate(&TaskClients{})
+	// dbs.AutoMigrate(&TaskTag{})
+	// dbs.AutoMigrate(&TaskToTag{})
+	// dbs.AutoMigrate(&TaskParam{})
 
-	var tsks []*Task
-	dbs.Model(&Task{}).Where("status = 1").Find(&tsks)
+	// var tsks []*Task
+	// dbs.Model(&Task{}).Where("status = 1").Find(&tsks)
 
-	// Seched = scheduler.New()
+	// // Seched = scheduler.New()
 
-	for _, v := range tsks {
-		go v.Start()
-	}
+	// for _, v := range tsks {
+	// 	go v.Start()
+	// }
 }
 
 func (this *Task) Save(tx *gorm.DB) error {
