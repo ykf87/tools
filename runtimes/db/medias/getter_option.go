@@ -80,7 +80,7 @@ func (opt *Options) Start() error {
 			}
 			MURUNNERS.Store(opt.MUID, opt)
 			opt.runner.SetMsg("任务加入队列准备执行...")
-			opt.runner.Runner.Every(time.Duration(opt.mu.DownFreq) * time.Minute).SetError(func(err error) {
+			opt.runner.Runner.Every(time.Duration(opt.mu.DownFreq) * time.Minute).SetError(func(err error, tried int32) {
 				fmt.Println("执行失败:", err)
 			}).SetMaxTry(5).Run()
 		} else {
@@ -117,7 +117,7 @@ func (opt *Options) StartDailyRandomAt(h, m, s, j int) error {
 			}
 			MURUNNERS.Store(opt.MUID, opt)
 			opt.runner.SetMsg("任务加入定点队列准备执行...")
-			opt.runner.Runner.DailyRandomAt(h, m, s, j, nil).SetError(func(err error) {
+			opt.runner.Runner.DailyRandomAt(h, m, s, j, nil).SetError(func(err error, tried int32) {
 				fmt.Println("执行失败:", err)
 			}).SetMaxTry(5).Run()
 		}

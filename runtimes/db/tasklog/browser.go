@@ -81,7 +81,7 @@ func (tr *TaskRunner) StartWeb(opt *bs.Options, timeout time.Duration) error {
 	tr.opt = opt
 
 	tr.Runner = tr.sch.NewRunner(tr.callweb, timeout, tr.ctx)
-	tr.Runner.SetError(func(err error) {
+	tr.Runner.SetError(func(err error, tried int32) {
 		select {
 		case tr.ErrMsg <- err.Error():
 			logs.Error("taskRunner StartWeb error:" + err.Error())

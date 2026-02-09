@@ -18,8 +18,8 @@ func Test() {
 		return fmt.Errorf("nnn error")
 	}, 0, nil)
 	fmt.Println(rr.GetID(), nn.GetID())
-	rr.SetError(func(err error) {
-		fmt.Println("执行失败回调:", err)
+	rr.SetError(func(err error, tried int32) {
+		fmt.Println("执行失败回调:", err, ",重试次数:", tried)
 	})
 	rr.SetCloser(func() {
 		fmt.Println("rr任务被关闭了")
@@ -27,8 +27,8 @@ func Test() {
 	nn.SetCloser(func() {
 		fmt.Println("nn 任务被关闭")
 	})
-	nn.SetError(func(err error) {
-		fmt.Println("---nnn 错误信息:", err)
+	nn.SetError(func(err error, tried int32) {
+		fmt.Println("---nnn 错误信息:", err, ",重试次数:", tried)
 	})
 	rr.Every(time.Second * 2).Run()
 	nn.SetMaxTry(2).RunNow()

@@ -132,7 +132,7 @@ func Start(
 			sr := rt.sec.
 				NewRunner(runner.Start, time.Duration(t.Timeout)*time.Second, nil).
 				SetCloser(runner.OnClose).
-				SetError(runner.OnError).
+				// SetError(runner.OnError).
 				SetMaxTry(t.RetryMax).
 				SetRetryDelay(time.Second * 10)
 			if t.Cycle > 0 {
@@ -140,7 +140,7 @@ func Start(
 			}
 			runner.SetRunner(sr)
 			if t.Endtime > 0 {
-				sr.StopAt(time.Unix(t.Endtime, 0))
+				sr.SetStopAt(time.Unix(t.Endtime, 0))
 			}
 			rt.runners[tcUUID] = &RunnerData{
 				r:     runner,

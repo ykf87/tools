@@ -13,6 +13,7 @@ import (
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
+	"tools/runtimes/funcs"
 	"tools/runtimes/i18n"
 	"tools/runtimes/listens/ws"
 	"tools/runtimes/mainsignal"
@@ -45,7 +46,7 @@ type TaskRun struct {
 	Title    string               `json:"title" gorm:"index;not null"`     // 执行器标题
 	Cycle    int64                `json:"cycle" gorm:"index;default:0"`    // 周期,单位秒
 	AtTime   int64                `json:"at_time" gorm:"index;default:0"`  // 定点任务
-	Status   int                  `json:"status" gorm:"index; default:0"`  // 任务状态，0-等待执行 1-正在执行, 2-执行成功 -1-执行失败
+	Status   int                  `json:"status" gorm:"index; default:0"`  // 任务状态，0-等待执行 1-正在执行, 2-执行完成. 在此处无法判断是否执行成功
 	Total    int64                `json:"total" gorm:"default:0"`          // 任务总执行量
 	Doned    int64                `json:"doned" gorm:"default:0"`          // 任务已执行量
 	DoneMsg  string               `json:"done_msg" gorm:"default:null"`    // 执行完成消息
@@ -62,6 +63,7 @@ type TaskRunMsg struct {
 	TaskID    int64  `json:"task_id" gorm:"index;"`
 	TaskRunID int64  `json:"task_run_id" gorm:"index"`
 	Msg       string `json:"msg" gorm:"not null"`     // 具体的消息
+	Status    int    `json:"status" gorm:"default:0"` // 状态, -1失败,0正在执行,1成功
 	Addtime   int64  `json:"addtime" gorm:"not null"` // 添加时间
 	db.BaseModel
 }
@@ -91,6 +93,16 @@ func getUniqueIndex(name string, id int64) string {
 	return fmt.Sprintf("%s-%d", name, id)
 }
 
+// 发送所有任务到websocket
+func SentAllTask() {
+	TaskActived.Range(func(k, v any) bool {
+		if tsk, ok := v.(*Task); ok {
+			tsk.Sent()
+		}
+		return true
+	})
+}
+
 // 创建一个任务,当tp或id为默认值时是临时任务
 // name - 设置某一类的任务,建议使用调用方的表名,反正自己看,更多用于查询某个集合的任务
 // id - 0 为临时的任务
@@ -105,12 +117,15 @@ func NewTask(name string, id int64, title string, limit int, temp bool) (*Task, 
 	}
 	tsk := new(Task)
 	tsk.Name = name
-	tsk.ID = id
+	tsk.NameID = id
 	tsk.Title = title
 	tsk.Addtime = time.Now().Unix()
 	tsk.Limit = limit
 	if temp == true {
 		tsk.Nomal = 0
+	}
+	if err := tsk.Save(tsk, taskdb); err != nil {
+		return nil, err
 	}
 
 	if limit > 0 {
@@ -120,9 +135,6 @@ func NewTask(name string, id int64, title string, limit int, temp bool) (*Task, 
 	}
 
 	tsk._runners = make(map[string]*TaskRun)
-	if err := tsk.Save(tsk, taskdb); err != nil {
-		return nil, err
-	}
 	TaskActived.Store(tid, tsk)
 
 	if dt, err := config.Json.Marshal(map[string]any{
@@ -133,6 +145,20 @@ func NewTask(name string, id int64, title string, limit int, temp bool) (*Task, 
 	}
 
 	return tsk, nil
+}
+
+// 发送任务到ws
+func (t *Task) Sent() {
+	if dt, err := config.Json.Marshal(map[string]any{
+		"type": "task",
+		"data": t,
+	}); err == nil {
+		ws.Broadcost(dt)
+
+		for _, v := range t._runners {
+			v.fullMsg()
+		}
+	}
 }
 
 // 添加执行的子任务
@@ -163,15 +189,23 @@ func (t *Task) AddChild(runnerID, title string, timeout time.Duration) (*TaskRun
 // --------------- 以下是 taskrun 方法 ------------------
 // 向客户端发送任务执行消息,仅发送消息.
 // 也就是在回调函数中仅允许发送消息
-func (tr *TaskRun) Sent(msg string) {
+func (tr *TaskRun) SentMsg(msg string) {
 	tr.DoneMsg = msg
 	if dt, err := config.Json.Marshal(map[string]any{
-		"type": "task-msg",
-		"data": map[string]any{
-			"runnerid": tr.RunID,
-			"taskid":   tr.TaskID,
-			"msg":      msg,
-		},
+		"type":     "task-runner-msg",
+		"runnerid": tr.RunID,
+		"taskid":   tr.TaskID,
+		"msg":      msg,
+	}); err == nil {
+		ws.Broadcost(dt)
+	}
+}
+func (tr *TaskRun) SentKey(mk map[string]any) {
+	if dt, err := config.Json.Marshal(map[string]any{
+		"type":     "task-runner-key",
+		"runnerid": tr.RunID,
+		"taskid":   tr.TaskID,
+		"data":     mk,
 	}); err == nil {
 		ws.Broadcost(dt)
 	}
@@ -198,9 +232,12 @@ func (tr *TaskRun) StartInterval(interval int64, callback func(*TaskRun) error) 
 		return errors.New(i18n.T("Please set callabck func"))
 	}
 	tr.Cycle = interval
+	tr.Save(tr, taskdb)
 	tr._runner = tr._sch.NewRunner(func(ctx context.Context) error {
 		if tr.StartAt < 1 {
 			tr.StartAt = time.Now().Unix()
+			tr.Status = 1
+			tr.Save(tr, taskdb)
 		}
 		return callback(tr)
 	}, tr._timeout, mainsignal.MainCtx)
@@ -208,24 +245,111 @@ func (tr *TaskRun) StartInterval(interval int64, callback func(*TaskRun) error) 
 	tr._runner.Every(time.Second * time.Duration(interval)).
 		SetCloser(func() {
 			tr.EndAt = time.Now().Unix()
+			tr.Status = 2
 			tr.Save(tr, taskdb)
 			tr.fullMsg()
+
+			taskdb.Model(&Task{}).Where("id = ?", tr.TaskID).Update("endtime", tr.EndAt)
+			fmt.Println("任务执行完成!")
 		}).
-		SetError(func(err error) {
+		SetOnceDone(func(tried int32, err error, nextRunTime time.Time) {
+			var status int
+			var msg string
+			if err == nil {
+				msg = i18n.T("Task run success")
+				status = 1
+			} else {
+				status = -1
+				msg = i18n.T("Task run error: %s", err.Error())
+			}
 			trm := &TaskRunMsg{
 				TaskID:    tr.TaskID,
 				TaskRunID: tr.ID,
+				Status:    status,
 				Addtime:   time.Now().Unix(),
-				Msg:       err.Error(),
+				Msg:       msg,
 			}
 			trm.Save(trm, taskdb)
-			tr.Sent(err.Error())
+			tr.SentKey(map[string]any{"tried": tried, "nexttime": nextRunTime.Unix(), "msg": msg})
+			fmt.Println("本次执行完成---,重试次数:", tried, " 下次执行时间:", nextRunTime.Unix())
 		}).
-		RunNow()
+		SetError(func(err error, tried int32) {
+			trm := &TaskRunMsg{
+				TaskID:    tr.TaskID,
+				TaskRunID: tr.ID,
+				Status:    -1,
+				Addtime:   time.Now().Unix(),
+				Msg:       fmt.Sprintf("%s, 重试:%d", err.Error(), tried),
+			}
+			trm.Save(trm, taskdb)
+			tr.SentMsg(err.Error())
+		}).SetMaxTry(5).RunNow()
 	return nil
 }
 
 // 启动定点任务, 比如19:20:48启动
-func (tr *TaskRun) StartAtTime(h, m, s int) {
+func (tr *TaskRun) StartAtTime(timer int64, callback func(*TaskRun) error) error {
+	if callback == nil {
+		return errors.New(i18n.T("Please set callabck func"))
+	}
+	h, m, s := funcs.MsToHMS(timer)
+	tr.AtTime = timer
+	tr.Save(tr, taskdb)
 
+	tr._runner = tr._sch.NewRunner(func(ctx context.Context) error {
+		if tr.StartAt < 1 {
+			tr.StartAt = time.Now().Unix()
+			tr.Status = 1
+			tr.Save(tr, taskdb)
+		}
+		return callback(tr)
+	}, tr._timeout, mainsignal.MainCtx)
+	tr._runner.DailyRandomAt(h, m, s, 5, nil).
+		SetCloser(func() {
+			tr.EndAt = time.Now().Unix()
+			tr.Status = 2
+			tr.Save(tr, taskdb)
+			tr.fullMsg()
+
+			taskdb.Model(&Task{}).Where("id = ?", tr.TaskID).Update("endtime", tr.EndAt)
+			fmt.Println("任务执行完成!")
+		}).
+		SetOnceDone(func(tried int32, err error, nextRunTime time.Time) {
+			var status int
+			var msg string
+			if err == nil {
+				msg = i18n.T("Task run success")
+				status = 1
+			} else {
+				status = -1
+				msg = i18n.T("Task run error: %s", err.Error())
+			}
+			trm := &TaskRunMsg{
+				TaskID:    tr.TaskID,
+				TaskRunID: tr.ID,
+				Status:    status,
+				Addtime:   time.Now().Unix(),
+				Msg:       msg,
+			}
+			trm.Save(trm, taskdb)
+			tr.SentKey(map[string]any{"tried": tried, "nexttime": nextRunTime.Unix(), "msg": msg})
+			fmt.Println("本次执行完成---,重试次数:", tried, " 下次执行时间:", nextRunTime.Unix())
+		}).
+		SetError(func(err error, tried int32) {
+			trm := &TaskRunMsg{
+				TaskID:    tr.TaskID,
+				TaskRunID: tr.ID,
+				Status:    -1,
+				Addtime:   time.Now().Unix(),
+				Msg:       fmt.Sprintf("%s, 重试:%d", err.Error(), tried),
+			}
+			trm.Save(trm, taskdb)
+			tr.SentMsg(err.Error())
+		}).SetMaxTry(5).Run()
+	return nil
+}
+
+// 获取重试次数
+func (tr *TaskRun) GetTried() int {
+	return tr._runner.GetTryTimers()
 }

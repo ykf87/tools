@@ -174,7 +174,7 @@ func (mu *MediaUser) AutoStarts() {
 
 		runner.Every(time.Duration(mu.DownFreq) * time.Minute).SetCloser(func() {
 			fmt.Println("关闭自动下载任务")
-		}).SetError(func(err error) {
+		}).SetError(func(err error, tried int32) {
 			fmt.Println("自动下载错误:", err)
 		}).RunNow()
 	}
