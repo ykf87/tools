@@ -5,7 +5,7 @@ import (
 	"strings"
 	"tools/runtimes/config"
 	"tools/runtimes/db/admins"
-	"tools/runtimes/db/tasklog"
+	"tools/runtimes/db/task"
 	"tools/runtimes/listens/ws"
 	"tools/runtimes/services"
 
@@ -75,7 +75,8 @@ func WsHandler(c *gin.Context) {
 		}
 	}
 	// ws.SentBus(0, "task", tasks.GetRuningTasks(user.Id), "")
-	tasklog.GetRuningTasks()
+	// tasklog.GetRuningTasks()
+	task.SentAllTask()
 
 	// go func() {
 	// 	time.Sleep(time.Second * 10)

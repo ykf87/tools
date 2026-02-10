@@ -22,6 +22,7 @@ var MQDB *gorm.DB
 var MEDIADB *gorm.DB
 var TaskDB *gorm.DB
 var AppTask *gorm.DB
+var TaskLogDB *gorm.DB
 
 type ListFinder struct {
 	Page  int     `json:"page" form:"page"`
@@ -34,11 +35,12 @@ type ListFinder struct {
 }
 
 var DBINIT = map[string]**gorm.DB{
-	config.DBFILE:  &DB,
-	"mq.db":        &MQDB,
-	"media.db":     &MEDIADB,
-	"tool_task.db": &TaskDB,
-	"apptask.db":   &AppTask,
+	config.DBFILE: &DB,
+	"mq.db":       &MQDB,
+	"media.db":    &MEDIADB,
+	"task.db":     &TaskDB,
+	"apptask.db":  &AppTask,
+	"tasklog.db":  &TaskLogDB,
 }
 var MqClient *mq.MQ
 

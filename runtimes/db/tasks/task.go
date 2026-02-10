@@ -98,20 +98,20 @@ var dbs = db.TaskDB
 // var Seched *scheduler.Scheduler
 
 func init() {
-	// dbs.AutoMigrate(&Task{})
-	// dbs.AutoMigrate(&TaskClients{})
-	// dbs.AutoMigrate(&TaskTag{})
-	// dbs.AutoMigrate(&TaskToTag{})
-	// dbs.AutoMigrate(&TaskParam{})
+	dbs.AutoMigrate(&Task{})
+	dbs.AutoMigrate(&TaskClients{})
+	dbs.AutoMigrate(&TaskTag{})
+	dbs.AutoMigrate(&TaskToTag{})
+	dbs.AutoMigrate(&TaskParam{})
 
-	// var tsks []*Task
-	// dbs.Model(&Task{}).Where("status = 1").Find(&tsks)
+	var tsks []*Task
+	dbs.Model(&Task{}).Where("status = 1").Find(&tsks)
 
 	// // Seched = scheduler.New()
 
-	// for _, v := range tsks {
-	// 	go v.Start()
-	// }
+	for _, v := range tsks {
+		v.Start()
+	}
 }
 
 func (this *Task) Save(tx *gorm.DB) error {
@@ -214,6 +214,7 @@ func GetTasks(adminid int64, dt *db.ListFinder) ([]*Task, int64) {
 	if dt.Limit < 1 {
 		dt.Limit = 20
 	}
+	fmt.Println("----- 查找任务!")
 	md := dbs.Model(&Task{}).Where("admin_id = ?", adminid)
 	if dt.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", dt.Q)
@@ -246,7 +247,9 @@ func GetTasks(adminid int64, dt *db.ListFinder) ([]*Task, int64) {
 	} else {
 		md.Order("id DESC")
 	}
-	md.Offset((dt.Page - 1) * dt.Limit).Limit(dt.Limit).Find(&tks)
+	if err := md.Offset((dt.Page - 1) * dt.Limit).Limit(dt.Limit).Debug().Find(&tks).Error; err != nil {
+		fmt.Println("err---------:", err)
+	}
 
 	for _, v := range tks {
 		v.Devices = v.GetDevices()

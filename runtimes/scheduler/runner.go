@@ -80,9 +80,6 @@ func (r *Runner) execute() {
 	r.startAt = time.Now()
 	if err := r.task(r.ctx); err != nil {
 		n := r.tried.Add(1)
-		if r.errFunc != nil {
-			r.errFunc(err, r.tried.Load())
-		}
 
 		if n >= int32(r.maxTry) {
 			// 本轮失败结束，清空失败计数
@@ -127,6 +124,10 @@ func (r *Runner) execute() {
 
 		r.nextRun = time.Now().Add(delay)
 		r.s.enqueue(r)
+
+		if r.errFunc != nil {
+			r.errFunc(err, r.tried.Load())
+		}
 		return
 	}
 
@@ -314,6 +315,11 @@ func (r *Runner) GetTotalTime() float64 {
 // 获取已重试的次数
 func (r *Runner) GetTryTimers() int {
 	return int(r.tried.Load())
+}
+
+// 获取下次执行时间
+func (r *Runner) GetNextRunTime() time.Time {
+	return r.nextRun
 }
 
 // 设置任务在什么时间停止

@@ -8,14 +8,16 @@ import (
 	"sync/atomic"
 	"time"
 	"tools/runtimes/bs"
+	"tools/runtimes/db/clients/browserdb"
+	"tools/runtimes/db/task"
 	"tools/runtimes/db/tasks/runhttp"
 	"tools/runtimes/db/tasks/runphone"
 	"tools/runtimes/db/tasks/runweb"
 	"tools/runtimes/funcs"
 	"tools/runtimes/mainsignal"
+	"tools/runtimes/proxy"
+	"tools/runtimes/runner"
 	"tools/runtimes/scheduler"
-
-	"github.com/tidwall/gjson"
 )
 
 var WatchingTasks sync.Map
@@ -176,47 +178,103 @@ func (t *Task) ReStart() *RuningTask {
 
 // 如果没有设置执行设备,则默认使用golang内置的http发起相应的请求
 func (t *Task) Start() *RuningTask {
-	now := time.Now().Unix()
-	if t.Endtime > 0 && t.Endtime < now {
+	if t.Endtime > 0 && time.Now().Unix() >= t.Endtime {
 		return nil
 	}
-	if t.Starttime > 0 && t.Starttime > now {
-		delay := time.Duration(t.Starttime-now) * time.Second
-		taskTickerStart.Store(t.ID, true)
-		time.AfterFunc(delay, func() {
-			t.Start()
-		})
+	tl, err := task.NewTask("task", t.ID, t.Title, t.SeNum, false)
+	if err != nil {
+		fmt.Println(err, "----- 启动失败")
 		return nil
 	}
-
-	return Start(t, func(data string, uuid string) error {
-		gs := gjson.Parse(data)
-		switch gs.Get("type").String() {
-		case "done": //任务完成
-			fmt.Println("任务完成!")
-		case "notify": //任务通知
-			fmt.Println("任务通知!")
-		case "error": //任务失败
-			fmt.Println("任务失败!")
-			if wt, ok := WatchingTasks.Load(t.ID); ok {
-				if rt, ok := wt.(*RuningTask); ok {
-					rt.Stop()
-				}
-			}
+	for _, v := range t.GetClients() {
+		tr, err := tl.AddChild(fmt.Sprintf("task-%d-%s", t.ID, v.DeviceID), fmt.Sprintf("设备: %d", v.DeviceID), time.Duration(t.Timeout)*time.Second)
+		if err != nil {
+			return nil
 		}
-		return nil
-	}, func() { // close
-		fmt.Println("任务关闭")
-	}, nil, nil)
+		tr.StartInterval(t.Cycle*60, func(tr *task.TaskRun) error {
+			var opt any
+			switch v.DeviceType {
+			case 0:
+				var bid int64
+				var pc *proxy.ProxyConfig
+				var w int
+				var h int
+				var lang string
+				var timezone string
+				hdl := true
+				if bss, err := browserdb.GetBrowserById(v.DeviceID); err == nil {
+					bid = bss.Id
+					if pcc, err := bss.GenProxyConfig(); err == nil {
+						pc = pcc
+					}
+					w = bss.Width
+					h = bss.Height
+					lang = bss.Lang
+					timezone = bss.Timezone
+				}
+				if t.Headless == 1 {
+					hdl = false
+				}
+				opt = runner.GenWebOpt(tr.GetCtx(), bid, hdl, t.DefUrl, t.GetRunJscript(), pc, time.Duration(t.Timeout)*time.Second, w, h, lang, timezone)
+			case 1:
+			case 2:
+			}
+
+			rr, err := runner.GetRunner(v.DeviceType, opt)
+			if err != nil {
+				return nil
+			}
+
+			return rr.Start(time.Duration(t.Timeout)*time.Second, func(str string) error {
+				fmt.Println(str, "======----")
+				return fmt.Errorf("未找到数据----")
+			})
+		})
+		tr.StopAt(time.Unix(t.Endtime, 0))
+	}
+	return nil
+	// now := time.Now().Unix()
+	// if t.Endtime > 0 && t.Endtime < now {
+	// 	return nil
+	// }
+	// if t.Starttime > 0 && t.Starttime > now {
+	// 	delay := time.Duration(t.Starttime-now) * time.Second
+	// 	taskTickerStart.Store(t.ID, true)
+	// 	time.AfterFunc(delay, func() {
+	// 		t.Start()
+	// 	})
+	// 	return nil
+	// }
+
+	// return Start(t, func(data string, uuid string) error {
+	// 	gs := gjson.Parse(data)
+	// 	switch gs.Get("type").String() {
+	// 	case "done": //任务完成
+	// 		fmt.Println("任务完成!")
+	// 	case "notify": //任务通知
+	// 		fmt.Println("任务通知!")
+	// 	case "error": //任务失败
+	// 		fmt.Println("任务失败!")
+	// 		if wt, ok := WatchingTasks.Load(t.ID); ok {
+	// 			if rt, ok := wt.(*RuningTask); ok {
+	// 				rt.Stop()
+	// 			}
+	// 		}
+	// 	}
+	// 	return nil
+	// }, func() { // close
+	// 	fmt.Println("任务关闭")
+	// }, nil, nil)
 }
 
 func (t *Task) Stop() {
-	taskTickerStart.Delete(t.ID)
-	rt, err := GetRunTask(t.ID)
-	if err != nil {
-		return
-	}
-	rt.Stop()
+	task.Stop("task", t.ID)
+	// taskTickerStart.Delete(t.ID)
+	// rt, err := GetRunTask(t.ID)
+	// if err != nil {
+	// 	return
+	// }
+	// rt.Stop()
 }
 
 func (rt *RuningTask) Stop() {

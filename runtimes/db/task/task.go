@@ -18,13 +18,11 @@ import (
 	"tools/runtimes/listens/ws"
 	"tools/runtimes/mainsignal"
 	"tools/runtimes/scheduler"
-
-	"gorm.io/gorm"
 )
 
 type Task struct {
 	ID       int64                `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name     string               `json:"type" gorm:"index;not null"`     // 任务名称,用于查询任务：比如media_user处查询任务明细,一般用表名
+	Name     string               `json:"name" gorm:"index;not null"`     // 任务名称,用于查询任务：比如media_user处查询任务明细,一般用表名
 	NameID   int64                `json:"name_id" gorm:"index;default:0"` // 对应的表ID,也是方便查询的
 	Title    string               `json:"title" gorm:"not null;index"`    // 任务标题,对外显示的名称
 	Addtime  int64                `json:"addtime" gorm:"index;not null"`  // 加入时间
@@ -40,39 +38,43 @@ type Task struct {
 // 任务执行者,只有在新建任务，结束任务落库
 // 结束分为正常结束，错误结束，意外结束(panic)
 type TaskRun struct {
-	ID       int64                `json:"id" gorm:"primaryKey;autoIncrement"`
-	TaskID   int64                `json:"task_id" gorm:"index;not null"`   // 任务表的ID
-	RunID    string               `json:"run_id" gorm:"index;not null"`    // 执行的id,需要调用方设置,执行器通过这个id判断是否已有执行器
-	Title    string               `json:"title" gorm:"index;not null"`     // 执行器标题
-	Cycle    int64                `json:"cycle" gorm:"index;default:0"`    // 周期,单位秒
-	AtTime   int64                `json:"at_time" gorm:"index;default:0"`  // 定点任务
-	Status   int                  `json:"status" gorm:"index; default:0"`  // 任务状态，0-等待执行 1-正在执行, 2-执行完成. 在此处无法判断是否执行成功
-	Total    int64                `json:"total" gorm:"default:0"`          // 任务总执行量
-	Doned    int64                `json:"doned" gorm:"default:0"`          // 任务已执行量
-	DoneMsg  string               `json:"done_msg" gorm:"default:null"`    // 执行完成消息
-	StartAt  int64                `json:"start_at" gorm:"index;default:0"` // 开始时间,也就是任务开始执行的时间
-	EndAt    int64                `json:"end_at" gorm:"index;default:0"`   // 结束时间
-	_timeout time.Duration        `json:"-" gorm:"-"`                      // 超时时间
-	_sch     *scheduler.Scheduler `json:"-" gorm:"-"`                      // 调度器
-	_runner  *scheduler.Runner    `json:"-" gorm:"-"`                      // 调度执行器
+	ID          int64                `json:"id" gorm:"primaryKey;autoIncrement"`
+	TaskID      int64                `json:"task_id" gorm:"index;not null"`   // 任务表的ID
+	RunID       string               `json:"run_id" gorm:"index;not null"`    // 执行的id,需要调用方设置,执行器通过这个id判断是否已有执行器
+	Title       string               `json:"title" gorm:"index;not null"`     // 执行器标题
+	Cycle       int64                `json:"cycle" gorm:"index;default:0"`    // 周期,单位秒
+	AtTime      int64                `json:"at_time" gorm:"index;default:0"`  // 定点任务
+	Status      int                  `json:"status" gorm:"index; default:0"`  // 任务状态，0-等待执行 1-正在执行, 2-执行完成. 在此处无法判断是否执行成功
+	Total       float64              `json:"total" gorm:"default:0"`          // 任务总执行量
+	Doned       float64              `json:"doned" gorm:"default:0"`          // 任务已执行量
+	DoneMsg     string               `json:"done_msg" gorm:"default:null"`    // 执行完成消息
+	StartAt     int64                `json:"start_at" gorm:"index;default:0"` // 开始时间,也就是任务开始执行的时间
+	DoneTimes   int64                `json:"done_times" gorm:"default:0"`     // 执行次数
+	EndAt       int64                `json:"end_at" gorm:"index;default:0"`   // 结束时间
+	NextRuntime int64                `json:"next_runtime" gorm:"-"`           // 下一次执行时间
+	_timeout    time.Duration        `json:"-" gorm:"-"`                      // 超时时间
+	_sch        *scheduler.Scheduler `json:"-" gorm:"-"`                      // 调度器
+	_runner     *scheduler.Runner    `json:"-" gorm:"-"`                      // 调度执行器
 	db.BaseModel
 }
 
 // 任务执行的详细消息
 type TaskRunMsg struct {
-	TaskID    int64  `json:"task_id" gorm:"index;"`
-	TaskRunID int64  `json:"task_run_id" gorm:"index"`
-	Msg       string `json:"msg" gorm:"not null"`     // 具体的消息
-	Status    int    `json:"status" gorm:"default:0"` // 状态, -1失败,0正在执行,1成功
-	Addtime   int64  `json:"addtime" gorm:"not null"` // 添加时间
+	TaskID      int64  `json:"task_id" gorm:"index;"`
+	TaskRunID   int64  `json:"task_run_id" gorm:"index"`
+	Msg         string `json:"msg" gorm:"not null"`           // 具体的消息
+	Status      int    `json:"status" gorm:"default:0"`       // 状态, -1失败,0正在执行,1成功
+	Addtime     int64  `json:"addtime" gorm:"not null"`       // 添加时间
+	Tried       int    `json:"tried" gorm:"default:0"`        // 已重试次数
+	NextRuntime int64  `json:"next_runtime" gorm:"default:0"` // 下一次重试时间
+	Doned       int64  `json:"doned" gorm:"-"`                // 已执行次数
 	db.BaseModel
 }
 
 var TaskActived sync.Map
-var taskdb *gorm.DB
+var taskdb = db.TaskLogDB
 
 func init() {
-	taskdb = db.TaskDB
 	taskdb.AutoMigrate(&Task{})
 	taskdb.AutoMigrate(&TaskRun{})
 	taskdb.AutoMigrate(&TaskRunMsg{})
@@ -147,6 +149,20 @@ func NewTask(name string, id int64, title string, limit int, temp bool) (*Task, 
 	return tsk, nil
 }
 
+// 停止任务
+func Stop(name string, id int64) {
+	tid := getUniqueIndex(name, id)
+	if t, ok := TaskActived.Load(tid); ok {
+		if tsk, ok := t.(*Task); ok {
+			for _, v := range tsk._runners {
+				v.Stop()
+			}
+			tsk.Endtime = time.Now().Unix()
+			tsk.Save(tsk, taskdb)
+		}
+	}
+}
+
 // 发送任务到ws
 func (t *Task) Sent() {
 	if dt, err := config.Json.Marshal(map[string]any{
@@ -154,9 +170,25 @@ func (t *Task) Sent() {
 		"data": t,
 	}); err == nil {
 		ws.Broadcost(dt)
-
 		for _, v := range t._runners {
 			v.fullMsg()
+
+			lastsmg := new(TaskRunMsg)
+			err := taskdb.Model(&TaskRunMsg{}).Where("task_id = ? and task_run_id = ?", t.ID, v.ID).Order("addtime DESC").First(lastsmg).Error
+			if err == nil {
+				lastsmg.sent(v)
+			} else {
+				trm := &TaskRunMsg{
+					TaskID:      v.TaskID,
+					TaskRunID:   v.ID,
+					Status:      0,
+					Addtime:     time.Now().Unix(),
+					Msg:         "任务等待中...",
+					Tried:       0,
+					NextRuntime: v._runner.GetNextRunTime().Unix(),
+				}
+				trm.sent(v)
+			}
 		}
 	}
 }
@@ -174,6 +206,7 @@ func (t *Task) AddChild(runnerID, title string, timeout time.Duration) (*TaskRun
 	tr.TaskID = t.ID
 	tr.RunID = runnerID
 	tr.Title = title
+	tr.StartAt = time.Now().Unix()
 	tr._timeout = timeout
 	tr._sch = t._sch
 
@@ -186,36 +219,26 @@ func (t *Task) AddChild(runnerID, title string, timeout time.Duration) (*TaskRun
 	return tr, nil
 }
 
-// --------------- 以下是 taskrun 方法 ------------------
-// 向客户端发送任务执行消息,仅发送消息.
-// 也就是在回调函数中仅允许发送消息
-func (tr *TaskRun) SentMsg(msg string) {
-	tr.DoneMsg = msg
-	if dt, err := config.Json.Marshal(map[string]any{
-		"type":     "task-runner-msg",
-		"runnerid": tr.RunID,
-		"taskid":   tr.TaskID,
-		"msg":      msg,
-	}); err == nil {
-		ws.Broadcost(dt)
+// 发送完整的TaskRunner消息
+func (tr *TaskRun) fullMsg() {
+	if tr._runner != nil {
+		tr.NextRuntime = tr._runner.GetNextRunTime().Unix()
 	}
-}
-func (tr *TaskRun) SentKey(mk map[string]any) {
 	if dt, err := config.Json.Marshal(map[string]any{
-		"type":     "task-runner-key",
-		"runnerid": tr.RunID,
-		"taskid":   tr.TaskID,
-		"data":     mk,
+		"type": "task-runner",
+		"data": tr,
 	}); err == nil {
 		ws.Broadcost(dt)
 	}
 }
 
-// 发送完整的TaskRunner消息
-func (tr *TaskRun) fullMsg() {
+// 发送执行消息
+func (trm *TaskRunMsg) sent(tr *TaskRun) {
+	trm.NextRuntime = tr._runner.GetNextRunTime().Unix()
+	trm.Doned = int64(tr._runner.GetRunTimes())
 	if dt, err := config.Json.Marshal(map[string]any{
-		"type": "task-runner",
-		"data": tr,
+		"type": "task-runner-msg",
+		"data": trm,
 	}); err == nil {
 		ws.Broadcost(dt)
 	}
@@ -233,57 +256,10 @@ func (tr *TaskRun) StartInterval(interval int64, callback func(*TaskRun) error) 
 	}
 	tr.Cycle = interval
 	tr.Save(tr, taskdb)
-	tr._runner = tr._sch.NewRunner(func(ctx context.Context) error {
-		if tr.StartAt < 1 {
-			tr.StartAt = time.Now().Unix()
-			tr.Status = 1
-			tr.Save(tr, taskdb)
-		}
-		return callback(tr)
-	}, tr._timeout, mainsignal.MainCtx)
 
-	tr._runner.Every(time.Second * time.Duration(interval)).
-		SetCloser(func() {
-			tr.EndAt = time.Now().Unix()
-			tr.Status = 2
-			tr.Save(tr, taskdb)
-			tr.fullMsg()
-
-			taskdb.Model(&Task{}).Where("id = ?", tr.TaskID).Update("endtime", tr.EndAt)
-			fmt.Println("任务执行完成!")
-		}).
-		SetOnceDone(func(tried int32, err error, nextRunTime time.Time) {
-			var status int
-			var msg string
-			if err == nil {
-				msg = i18n.T("Task run success")
-				status = 1
-			} else {
-				status = -1
-				msg = i18n.T("Task run error: %s", err.Error())
-			}
-			trm := &TaskRunMsg{
-				TaskID:    tr.TaskID,
-				TaskRunID: tr.ID,
-				Status:    status,
-				Addtime:   time.Now().Unix(),
-				Msg:       msg,
-			}
-			trm.Save(trm, taskdb)
-			tr.SentKey(map[string]any{"tried": tried, "nexttime": nextRunTime.Unix(), "msg": msg})
-			fmt.Println("本次执行完成---,重试次数:", tried, " 下次执行时间:", nextRunTime.Unix())
-		}).
-		SetError(func(err error, tried int32) {
-			trm := &TaskRunMsg{
-				TaskID:    tr.TaskID,
-				TaskRunID: tr.ID,
-				Status:    -1,
-				Addtime:   time.Now().Unix(),
-				Msg:       fmt.Sprintf("%s, 重试:%d", err.Error(), tried),
-			}
-			trm.Save(trm, taskdb)
-			tr.SentMsg(err.Error())
-		}).SetMaxTry(5).RunNow()
+	tr.setRunner(callback)._runner.Every(time.Second * time.Duration(interval))
+	tr.runnerCallback()
+	tr._runner.RunNow()
 	return nil
 }
 
@@ -296,25 +272,58 @@ func (tr *TaskRun) StartAtTime(timer int64, callback func(*TaskRun) error) error
 	tr.AtTime = timer
 	tr.Save(tr, taskdb)
 
+	tr.setRunner(callback)._runner.DailyRandomAt(h, m, s, 5, nil)
+	tr.runnerCallback()
+	tr._runner.Run()
+	return nil
+}
+
+// 设置执行器
+func (tr *TaskRun) setRunner(callback func(*TaskRun) error) *TaskRun {
 	tr._runner = tr._sch.NewRunner(func(ctx context.Context) error {
 		if tr.StartAt < 1 {
 			tr.StartAt = time.Now().Unix()
 			tr.Status = 1
 			tr.Save(tr, taskdb)
 		}
+		trm := &TaskRunMsg{
+			TaskID:      tr.TaskID,
+			TaskRunID:   tr.ID,
+			Status:      1,
+			Addtime:     time.Now().Unix(),
+			Msg:         "开始执行...",
+			Tried:       tr._runner.GetTryTimers(),
+			NextRuntime: tr._runner.GetNextRunTime().Unix(),
+			Doned:       int64(tr._runner.GetRunTimes()),
+		}
+		trm.sent(tr)
 		return callback(tr)
 	}, tr._timeout, mainsignal.MainCtx)
-	tr._runner.DailyRandomAt(h, m, s, 5, nil).
-		SetCloser(func() {
+
+	trm := &TaskRunMsg{
+		TaskID:      tr.TaskID,
+		TaskRunID:   tr.ID,
+		Status:      0,
+		Addtime:     time.Now().Unix(),
+		Msg:         "任务等待中...",
+		Tried:       0,
+		NextRuntime: tr._runner.GetNextRunTime().Unix(),
+	}
+	trm.sent(tr)
+	return tr
+}
+
+// 设置执行器回调
+func (tr *TaskRun) runnerCallback() {
+	if tr._runner != nil {
+		tr._runner.SetCloser(func() {
 			tr.EndAt = time.Now().Unix()
 			tr.Status = 2
 			tr.Save(tr, taskdb)
 			tr.fullMsg()
 
 			taskdb.Model(&Task{}).Where("id = ?", tr.TaskID).Update("endtime", tr.EndAt)
-			fmt.Println("任务执行完成!")
-		}).
-		SetOnceDone(func(tried int32, err error, nextRunTime time.Time) {
+		}).SetOnceDone(func(tried int32, err error, nextRunTime time.Time) {
 			var status int
 			var msg string
 			if err == nil {
@@ -324,32 +333,56 @@ func (tr *TaskRun) StartAtTime(timer int64, callback func(*TaskRun) error) error
 				status = -1
 				msg = i18n.T("Task run error: %s", err.Error())
 			}
+			tr.DoneTimes = int64(tr._runner.GetRunTimes())
+			// go tr.Save(tr, taskdb)
 			trm := &TaskRunMsg{
-				TaskID:    tr.TaskID,
-				TaskRunID: tr.ID,
-				Status:    status,
-				Addtime:   time.Now().Unix(),
-				Msg:       msg,
+				TaskID:      tr.TaskID,
+				TaskRunID:   tr.ID,
+				Status:      status,
+				Addtime:     time.Now().Unix(),
+				Msg:         msg,
+				Tried:       int(tried),
+				NextRuntime: nextRunTime.Unix(),
+			}
+			// go tr.fullMsg()
+			trm.Save(trm, taskdb)
+			trm.sent(tr)
+			// tr.SentKey(map[string]any{"tried": tried, "nexttime": nextRunTime.Unix(), "msg": msg})
+			// fmt.Println("本次执行完成---,重试次数:", tried, " 下次执行时间:", nextRunTime.Unix())
+		}).SetError(func(err error, tried int32) {
+			trm := &TaskRunMsg{
+				TaskID:      tr.TaskID,
+				TaskRunID:   tr.ID,
+				Status:      -1,
+				Addtime:     time.Now().Unix(),
+				Msg:         fmt.Sprintf("%s, 重试:%d", err.Error(), tried),
+				Tried:       int(tried),
+				NextRuntime: tr._runner.GetNextRunTime().Unix(),
 			}
 			trm.Save(trm, taskdb)
-			tr.SentKey(map[string]any{"tried": tried, "nexttime": nextRunTime.Unix(), "msg": msg})
-			fmt.Println("本次执行完成---,重试次数:", tried, " 下次执行时间:", nextRunTime.Unix())
-		}).
-		SetError(func(err error, tried int32) {
-			trm := &TaskRunMsg{
-				TaskID:    tr.TaskID,
-				TaskRunID: tr.ID,
-				Status:    -1,
-				Addtime:   time.Now().Unix(),
-				Msg:       fmt.Sprintf("%s, 重试:%d", err.Error(), tried),
-			}
-			trm.Save(trm, taskdb)
-			tr.SentMsg(err.Error())
-		}).SetMaxTry(5).Run()
-	return nil
+			trm.sent(tr)
+		}).SetMaxTry(5)
+	}
 }
 
 // 获取重试次数
 func (tr *TaskRun) GetTried() int {
 	return tr._runner.GetTryTimers()
+}
+
+// 上报任务进度
+func (tr *TaskRun) AskSchedule(total, doned float64) {
+	tr.Total = total
+	tr.Doned = doned
+	tr.fullMsg()
+}
+
+// 设置子任务停止时间
+func (tr *TaskRun) StopAt(t time.Time) {
+	tr._runner.SetStopAt(t)
+}
+
+// 获取执行器上下文
+func (tr *TaskRun) GetCtx() context.Context {
+	return tr._runner.GetCtx()
 }

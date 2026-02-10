@@ -1,6 +1,7 @@
 package browserdb
 
 import (
+	"errors"
 	"fmt"
 	"time"
 	"tools/runtimes/bs"
@@ -171,4 +172,14 @@ func (this *Browser) GetClient() *bs.Browser {
 		return b
 	}
 	return nil
+}
+
+// 生成浏览器代理的proxy_config
+func (this *Browser) GenProxyConfig() (*proxy.ProxyConfig, error) {
+	if this.Proxy > 0 {
+		return proxys.GetProxyConfigByID(this.Proxy)
+	} else if this.ProxyConfig != "" {
+		return proxy.Client(this.ProxyConfig, "", 0)
+	}
+	return nil, errors.New("No Proxy")
 }
