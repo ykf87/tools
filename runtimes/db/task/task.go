@@ -360,6 +360,10 @@ func (tr *TaskRun) runnerCallback() {
 				msg = i18n.T("Task run error: %s", err.Error())
 			}
 			tr.DoneTimes = int64(tr._runner.GetRunTimes())
+			taskdb.Write(func(tx *gorm.DB) error {
+				return tr.Save(tr, tx)
+			})
+			// fmt.Println(rtt, "------ 报错执行次数出错")
 			// go tr.Save(tr, taskdb)
 			trm := &TaskRunMsg{
 				TaskID:      tr.TaskID,
@@ -375,8 +379,6 @@ func (tr *TaskRun) runnerCallback() {
 				return trm.Save(trm, tx)
 			})
 			trm.sent(tr)
-			// tr.SentKey(map[string]any{"tried": tried, "nexttime": nextRunTime.Unix(), "msg": msg})
-			// fmt.Println("本次执行完成---,重试次数:", tried, " 下次执行时间:", nextRunTime.Unix())
 		}).SetError(func(err error, tried int32) {
 			trm := &TaskRunMsg{
 				TaskID:      tr.TaskID,
@@ -391,7 +393,7 @@ func (tr *TaskRun) runnerCallback() {
 				return trm.Save(trm, tx)
 			})
 			trm.sent(tr)
-		}).SetMaxTry(5)
+		}).SetMaxTry(5).SetRetryDelay(time.Second * 60)
 	}
 }
 
@@ -401,7 +403,7 @@ func (tr *TaskRun) GetTried() int {
 }
 
 // 上报任务进度
-func (tr *TaskRun) AskSchedule(total, doned float64) {
+func (tr *TaskRun) ReportSchedule(total, doned float64) {
 	tr.Total = total
 	tr.Doned = doned
 	tr.fullMsg()

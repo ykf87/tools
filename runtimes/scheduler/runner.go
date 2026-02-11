@@ -39,6 +39,7 @@ type Runner struct {
 	endAt     time.Time // 任务结束时间
 	stopAt    time.Time // 自动停止时间
 	runTimers int
+	randesesk float64 // 随机范围,百分比0-1的数字
 
 	mu sync.Mutex
 	s  *Scheduler
@@ -48,10 +49,11 @@ type Runner struct {
 
 func newRunner(ctx context.Context, cancel context.CancelFunc, task TaskFunc, s *Scheduler) *Runner {
 	return &Runner{
-		task:   task,
-		ctx:    ctx,
-		cancel: cancel,
-		s:      s,
+		task:      task,
+		ctx:       ctx,
+		cancel:    cancel,
+		s:         s,
+		randesesk: 0.24,
 	}
 }
 
@@ -78,7 +80,8 @@ func (r *Runner) execute() {
 	// fmt.Println(r.id, "----")
 
 	r.startAt = time.Now()
-	if err := r.task(r.ctx); err != nil {
+	err := r.task(r.ctx)
+	if err != nil {
 		n := r.tried.Add(1)
 
 		if n >= int32(r.maxTry) {
@@ -88,7 +91,8 @@ func (r *Runner) execute() {
 
 			// 如果是周期任务，进入下一次 interval
 			if r.interval > 0 && !r.closed.Load() {
-				r.nextRun = time.Now().Add(r.interval)
+				// r.nextRun = time.Now().Add(r.interval)
+				r.setNextRunTime(r.interval)
 				if r.oncedone != nil {
 					r.oncedone(tried, err, r.nextRun)
 				}
@@ -103,26 +107,25 @@ func (r *Runner) execute() {
 			}
 			return
 		}
-		// if r.ontry != nil {
-		// 	r.ontry(r.tried.Load())
-		// }
 
 		// 🔥 失败重试调度（而不是等 interval）
 		// 🔥 失败重试：随机 3~10 秒
-		min := 3 * time.Second
-		max := 10 * time.Second
+		// min := 3 * time.Second
+		// max := 10 * time.Second
 		var delay time.Duration
 		if r.retryDelay > 0 {
 			delay = r.retryDelay
 		} else {
-			delay = min + time.Duration(rand.Int63n(int64(max-min)))
+			// delay = min + time.Duration(rand.Int63n(int64(max-min)))
+			delay = time.Second * 5
 		}
 		// delay := r.retryDelay
 		if delay <= 0 {
-			delay = time.Millisecond // 防止自旋
+			delay = time.Second // 防止自旋
 		}
 
-		r.nextRun = time.Now().Add(delay)
+		// r.nextRun = time.Now().Add(delay)
+		r.setNextRunTime(delay)
 		r.s.enqueue(r)
 
 		if r.errFunc != nil {
@@ -138,7 +141,8 @@ func (r *Runner) execute() {
 
 	// 只有成功，才进入周期调度
 	if r.interval > 0 && !r.closed.Load() {
-		r.nextRun = time.Now().Add(r.interval)
+		// r.nextRun = time.Now().Add(r.interval)
+		r.setNextRunTime(r.interval)
 		if r.oncedone != nil {
 			r.oncedone(tried, nil, r.nextRun)
 		}
@@ -153,6 +157,17 @@ func (r *Runner) execute() {
 	if r.closeFun != nil {
 		r.closeFun()
 	}
+}
+
+// 设置下一次的执行时间
+func (r *Runner) setNextRunTime(delay time.Duration) {
+	if r.randesesk > 0 {
+		dlc := float64(delay) * r.randesesk
+		offset := (rand.Float64()*2 - 1) * dlc
+
+		delay = time.Duration(float64(delay) + offset)
+	}
+	r.nextRun = time.Now().Add(delay)
 }
 
 /**************** Runner 生命周期 ****************/
@@ -179,7 +194,8 @@ func (r *Runner) Run() {
 
 	// 一次性任务：如果没有 nextRun，默认不调度
 	if r.interval > 0 && r.nextRun.IsZero() {
-		r.nextRun = time.Now().Add(r.interval)
+		// r.nextRun = time.Now().Add(r.interval)
+		r.setNextRunTime(r.interval)
 	}
 
 	if !r.nextRun.IsZero() {

@@ -25,22 +25,23 @@ func init() {
 		fmt.Println("构建子任务失败", err)
 		return
 	}
-	// tr.StartInterval(30, func(tr *task.TaskRun) error {
+	tr.StartInterval(30, func(tr *task.TaskRun) error {
+		// fmt.Println("-------执行", tr.RunID, tr.Title)
+		tr.ReportSchedule(90, 78)
+		time.Sleep(time.Second * 3)
+		if tr.GetTried() >= 1 {
+			tr.ReportSchedule(90, 90)
+			return nil
+		}
+		return fmt.Errorf("错误的任务:%s", tr.RunID)
+	})
+
+	// tr.StartAtTime(-28800000, func(tr *task.TaskRun) error {
 	// 	fmt.Println("-------执行", tr.RunID, tr.Title)
-	// 	tr.AskSchedule(90, 2)
-	// 	time.Sleep(time.Second * 3)
+
 	// 	if tr.GetTried() >= 1 {
 	// 		return nil
 	// 	}
 	// 	return fmt.Errorf("错误的任务:%s", tr.RunID)
 	// })
-
-	tr.StartAtTime(-28800000, func(tr *task.TaskRun) error {
-		fmt.Println("-------执行", tr.RunID, tr.Title)
-
-		if tr.GetTried() >= 1 {
-			return nil
-		}
-		return fmt.Errorf("错误的任务:%s", tr.RunID)
-	})
 }
