@@ -13,6 +13,7 @@ import (
 	"tools/runtimes/response"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type TagList struct {
@@ -28,7 +29,7 @@ func PhoneTags(c *gin.Context) {
 		return
 	}
 
-	model := db.DB.Model(&clients.PhoneTag{})
+	model := db.DB.DB().Model(&clients.PhoneTag{})
 	if dt.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", dt.Q)
 		model = model.Where("name LIKE ?", qs)
@@ -74,7 +75,7 @@ func List(c *gin.Context) {
 		return
 	}
 
-	model := db.DB.Model(&clients.Phone{}).Group("phones.id")
+	model := db.DB.DB().Model(&clients.Phone{}).Group("phones.id")
 	if l.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", l.Q)
 		model = model.Where("name LIKE ? or lang like ? OR local like ? or num = ? or os like ? or brand like ?", qs, qs, qs, l.Q, qs, qs)
@@ -231,7 +232,9 @@ func Editer(c *gin.Context) {
 		}
 	}
 	if changeed {
-		if err := phoneObj.Save(nil); err != nil {
+		if err := db.DB.Write(func(tx *gorm.DB) error {
+			return phoneObj.Save(phoneObj, tx)
+		}); err != nil {
 			response.Error(c, http.StatusNotFound, err.Error(), nil)
 			return
 		}

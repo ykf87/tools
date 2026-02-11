@@ -1,6 +1,9 @@
 package tasks
 
-import "gorm.io/gorm/clause"
+import (
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
 
 // 任务标签表
 type TaskTag struct {
@@ -11,13 +14,13 @@ type TaskTag struct {
 // 获取所有tags
 func GetTags() []*TaskTag {
 	var tgs []*TaskTag
-	dbs.Model(&TaskTag{}).Find(&tgs)
+	Dbs.DB().Model(&TaskTag{}).Find(&tgs)
 	return tgs
 }
 
 func GetTagsByNames(names []string) []*TaskTag {
 	var tgs []*TaskTag
-	dbs.Model(&TaskTag{}).Where("name in ?", names).Find(&tgs)
+	Dbs.DB().Model(&TaskTag{}).Where("name in ?", names).Find(&tgs)
 	return tgs
 }
 
@@ -32,9 +35,14 @@ func AddTagsBySlice(tagNames []string) []*TaskTag {
 			})
 		}
 
-		dbs.Clauses(clause.OnConflict{
-			DoNothing: true,
-		}).Create(&tags)
+		Dbs.Write(func(tx *gorm.DB) error {
+			return tx.Clauses(clause.OnConflict{
+				DoNothing: true,
+			}).Create(&tags).Error
+		})
+		// dbs.Clauses(clause.OnConflict{
+		// 	DoNothing: true,
+		// }).Create(&tags)
 
 		return GetTagsByNames(tagNames)
 	}

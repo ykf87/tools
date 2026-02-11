@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"tools/runtimes/apptask"
 	"tools/runtimes/config"
+	"tools/runtimes/db"
 	"tools/runtimes/db/clients"
 	"tools/runtimes/eventbus"
 	"tools/runtimes/response"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
+	"gorm.io/gorm"
 )
 
 type WSDelivery struct {
@@ -46,7 +48,9 @@ func Ws(c *gin.Context) {
 			Version:  c.Query("version"),
 			Os:       c.Query("os"),
 		}
-		if err := phone.Save(nil); err != nil {
+		if err := db.DB.Write(func(tx *gorm.DB) error {
+			return phone.Save(phone, tx)
+		}); err != nil {
 			response.Error(c, http.StatusBadGateway, err.Error(), nil)
 			return
 		}

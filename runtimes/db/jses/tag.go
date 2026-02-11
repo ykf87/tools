@@ -3,6 +3,7 @@ package jses
 import (
 	"tools/runtimes/db"
 
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -17,17 +18,17 @@ type JsToTag struct {
 }
 
 func init() {
-	db.DB.AutoMigrate(&JsTag{})
-	db.DB.AutoMigrate(&JsToTag{})
+	db.DB.DB().AutoMigrate(&JsTag{})
+	db.DB.DB().AutoMigrate(&JsToTag{})
 }
 
 // 获取脚本下的tags
 func (this *Js) GetTags() []*JsTag {
 	var ttids []int64
-	db.DB.Model(&JsToTag{}).Select("tag_id").Where("js_id = ?", this.ID).Find(&ttids)
+	db.DB.DB().Model(&JsToTag{}).Select("tag_id").Where("js_id = ?", this.ID).Find(&ttids)
 
 	var tags []*JsTag
-	db.DB.Model(&JsTag{}).Where("id in ?", ttids).Find(&tags)
+	db.DB.DB().Model(&JsTag{}).Where("id in ?", ttids).Find(&tags)
 	return tags
 }
 
@@ -35,13 +36,13 @@ func (this *Js) GetTags() []*JsTag {
 func GetTags() []*JsTag {
 	var tgs []*JsTag
 
-	db.DB.Model(&JsTag{}).Find(&tgs)
+	db.DB.DB().Model(&JsTag{}).Find(&tgs)
 	return tgs
 }
 
 func GetTagsByNames(names []string) []*JsTag {
 	var tgs []*JsTag
-	db.DB.Model(&JsTag{}).Where("name in ?", names).Find(&tgs)
+	db.DB.DB().Model(&JsTag{}).Where("name in ?", names).Find(&tgs)
 	return tgs
 }
 
@@ -56,9 +57,11 @@ func AddTagsBySlice(tagNames []string) []*JsTag {
 			})
 		}
 
-		db.DB.Clauses(clause.OnConflict{
-			DoNothing: true,
-		}).Create(&tags)
+		db.DB.Write(func(tx *gorm.DB) error {
+			return tx.Clauses(clause.OnConflict{
+				DoNothing: true,
+			}).Create(&tags).Error
+		})
 
 		return GetTagsByNames(tagNames)
 	}

@@ -31,48 +31,53 @@ type Browser struct {
 	Tags        []string `json:"tags" gorm:"-" form:"tags"` // 标签
 	// Bs          *bs.Browser `json:"-" gorm:"-" form:"-"`       // 浏览器
 	Opend bool `json:"opend" gorm:"-" form:"-"` // 是否启动
+	db.BaseModel
 }
 
 func init() {
-	db.DB.AutoMigrate(&Browser{})
-	db.DB.AutoMigrate(&BrowserTag{})
-	db.DB.AutoMigrate(&BrowserToTag{})
+	db.DB.DB().AutoMigrate(&Browser{})
+	db.DB.DB().AutoMigrate(&BrowserTag{})
+	db.DB.DB().AutoMigrate(&BrowserToTag{})
 }
 
 func GetBrowserById(id any) (*Browser, error) {
 	b := new(Browser)
-	err := db.DB.Model(&Browser{}).Where("id = ?", id).First(b).Error
+	err := db.DB.DB().Model(&Browser{}).Where("id = ?", id).First(b).Error
 	if err != nil {
 		return nil, err
 	}
 	return b, nil
 }
 
-func (this *Browser) Save(tx *gorm.DB) error {
-	if tx == nil {
-		tx = db.DB
-	}
-	if this.Id > 0 {
-		return tx.Model(&Browser{}).Where("id = ?", this.Id).
-			Updates(map[string]any{
-				"name":         this.Name,
-				"proxy":        this.Proxy,
-				"proxy_config": this.ProxyConfig,
-				"lang":         this.Lang,
-				"local":        this.Local,
-				"timezone":     this.Timezone,
-				"width":        this.Width,
-				"height":       this.Height,
-				"updated_at":   time.Now(),
-				"ip":           this.Ip,
-				"proxy_name":   this.ProxyName,
-			}).Error
-	} else {
-		this.CreatedAt = time.Now()
-		this.UpdatedAt = this.CreatedAt
-		return tx.Create(this).Error
-	}
-}
+// func (this *Browser) Save(tx *db.SQLiteWriter) error {
+// 	if tx == nil {
+// 		tx = db.DB
+// 	}
+// 	if this.Id > 0 {
+// 		return tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Model(&Browser{}).Where("id = ?", this.Id).
+// 				Updates(map[string]any{
+// 					"name":         this.Name,
+// 					"proxy":        this.Proxy,
+// 					"proxy_config": this.ProxyConfig,
+// 					"lang":         this.Lang,
+// 					"local":        this.Local,
+// 					"timezone":     this.Timezone,
+// 					"width":        this.Width,
+// 					"height":       this.Height,
+// 					"updated_at":   time.Now(),
+// 					"ip":           this.Ip,
+// 					"proxy_name":   this.ProxyName,
+// 				}).Error
+// 		})
+// 	} else {
+// 		this.CreatedAt = time.Now()
+// 		this.UpdatedAt = this.CreatedAt
+// 		return tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Create(this).Error
+// 		})
+// 	}
+// }
 
 func (this *Browser) Open(opt *bs.Options) error {
 	if bs.BsManager.IsArride(this.Id) {
@@ -143,17 +148,30 @@ func (this *Browser) Close(rmv bool) error {
 }
 
 func (this *Browser) Delete() error {
-	if err := db.DB.Where("id = ?", this.Id).Delete(&Browser{}).Error; err != nil {
+	if err := db.DB.Write(func(tx *gorm.DB) error {
+		return tx.Where("id = ?", this.Id).Delete(&Browser{}).Error
+	}); err != nil {
 		return err
 	}
 
-	tx := db.DB.Begin()
-	tx.Where("browser_id = ?", this.Id).Delete(&BrowserToTag{})
-	if err := this.Close(false); err != nil {
-		tx.Rollback()
+	if err := db.DB.Write(func(txx *gorm.DB) error {
+		if err := txx.Where("browser_id = ?", this.Id).Delete(&BrowserToTag{}).Error; err != nil {
+			return err
+		}
+		if err := this.Close(false); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		return err
 	}
-	tx.Commit()
+	// tx := db.DB.Begin()
+	// tx.Where("browser_id = ?", this.Id).Delete(&BrowserToTag{})
+	// if err := this.Close(false); err != nil {
+	// 	tx.Rollback()
+	// 	return err
+	// }
+	// tx.Commit()
 
 	eventbus.Bus.Publish("browser-delete", "")
 	return nil

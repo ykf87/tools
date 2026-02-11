@@ -8,6 +8,7 @@ import (
 	"tools/runtimes/response"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func List(c *gin.Context) {
@@ -61,7 +62,9 @@ func AddOrEdit(c *gin.Context) {
 	}
 
 	dt.AdminID = user.Id
-	if err := dt.Save(nil); err != nil {
+	if err := db.DB.Write(func(tx *gorm.DB) error {
+		return dt.Save(dt, tx)
+	}); err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}

@@ -3,11 +3,9 @@ package proxys
 import (
 	"errors"
 	"fmt"
-	"time"
 	"tools/runtimes/aess"
 	"tools/runtimes/db"
 	"tools/runtimes/db/tag"
-	"tools/runtimes/eventbus"
 	"tools/runtimes/proxy"
 
 	"gorm.io/gorm"
@@ -42,6 +40,7 @@ type Proxy struct { // 如果有修改字段,需要更新Save方法
 	Tags       []string `json:"tags" gorm:"-" form:"tags"`                          // 标签列表,不写入数据库,仅在添加和修改时使用
 	IsRuning   int      `json:"is_runing" gorm:"-" form:"-"`                        // 是否启动
 	ListerAddr string   `json:"lister_addr" gorm:"-" form:"-"`                      // 监听地址
+	db.BaseModel
 	// Ping       string   `json:"ping" gorm:"-" form:"-"`                             // 测速结果
 	// Gid       int64    `json:"gid" gorm:"default:0;index"`         // 分组
 }
@@ -53,13 +52,13 @@ type PingResp struct {
 }
 
 func init() {
-	db.DB.AutoMigrate(&Proxy{})
-	db.DB.AutoMigrate(&ProxyTag{})
+	db.DB.DB().AutoMigrate(&Proxy{})
+	db.DB.DB().AutoMigrate(&ProxyTag{})
 
 	//随系统启动的代理
 	go func() {
 		var proxys []*Proxy
-		db.DB.Model(&Proxy{}).Where("auto_run = 1").Find(&proxys)
+		db.DB.DB().Model(&Proxy{}).Where("auto_run = 1").Find(&proxys)
 		for _, v := range proxys {
 			v.Start(true)
 			if v.Local == "" {
@@ -68,7 +67,9 @@ func init() {
 					v.Ip = local.Ip
 					v.Timezone = local.Timezone
 					v.Lang = local.Lang
-					v.Save(nil)
+					db.DB.Write(func(tx *gorm.DB) error {
+						return v.Save(v, tx)
+					})
 				}
 			}
 		}
@@ -76,44 +77,48 @@ func init() {
 }
 
 // 保存
-func (this *Proxy) Save(tx *gorm.DB) error {
-	if tx == nil {
-		tx = db.DB
-	}
-	if this.Id > 0 {
-		err := tx.Model(&Proxy{}).Where("id = ?", this.Id).
-			Updates(map[string]interface{}{
-				"name":       this.Name,
-				"remark":     this.Remark,
-				"local":      this.Local,
-				"ip":         this.Ip,
-				"lang":       this.Lang,
-				"timezone":   this.Timezone,
-				"subscribe":  this.Subscribe,
-				"config":     this.Config,
-				"config_md5": this.ConfigMd5,
-				"username":   this.Username,
-				"password":   this.Password,
-				"transfer":   this.Transfer,
-				"auto_run":   this.AutoRun,
-				"port":       this.Port,
-				"private":    this.Private,
-				"encrypt":    this.Encrypt,
-				"deleted":    this.Deleted,
-			}).Error
-		if err != nil {
-			return err
-		}
-		if this.Deleted == 1 {
-			this.Stop(true)
-		}
-		eventbus.Bus.Publish("proxy_change", this)
-		return nil
-	} else {
-		this.Addtime = time.Now().Unix()
-		return tx.Create(this).Error
-	}
-}
+// func (this *Proxy) Save(tx *db.SQLiteWriter) error {
+// 	if tx == nil {
+// 		tx = db.DB
+// 	}
+// 	if this.Id > 0 {
+// 		err := tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Model(&Proxy{}).Where("id = ?", this.Id).
+// 				Updates(map[string]interface{}{
+// 					"name":       this.Name,
+// 					"remark":     this.Remark,
+// 					"local":      this.Local,
+// 					"ip":         this.Ip,
+// 					"lang":       this.Lang,
+// 					"timezone":   this.Timezone,
+// 					"subscribe":  this.Subscribe,
+// 					"config":     this.Config,
+// 					"config_md5": this.ConfigMd5,
+// 					"username":   this.Username,
+// 					"password":   this.Password,
+// 					"transfer":   this.Transfer,
+// 					"auto_run":   this.AutoRun,
+// 					"port":       this.Port,
+// 					"private":    this.Private,
+// 					"encrypt":    this.Encrypt,
+// 					"deleted":    this.Deleted,
+// 				}).Error
+// 		})
+// 		if err != nil {
+// 			return err
+// 		}
+// 		if this.Deleted == 1 {
+// 			this.Stop(true)
+// 		}
+// 		eventbus.Bus.Publish("proxy_change", this)
+// 		return nil
+// 	} else {
+// 		this.Addtime = time.Now().Unix()
+// 		return tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Create(this).Error
+// 		})
+// 	}
+// }
 
 // 返回正确的config代理内容
 func (this *Proxy) GetConfig() string {
@@ -173,14 +178,14 @@ func (this *Proxy) Stop(enforce bool) error {
 // 通过id获取代理
 func GetById(id any) *Proxy {
 	px := new(Proxy)
-	db.DB.Where("id = ?", id).First(px)
+	db.DB.DB().Where("id = ?", id).First(px)
 	return px
 }
 
 // 通过端口获取代理
 func GetByPort(port any) *Proxy {
 	var px *Proxy
-	db.DB.Where("port = ?", port).First(px)
+	db.DB.DB().Where("port = ?", port).First(px)
 	return px
 }
 
@@ -188,7 +193,7 @@ func GetByPort(port any) *Proxy {
 // 使用此方法会清空已有的tag
 func (this *Proxy) CoverTgs(tagsName []string, tx *gorm.DB) error {
 	if tx == nil {
-		tx = db.DB
+		tx = db.DB.DB()
 	}
 
 	if err := this.RemoveMyTags(tx); err != nil {
@@ -208,6 +213,11 @@ func (this *Proxy) CoverTgs(tagsName []string, tx *gorm.DB) error {
 		if err := tx.Create(ntag).Error; err != nil {
 			return err
 		}
+		// if err := tx.Write(func(txx *gorm.DB) error {
+		// 	return txx.Create(ntag).Error
+		// }); err != nil {
+		// 	return err
+		// }
 	}
 
 	// var tgs []*tag.Tag
@@ -229,13 +239,15 @@ func (this *Proxy) IsStart() *proxy.ProxyConfig {
 
 // 删除当前的
 func (this *Proxy) Remove() error {
-	return db.DB.Where("id = ?", this.Id).Delete(&Proxy{}).Error
+	return db.DB.Write(func(tx *gorm.DB) error {
+		return tx.Where("id = ?", this.Id).Delete(&Proxy{}).Error
+	})
 }
 
 // 删除某个proxy下的tag
 func (this *Proxy) RemoveMyTags(tx *gorm.DB) error {
 	if tx == nil {
-		tx = db.DB
+		tx = db.DB.DB()
 	}
 	return tx.Where("proxy_id = ?", this.Id).Delete(&ProxyTag{}).Error
 }
@@ -252,7 +264,7 @@ func SetTags(pcs []*Proxy) {
 	}
 
 	var pxtgs []*ProxyTag
-	db.DB.Model(&ProxyTag{}).Where("proxy_id in ?", ids).Find(&pxtgs)
+	db.DB.DB().Model(&ProxyTag{}).Where("proxy_id in ?", ids).Find(&pxtgs)
 
 	var tagids []int64
 	pcMap := make(map[int64][]int64)

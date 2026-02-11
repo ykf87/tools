@@ -278,7 +278,7 @@ func (opt *Options) autodownload(srcs []string) {
 		return
 	}
 	var lastVid string
-	dbs.Model(&Media{}).Select("video_id").
+	dbs.DB().Model(&Media{}).Select("video_id").
 		Where("user_id = ?", opt.mu.Id).
 		Where("video_id is not null or video_id != ''").
 		Order("id DESC").First(&lastVid)

@@ -1,6 +1,7 @@
 package admins
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -62,15 +63,15 @@ func GetAdminFromJwt(tokenStr string) (*Admin, error) {
 	}
 
 	adm := new(Admin)
-	if err := db.DB.Model(&Admin{}).Where("id = ?", claims.Id).First(adm).Error; err != nil {
+	if err := db.DB.DB().Model(&Admin{}).Where("id = ?", claims.Id).First(adm).Error; err != nil {
 		return nil, err
 	}
 	if adm.Id < 1 {
-		return nil, fmt.Errorf(i18n.T("Account not found"))
+		return nil, errors.New(i18n.T("Account not found"))
 	}
 
 	if adm.Timer != claims.Timer {
-		return nil, fmt.Errorf(i18n.T("Account logged in elsewhere"))
+		return nil, errors.New(i18n.T("Account logged in elsewhere"))
 	}
 	return adm, nil
 }

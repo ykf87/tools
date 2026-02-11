@@ -47,7 +47,7 @@ func Editer(c *gin.Context) {
 		adm.Password, _ = funcs.GenPassword(adm.Password, 0)
 	}
 
-	if err := adm.Save(nil); err != nil {
+	if err := adm.Save(adm, nil); err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
@@ -140,7 +140,7 @@ func RePassword(c *gin.Context) {
 		return
 	}
 	user.Password = npwd
-	if err := user.Save(nil); err != nil {
+	if err := user.Save(user, nil); err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}

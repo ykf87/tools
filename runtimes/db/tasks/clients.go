@@ -21,7 +21,7 @@ type TaskClients struct {
 func (t *Task) GetClients() []*TaskClients {
 	var tcs []*TaskClients
 	if t.ID > 0 {
-		dbs.Model(&TaskClients{}).Where("task_id = ?", t.ID).Find(&tcs)
+		Dbs.DB().Model(&TaskClients{}).Where("task_id = ?", t.ID).Find(&tcs)
 	}
 	return tcs
 }

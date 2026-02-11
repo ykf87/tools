@@ -11,6 +11,7 @@ import (
 	"tools/runtimes/response"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type GetLocalData struct {
@@ -78,7 +79,9 @@ func Local(c *gin.Context) {
 			pc.Ip = loc.Ip
 			pc.Timezone = loc.Timezone
 			pc.Lang = loc.Lang
-			pc.Save(nil)
+			db.DB.Write(func(tx *gorm.DB) error {
+				return pc.Save(pc, tx)
+			})
 		} else {
 			response.Error(c, http.StatusBadRequest, i18n.T("Region acquisition failed"), nil)
 			return
@@ -97,7 +100,7 @@ func Locals(c *gin.Context) {
 
 	if len(ids.Ids) > 0 {
 		var px []*proxys.Proxy
-		db.DB.Model(&proxys.Proxy{}).Where("id in ?", ids.Ids).Find(&px)
+		db.DB.DB().Model(&proxys.Proxy{}).Where("id in ?", ids.Ids).Find(&px)
 		if len(px) > 0 {
 			var wg sync.WaitGroup
 			for _, v := range px {
@@ -109,7 +112,9 @@ func Locals(c *gin.Context) {
 						v.Ip = loc.Ip
 						v.Timezone = loc.Timezone
 						v.Lang = loc.Lang
-						v.Save(nil)
+						db.DB.Write(func(tx *gorm.DB) error {
+							return v.Save(v, tx)
+						})
 					}
 				}()
 			}

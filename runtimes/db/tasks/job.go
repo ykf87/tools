@@ -187,7 +187,7 @@ func (t *Task) Start() *RuningTask {
 		return nil
 	}
 	for _, v := range t.GetClients() {
-		tr, err := tl.AddChild(fmt.Sprintf("task-%d-%s", t.ID, v.DeviceID), fmt.Sprintf("设备: %d", v.DeviceID), time.Duration(t.Timeout)*time.Second)
+		tr, err := tl.AddChild(fmt.Sprintf("task-%d-%d", t.ID, v.DeviceID), fmt.Sprintf("设备: %d", v.DeviceID), time.Duration(t.Timeout)*time.Second)
 		if err != nil {
 			return nil
 		}

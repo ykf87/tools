@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"time"
 	"tools/runtimes/config"
+	"tools/runtimes/db"
 	"tools/runtimes/db/clients"
 	"tools/runtimes/eventbus"
 
 	"github.com/tidwall/gjson"
+	"gorm.io/gorm"
 )
 
 type DeviceScreen struct {
@@ -59,7 +61,11 @@ func connFirst() {
 			phone.Os = info.System
 			phone.Version = info.Version
 			phone.Infos = string(ifbt)
-			go phone.Save(nil)
+			go func() {
+				db.DB.Write(func(tx *gorm.DB) error {
+					return phone.Save(phone, tx)
+				})
+			}()
 
 			// 发送设备编号
 			num := map[string]any{

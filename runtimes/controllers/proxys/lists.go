@@ -33,7 +33,7 @@ func GetList(c *gin.Context) {
 		return
 	}
 
-	model := db.DB.Model(&proxys.Proxy{})
+	model := db.DB.DB().Model(&proxys.Proxy{})
 	if l.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", l.Q)
 		model = model.Where("name LIKE ? OR remark LIKE ? or local = ?", qs, qs, l.Q)
@@ -121,7 +121,7 @@ func GetRow(c *gin.Context) {
 // 启动
 func Start(c *gin.Context) {
 	ids := c.Param("id")
-	for _, id := range strings.Split(ids, ","){
+	for _, id := range strings.Split(ids, ",") {
 		pc := proxys.GetById(id)
 		if pc != nil && pc.Id > 0 {
 			if _, err := pc.Start(false); err != nil {
@@ -137,7 +137,7 @@ func Start(c *gin.Context) {
 // 停止
 func Stop(c *gin.Context) {
 	ids := c.Param("id")
-	for _, id := range strings.Split(ids, ","){
+	for _, id := range strings.Split(ids, ",") {
 		pc := proxys.GetById(id)
 		if pc != nil && pc.Id > 0 {
 			if err := pc.Stop(true); err != nil {

@@ -5,9 +5,12 @@ package subws
 import (
 	"fmt"
 	"tools/runtimes/config"
+	"tools/runtimes/db"
 	suggestions "tools/runtimes/db/Suggestions"
 	"tools/runtimes/db/messages"
 	"tools/runtimes/eventbus"
+
+	"gorm.io/gorm"
 )
 
 type Uuid struct {
@@ -62,9 +65,13 @@ func cguuid() {
 func sugg() {
 	eventbus.Bus.Subscribe("server_sugge_cate", func(data any) {
 		if dtstr, ok := data.(string); ok {
-			var suc *suggestions.SuggCate
+			suc := new(suggestions.SuggCate)
 			if err := config.Json.Unmarshal([]byte(dtstr), suc); err == nil {
-				suc.Save(nil)
+				if suc.Name != "" {
+					db.DB.Write(func(tx *gorm.DB) error {
+						return suc.Save(suc, tx)
+					})
+				}
 			}
 		}
 	})
@@ -81,9 +88,13 @@ func serverInfor() {
 func serverNotify() {
 	eventbus.Bus.Subscribe("server_notify", func(data any) {
 		if dtstr, ok := data.(string); ok {
-			var suc *suggestions.SuggCate
+			suc := new(suggestions.SuggCate)
 			if err := config.Json.Unmarshal([]byte(dtstr), suc); err == nil {
-				suc.Save(nil)
+				if suc.Name != "" {
+					db.DB.Write(func(tx *gorm.DB) error {
+						return suc.Save(suc, tx)
+					})
+				}
 			}
 		}
 	})

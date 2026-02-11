@@ -9,33 +9,36 @@ import (
 type Tag struct {
 	Id   int64  `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
 	Name string `json:"name" gorm:"uniqueIndex" form:"name"`
+	db.BaseModel
 }
 
 func init() {
-	db.DB.AutoMigrate(&Tag{})
+	db.DB.DB().AutoMigrate(&Tag{})
 }
 
-func (this *Tag) Save(tx *gorm.DB) error {
-	if tx == nil {
-		tx = db.DB
-	}
-	if this.Id > 0 {
-		return tx.Model(&Tag{}).Where("id = ?", this.Id).
-			Updates(map[string]interface{}{
-				"name": this.Name,
-			}).Error
-	} else {
-		return tx.Create(this).Error
-	}
-}
+// func (this *Tag) Save(tx *gorm.DB) error {
+// 	if tx == nil {
+// 		tx = db.DB
+// 	}
+// 	if this.Id > 0 {
+// 		return tx.Model(&Tag{}).Where("id = ?", this.Id).
+// 			Updates(map[string]interface{}{
+// 				"name": this.Name,
+// 			}).Error
+// 	} else {
+// 		return tx.Create(this).Error
+// 	}
+// }
 
 // 删除
-func (this *Tag) Remove(tx *gorm.DB) error {
+func (this *Tag) Remove(tx *db.SQLiteWriter) error {
 	if tx == nil {
 		tx = db.DB
 	}
 	if this != nil && this.Id > 0 {
-		return tx.Where("id = ?", this.Id).Delete(&Tag{}).Error
+		return tx.Write(func(tx *gorm.DB) error {
+			return tx.Where("id = ?", this.Id).Delete(&Tag{}).Error
+		})
 	}
 	return nil
 }
@@ -43,14 +46,14 @@ func (this *Tag) Remove(tx *gorm.DB) error {
 // 通过id获取标签
 func GetById(id any) *Tag {
 	tg := new(Tag)
-	db.DB.Model(&Tag{}).Where("id = ?", id).First(tg)
+	db.DB.DB().Model(&Tag{}).Where("id = ?", id).First(tg)
 	return tg
 }
 
 // 通过标签名称获取对应的数组
 func GetTagsByNames(names []string, tx *gorm.DB) map[string]int64 {
 	if tx == nil {
-		tx = db.DB
+		tx = db.DB.DB()
 	}
 	var tgs []*Tag
 	tx.Model(&Tag{}).Where("name in ?", names).Find(&tgs)
@@ -67,6 +70,7 @@ func GetTagsByNames(names []string, tx *gorm.DB) map[string]int64 {
 	}
 	if len(addn) > 0 {
 		tx.Create(&addn)
+		// tx.Create(&addn)
 	}
 	for _, v := range addn {
 		mp[v.Name] = v.Id
@@ -78,7 +82,7 @@ func GetTagsByNames(names []string, tx *gorm.DB) map[string]int64 {
 // 通过id获取对应的数组
 func GetTagsByIds(ids []int64) map[int64]string {
 	var tgs []*Tag
-	db.DB.Model(&Tag{}).Where("id in ?", ids).Find(&tgs)
+	db.DB.DB().Model(&Tag{}).Where("id in ?", ids).Find(&tgs)
 	mp := make(map[int64]string)
 	for _, v := range tgs {
 		mp[v.Id] = v.Name

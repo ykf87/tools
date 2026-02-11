@@ -14,7 +14,7 @@ type HttpUrl struct {
 
 func GetHttpUrlByID(id any) (*HttpUrl, error) {
 	var hu *HttpUrl
-	if err := db.DB.Model(&HttpUrl{}).Where("id = ?", id).First(hu).Error; err != nil {
+	if err := db.DB.DB().Model(&HttpUrl{}).Where("id = ?", id).First(hu).Error; err != nil {
 		return nil, err
 	}
 	return hu, nil

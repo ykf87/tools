@@ -8,6 +8,7 @@ import (
 	"tools/runtimes/services"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type AddSuggStruct struct {
@@ -36,18 +37,32 @@ func AddSuggestion(c *gin.Context) {
 	sug.Title = adddata.Title
 	sug.Content = adddata.Content
 
-	tx := db.DB.Begin()
-	if err := sug.Save(tx); err != nil {
-		response.Error(c, http.StatusBadGateway, err.Error(), nil)
-		return
-	}
+	if err := db.DB.Write(func(tx *gorm.DB) error {
+		if err := sug.Save(sug, tx); err != nil {
+			return err
+		}
 
-	// 发送给服务端
-	if err := services.AddSuggestion(sug); err != nil {
-		tx.Rollback()
+		// 发送给服务端
+		if err := services.AddSuggestion(sug); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
 		response.Error(c, http.StatusBadGateway, err.Error(), nil)
 		return
 	}
-	tx.Commit()
+	// tx := db.DB.Begin()
+	// if err := sug.Save(tx); err != nil {
+	// 	response.Error(c, http.StatusBadGateway, err.Error(), nil)
+	// 	return
+	// }
+
+	// // 发送给服务端
+	// if err := services.AddSuggestion(sug); err != nil {
+	// 	tx.Rollback()
+	// 	response.Error(c, http.StatusBadGateway, err.Error(), nil)
+	// 	return
+	// }
+	// tx.Commit()
 	response.Success(c, nil, "Suggestion submited.")
 }

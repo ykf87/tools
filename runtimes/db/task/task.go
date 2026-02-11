@@ -18,6 +18,8 @@ import (
 	"tools/runtimes/listens/ws"
 	"tools/runtimes/mainsignal"
 	"tools/runtimes/scheduler"
+
+	"gorm.io/gorm"
 )
 
 type Task struct {
@@ -75,16 +77,24 @@ var TaskActived sync.Map
 var taskdb = db.TaskLogDB
 
 func init() {
-	taskdb.AutoMigrate(&Task{})
-	taskdb.AutoMigrate(&TaskRun{})
-	taskdb.AutoMigrate(&TaskRunMsg{})
+	taskdb.DB().AutoMigrate(&Task{})
+	taskdb.DB().AutoMigrate(&TaskRun{})
+	taskdb.DB().AutoMigrate(&TaskRunMsg{})
 
 	// 系统启动的时候查询执行者的状态,如果是等待执行或者正在执行的强制置为执行失败
-	taskdb.Model(&TaskRun{}).Where("status = ? or status = ?", 0, 1).Updates(map[string]any{
-		"status": -1,
-		"end_at": time.Now().Unix(),
+	taskdb.Write(func(tx *gorm.DB) error {
+		return tx.Model(&TaskRun{}).Where("status = ? or status = ?", 0, 1).Updates(map[string]any{
+			"status": -1,
+			"end_at": time.Now().Unix(),
+		}).Error
 	})
-	taskdb.Model(&Task{}).Where("endtime = 0").Update("endtime", time.Now().Unix())
+	// taskdb.Model(&TaskRun{}).Where("status = ? or status = ?", 0, 1).Updates(map[string]any{
+	// 	"status": -1,
+	// 	"end_at": time.Now().Unix(),
+	// })
+	taskdb.Write(func(tx *gorm.DB) error {
+		return tx.Model(&Task{}).Where("endtime = 0").Update("endtime", time.Now().Unix()).Error
+	})
 }
 
 // 使用 name 和 nameId 作为唯一的组合
@@ -126,7 +136,9 @@ func NewTask(name string, id int64, title string, limit int, temp bool) (*Task, 
 	if temp == true {
 		tsk.Nomal = 0
 	}
-	if err := tsk.Save(tsk, taskdb); err != nil {
+	if err := taskdb.Write(func(tx *gorm.DB) error {
+		return tsk.Save(tsk, tx)
+	}); err != nil {
 		return nil, err
 	}
 
@@ -158,7 +170,9 @@ func Stop(name string, id int64) {
 				v.Stop()
 			}
 			tsk.Endtime = time.Now().Unix()
-			tsk.Save(tsk, taskdb)
+			taskdb.Write(func(tx *gorm.DB) error {
+				return tsk.Save(tsk, tx)
+			})
 		}
 	}
 }
@@ -174,7 +188,7 @@ func (t *Task) Sent() {
 			v.fullMsg()
 
 			lastsmg := new(TaskRunMsg)
-			err := taskdb.Model(&TaskRunMsg{}).Where("task_id = ? and task_run_id = ?", t.ID, v.ID).Order("addtime DESC").First(lastsmg).Error
+			err := taskdb.DB().Model(&TaskRunMsg{}).Where("task_id = ? and task_run_id = ?", t.ID, v.ID).Order("addtime DESC").First(lastsmg).Error
 			if err == nil {
 				lastsmg.sent(v)
 			} else {
@@ -210,7 +224,9 @@ func (t *Task) AddChild(runnerID, title string, timeout time.Duration) (*TaskRun
 	tr._timeout = timeout
 	tr._sch = t._sch
 
-	if err := tr.Save(tr, taskdb); err != nil {
+	if err := taskdb.Write(func(tx *gorm.DB) error {
+		return tr.Save(tr, tx)
+	}); err != nil {
 		return nil, err
 	}
 	t._runners[runnerID] = tr
@@ -255,7 +271,9 @@ func (tr *TaskRun) StartInterval(interval int64, callback func(*TaskRun) error) 
 		return errors.New(i18n.T("Please set callabck func"))
 	}
 	tr.Cycle = interval
-	tr.Save(tr, taskdb)
+	taskdb.Write(func(tx *gorm.DB) error {
+		return tr.Save(tr, tx)
+	})
 
 	tr.setRunner(callback)._runner.Every(time.Second * time.Duration(interval))
 	tr.runnerCallback()
@@ -270,7 +288,9 @@ func (tr *TaskRun) StartAtTime(timer int64, callback func(*TaskRun) error) error
 	}
 	h, m, s := funcs.MsToHMS(timer)
 	tr.AtTime = timer
-	tr.Save(tr, taskdb)
+	taskdb.Write(func(tx *gorm.DB) error {
+		return tr.Save(tr, tx)
+	})
 
 	tr.setRunner(callback)._runner.DailyRandomAt(h, m, s, 5, nil)
 	tr.runnerCallback()
@@ -284,7 +304,9 @@ func (tr *TaskRun) setRunner(callback func(*TaskRun) error) *TaskRun {
 		if tr.StartAt < 1 {
 			tr.StartAt = time.Now().Unix()
 			tr.Status = 1
-			tr.Save(tr, taskdb)
+			taskdb.Write(func(tx *gorm.DB) error {
+				return tr.Save(tr, tx)
+			})
 		}
 		trm := &TaskRunMsg{
 			TaskID:      tr.TaskID,
@@ -319,10 +341,14 @@ func (tr *TaskRun) runnerCallback() {
 		tr._runner.SetCloser(func() {
 			tr.EndAt = time.Now().Unix()
 			tr.Status = 2
-			tr.Save(tr, taskdb)
+			taskdb.Write(func(tx *gorm.DB) error {
+				return tr.Save(tr, tx)
+			})
 			tr.fullMsg()
 
-			taskdb.Model(&Task{}).Where("id = ?", tr.TaskID).Update("endtime", tr.EndAt)
+			taskdb.Write(func(tx *gorm.DB) error {
+				return tx.Model(&Task{}).Where("id = ?", tr.TaskID).Update("endtime", tr.EndAt).Error
+			})
 		}).SetOnceDone(func(tried int32, err error, nextRunTime time.Time) {
 			var status int
 			var msg string
@@ -345,7 +371,9 @@ func (tr *TaskRun) runnerCallback() {
 				NextRuntime: nextRunTime.Unix(),
 			}
 			// go tr.fullMsg()
-			trm.Save(trm, taskdb)
+			taskdb.Write(func(tx *gorm.DB) error {
+				return trm.Save(trm, tx)
+			})
 			trm.sent(tr)
 			// tr.SentKey(map[string]any{"tried": tried, "nexttime": nextRunTime.Unix(), "msg": msg})
 			// fmt.Println("本次执行完成---,重试次数:", tried, " 下次执行时间:", nextRunTime.Unix())
@@ -359,7 +387,9 @@ func (tr *TaskRun) runnerCallback() {
 				Tried:       int(tried),
 				NextRuntime: tr._runner.GetNextRunTime().Unix(),
 			}
-			trm.Save(trm, taskdb)
+			taskdb.Write(func(tx *gorm.DB) error {
+				return trm.Save(trm, tx)
+			})
 			trm.sent(tr)
 		}).SetMaxTry(5)
 	}

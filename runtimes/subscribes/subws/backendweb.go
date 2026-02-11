@@ -15,6 +15,8 @@ import (
 	"tools/runtimes/eventbus"
 	"tools/runtimes/listens/ws"
 	"tools/runtimes/logs"
+
+	"gorm.io/gorm"
 )
 
 func init() {
@@ -107,12 +109,14 @@ func proxyChange() {
 		if proxy, ok := dt.(*proxys.Proxy); ok {
 			go func() {
 				time.Sleep(time.Second * 1)
-				db.DB.Model(&browserdb.Browser{}).Where("proxy = ?", proxy.Id).Updates(map[string]any{
-					"local":      proxy.Local,
-					"ip":         proxy.Ip,
-					"lang":       proxy.Lang,
-					"timezone":   proxy.Timezone,
-					"proxy_name": proxy.Name,
+				db.DB.Write(func(tx *gorm.DB) error {
+					return tx.Model(&browserdb.Browser{}).Where("proxy = ?", proxy.Id).Updates(map[string]any{
+						"local":      proxy.Local,
+						"ip":         proxy.Ip,
+						"lang":       proxy.Lang,
+						"timezone":   proxy.Timezone,
+						"proxy_name": proxy.Name,
+					}).Error
 				})
 			}()
 		}

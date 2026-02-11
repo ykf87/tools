@@ -3,6 +3,8 @@ package jses
 import (
 	"fmt"
 	"tools/runtimes/db"
+
+	"gorm.io/gorm"
 )
 
 // js内容和变量对应表
@@ -28,7 +30,9 @@ type JsParam struct {
 }
 
 func (this *Js) GenParams() error {
-	db.DB.Where("js_id = ?", this.ID).Delete(&JsParam{})
+	db.DB.Write(func(tx *gorm.DB) error {
+		return tx.Where("js_id = ?", this.ID).Delete(&JsParam{}).Error
+	})
 
 	if len(this.Params) > 0 {
 		for _, v := range this.Params {
@@ -40,13 +44,15 @@ func (this *Js) GenParams() error {
 			}
 			v.JsID = this.ID
 		}
-		return db.DB.Create(this.Params).Error
+		return db.DB.Write(func(tx *gorm.DB) error {
+			return tx.Create(this.Params).Error
+		})
 	}
 	return nil
 }
 
 func GetParamsByJsID(id any) []*JsParam {
 	var lst []*JsParam
-	db.DB.Model(&JsParam{}).Where("js_id = ?", id).Order("required DESC").Find(&lst)
+	db.DB.DB().Model(&JsParam{}).Where("js_id = ?", id).Order("required DESC").Find(&lst)
 	return lst
 }

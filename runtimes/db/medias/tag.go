@@ -1,6 +1,9 @@
 package medias
 
-import "gorm.io/gorm/clause"
+import (
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
 
 type MediaUserTag struct {
 	ID   int64  `json:"id" gorm:"primaryKey;autoIncrement"`
@@ -9,13 +12,13 @@ type MediaUserTag struct {
 
 func GetTags() []*MediaUserTag {
 	var tags []*MediaUserTag
-	dbs.Model(&MediaUserTag{}).Find(&tags)
+	dbs.DB().Model(&MediaUserTag{}).Find(&tags)
 	return tags
 }
 
 func GetMUTagsByNames(names []string) []*MediaUserTag {
 	var tgs []*MediaUserTag
-	dbs.Model(&MediaUserTag{}).Where("name in ?", names).Find(&tgs)
+	dbs.DB().Model(&MediaUserTag{}).Where("name in ?", names).Find(&tgs)
 	return tgs
 }
 
@@ -30,9 +33,11 @@ func AddMUTagsBySlice(tagNames []string) []*MediaUserTag {
 			})
 		}
 
-		dbs.Clauses(clause.OnConflict{
-			DoNothing: true,
-		}).Create(&tags)
+		dbs.Write(func(tx *gorm.DB) error {
+			return tx.Clauses(clause.OnConflict{
+				DoNothing: true,
+			}).Create(&tags).Error
+		})
 
 		return GetMUTagsByNames(tagNames)
 	}

@@ -9,24 +9,30 @@ import (
 type BrowserTag struct {
 	Id   int64  `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
 	Name string `json:"name" gorm:"index;not null" form:"name"`
+	db.BaseModel
 }
 
 type BrowserToTag struct {
 	BrowserId int64 `json:"browser_id" gorm:"primaryKey;" form:"browser_id"`
 	TagId     int64 `json:"tag_id" gorm:"primaryKey" form:"tag_id"`
+	db.BaseModel
 }
 
 // 删除标签
-func (this *BrowserTag) Remove(tx *gorm.DB) error {
+func (this *BrowserTag) Remove(tx *db.SQLiteWriter) error {
 	if tx == nil {
 		tx = db.DB
 	}
 	if this != nil && this.Id > 0 {
-		err := tx.Where("id = ?", this.Id).Delete(&BrowserTag{}).Error
+		err := tx.Write(func(txx *gorm.DB) error {
+			return txx.Where("id = ?", this.Id).Delete(&BrowserTag{}).Error
+		})
 		if err != nil {
 			return err
 		}
-		return tx.Where("tag_id = ?", this.Id).Delete(&BrowserToTag{}).Error
+		return tx.Write(func(txx *gorm.DB) error {
+			return txx.Where("tag_id = ?", this.Id).Delete(&BrowserToTag{}).Error
+		})
 	}
 	return nil
 }
@@ -42,7 +48,7 @@ func SetBrowserTags(pcs []*Browser) {
 	}
 
 	var pxtgs []*BrowserToTag
-	db.DB.Model(&BrowserToTag{}).Where("browser_id in ?", ids).Find(&pxtgs)
+	db.DB.DB().Model(&BrowserToTag{}).Where("browser_id in ?", ids).Find(&pxtgs)
 
 	var tagids []int64
 	pcMap := make(map[int64][]int64)
@@ -67,7 +73,7 @@ func SetBrowserTags(pcs []*Browser) {
 // 通过id获取对应的数组
 func GetBrowserTagsByIds(ids []int64) map[int64]string {
 	var tgs []*BrowserTag
-	db.DB.Model(&BrowserTag{}).Where("id in ?", ids).Find(&tgs)
+	db.DB.DB().Model(&BrowserTag{}).Where("id in ?", ids).Find(&tgs)
 	mp := make(map[int64]string)
 	for _, v := range tgs {
 		mp[v.Id] = v.Name
@@ -78,17 +84,17 @@ func GetBrowserTagsByIds(ids []int64) map[int64]string {
 // 通过id获取标签
 func GetBrowserTagsById(id any) *BrowserTag {
 	tg := new(BrowserTag)
-	db.DB.Model(&BrowserTag{}).Where("id = ?", id).First(tg)
+	db.DB.DB().Model(&BrowserTag{}).Where("id = ?", id).First(tg)
 	return tg
 }
 
 // 通过标签名称获取对应的数组
-func GetBrowserTagsByNames(names []string, tx *gorm.DB) map[string]int64 {
+func GetBrowserTagsByNames(names []string, tx *db.SQLiteWriter) map[string]int64 {
 	if tx == nil {
 		tx = db.DB
 	}
 	var tgs []*BrowserTag
-	tx.Model(&BrowserTag{}).Where("name in ?", names).Find(&tgs)
+	tx.DB().Model(&BrowserTag{}).Where("name in ?", names).Find(&tgs)
 	mp := make(map[string]int64)
 	for _, v := range tgs {
 		mp[v.Name] = v.Id
@@ -101,7 +107,9 @@ func GetBrowserTagsByNames(names []string, tx *gorm.DB) map[string]int64 {
 		}
 	}
 	if len(addn) > 0 {
-		tx.Create(&addn)
+		tx.Write(func(txx *gorm.DB) error {
+			return txx.Create(&addn).Error
+		})
 	}
 	for _, v := range addn {
 		mp[v.Name] = v.Id
@@ -111,31 +119,37 @@ func GetBrowserTagsByNames(names []string, tx *gorm.DB) map[string]int64 {
 }
 
 // 保存标签
-func (this *BrowserTag) Save(tx *gorm.DB) error {
-	if tx == nil {
-		tx = db.DB
-	}
-	if this.Id > 0 {
-		return tx.Model(&BrowserTag{}).Where("id = ?", this.Id).
-			Updates(map[string]any{
-				"name": this.Name,
-			}).Error
-	} else {
-		return tx.Create(this).Error
-	}
-}
+// func (this *BrowserTag) Save(tx *db.SQLiteWriter) error {
+// 	if tx == nil {
+// 		tx = db.DB
+// 	}
+// 	if this.Id > 0 {
+// 		return tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Model(&BrowserTag{}).Where("id = ?", this.Id).
+// 				Updates(map[string]any{
+// 					"name": this.Name,
+// 				}).Error
+// 		})
+// 	} else {
+// 		return tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Create(this).Error
+// 		})
+// 	}
+// }
 
 // 删除某个Browser下的tag
-func (this *Browser) RemoveMyTags(tx *gorm.DB) error {
+func (this *Browser) RemoveMyTags(tx *db.SQLiteWriter) error {
 	if tx == nil {
 		tx = db.DB
 	}
-	return tx.Where("browser_id = ?", this.Id).Delete(&BrowserToTag{}).Error
+	return tx.Write(func(txx *gorm.DB) error {
+		return txx.Where("browser_id = ?", this.Id).Delete(&BrowserToTag{}).Error
+	})
 }
 
 // 使用当前的tag标签完全替换已有标签
 // 使用此方法会清空已有的tag
-func (this *Browser) CoverTgs(tagsName []string, tx *gorm.DB) error {
+func (this *Browser) CoverTgs(tagsName []string, tx *db.SQLiteWriter) error {
 	if tx == nil {
 		tx = db.DB
 	}
@@ -154,7 +168,9 @@ func (this *Browser) CoverTgs(tagsName []string, tx *gorm.DB) error {
 	}
 
 	if len(ntag) > 0 {
-		if err := tx.Create(ntag).Error; err != nil {
+		if err := tx.Write(func(txx *gorm.DB) error {
+			return txx.Create(ntag).Error
+		}); err != nil {
 			return err
 		}
 	}

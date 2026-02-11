@@ -31,17 +31,17 @@ type Media struct {
 	Addtime  time.Time // 本数据添加日期
 }
 
-var dbs *gorm.DB
+var dbs *db.SQLiteWriter
 
 func init() {
 	dbs = db.MEDIADB
-	dbs.AutoMigrate(&Media{})
-	dbs.AutoMigrate(&MediaUser{})
-	dbs.AutoMigrate(&MediaUserTag{})
-	dbs.AutoMigrate(&MediaUserToTag{})
-	dbs.AutoMigrate(&MediaUserToClient{})
-	dbs.AutoMigrate(&MediaUserProxy{})
-	dbs.AutoMigrate(&MediaUserDay{})
+	dbs.DB().AutoMigrate(&Media{})
+	dbs.DB().AutoMigrate(&MediaUser{})
+	dbs.DB().AutoMigrate(&MediaUserTag{})
+	dbs.DB().AutoMigrate(&MediaUserToTag{})
+	dbs.DB().AutoMigrate(&MediaUserToClient{})
+	dbs.DB().AutoMigrate(&MediaUserProxy{})
+	dbs.DB().AutoMigrate(&MediaUserDay{})
 	runstart()
 
 	// var mus []*MediaUser
@@ -53,14 +53,14 @@ func init() {
 	// go autoStart()
 }
 
-func GetDb() *gorm.DB {
+func GetDb() *db.SQLiteWriter {
 	return dbs
 }
 
 func MkerMediaUser(platform, uid, cover, name, proxy, searchID string, adminID int64) *MediaUser {
 	mu := new(MediaUser)
 	// fmt.Println(searchID, "mkuser------------------")
-	if err := dbs.Model(&MediaUser{}).Where("platform = ? and uuid = ?", platform, uid).First(mu).Error; err != nil {
+	if err := dbs.DB().Model(&MediaUser{}).Where("platform = ? and uuid = ?", platform, uid).First(mu).Error; err != nil {
 		exts := "png"
 		dl := downloader.NewDownloader(proxy, nil, nil)
 		if ext, err := dl.GetUrlFileExt(cover); err == nil {
@@ -83,33 +83,36 @@ func MkerMediaUser(platform, uid, cover, name, proxy, searchID string, adminID i
 		mu.Uuid = uid
 		mu.AdminID = adminID
 		mu.Account = searchID
-
-		mu.Save(nil)
 	} else {
 		mu.Account = searchID
-		mu.Save(nil)
 	}
+
+	dbs.Write(func(tx *gorm.DB) error {
+		return mu.Save(mu, tx)
+	})
 	return mu
 }
 
-func (this *Media) Save(tx *gorm.DB) error {
+func (this *Media) Save(tx *db.SQLiteWriter) error {
 	if tx == nil {
 		tx = dbs
 	}
 
 	if this.Id > 0 {
-		err := tx.Model(&Media{}).Where("id = ?", this.Id).
-			Updates(map[string]any{
-				"title":    this.Title,
-				"name":     this.Name,
-				"path":     this.Path,
-				"md5":      this.Md5,
-				"platform": this.Platform,
-				"url":      this.Url,
-				"mime":     this.Mime,
-				"size":     this.Size,
-				"filetime": this.Filetime,
-			}).Error
+		err := tx.Write(func(txx *gorm.DB) error {
+			return txx.Model(&Media{}).Where("id = ?", this.Id).
+				Updates(map[string]any{
+					"title":    this.Title,
+					"name":     this.Name,
+					"path":     this.Path,
+					"md5":      this.Md5,
+					"platform": this.Platform,
+					"url":      this.Url,
+					"mime":     this.Mime,
+					"size":     this.Size,
+					"filetime": this.Filetime,
+				}).Error
+		})
 		if err != nil {
 			return err
 		}
@@ -117,7 +120,9 @@ func (this *Media) Save(tx *gorm.DB) error {
 		return nil
 	} else {
 		this.Addtime = time.Now()
-		return tx.Create(this).Error
+		return tx.Write(func(txx *gorm.DB) error {
+			return txx.Create(this).Error
+		})
 	}
 }
 
@@ -125,7 +130,7 @@ func GetMediasUserFromName(names []string) map[string]*MediaUser {
 	var mmus []*Media
 
 	resp := make(map[string]*MediaUser)
-	if err := dbs.Model(&Media{}).Where("name in ?", names).Find(&mmus).Error; err == nil {
+	if err := dbs.DB().Model(&Media{}).Where("name in ?", names).Find(&mmus).Error; err == nil {
 		var ids []int64
 		// idNames := make(map[int64]string)
 		for _, v := range mmus {
@@ -137,7 +142,7 @@ func GetMediasUserFromName(names []string) map[string]*MediaUser {
 
 		var mmuus []*MediaUser
 		if len(ids) > 0 {
-			dbs.Model(&MediaUser{}).Where("id in ?", ids).Find(&mmuus)
+			dbs.DB().Model(&MediaUser{}).Where("id in ?", ids).Find(&mmuus)
 			sdsd := make(map[int64]*MediaUser)
 			for _, v := range mmuus {
 				sdsd[v.Id] = v
@@ -156,6 +161,6 @@ func GetMediasUserFromName(names []string) map[string]*MediaUser {
 // 通过url的md5获取行
 func GerUrlMd5Row(md5 string) *Media {
 	md := new(Media)
-	dbs.Model(&Media{}).Where("url_md5 = ?", md5).First(md)
+	dbs.DB().Model(&Media{}).Where("url_md5 = ?", md5).First(md)
 	return md
 }

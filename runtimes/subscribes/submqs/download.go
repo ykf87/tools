@@ -4,7 +4,6 @@ package submqs
 import (
 	"context"
 	"encoding/json"
-	"tools/runtimes/db"
 	"tools/runtimes/downloader"
 	"tools/runtimes/eventbus"
 	"tools/runtimes/logs"
@@ -16,7 +15,7 @@ func init() {
 }
 
 func download() {
-	db.MqClient.Register("download", func(ctx context.Context, msg *mq.Message) error {
+	mq.MqClient.Register("download", func(ctx context.Context, msg *mq.Message) error {
 		rrs := new(downloader.Downloader)
 		if err := json.Unmarshal([]byte(msg.Payload), rrs); err != nil {
 			logs.Error(err.Error() + ": downloader mq")

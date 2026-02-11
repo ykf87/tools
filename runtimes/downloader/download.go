@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"tools/runtimes/config"
-	"tools/runtimes/db"
+	"tools/runtimes/mq"
 
 	"github.com/h2non/filetype"
 	jsoniter "github.com/json-iterator/go"
@@ -182,7 +182,7 @@ func (d *Downloader) Download(urlStr, destPath string) error {
 
 func Down(url, dest, proxy string) {
 	pl, _ := config.Json.Marshal(Downloader{Proxy: proxy, Url: url, Dest: dest})
-	db.MqClient.Publish("download", string(pl))
+	mq.MqClient.Publish("download", string(pl))
 }
 
 func (d *Downloader) GetUrlFileExt(url string) (string, error) {

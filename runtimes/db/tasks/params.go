@@ -1,6 +1,7 @@
 package tasks
 
 import (
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -15,14 +16,17 @@ type TaskParam struct {
 
 // 当前拥有的任务参数
 func (this *Task) GetParams() []*TaskParam {
-	dbs.Model(&TaskParam{}).Where("task_id = ?", this.ID).Find(&this.Params)
+	Dbs.DB().Model(&TaskParam{}).Where("task_id = ?", this.ID).Find(&this.Params)
 	return this.Params
 }
 
 // 设置任务参数
 func (this *Task) GenParams(ps []*TaskParam) error {
 	if this.ID > 0 {
-		dbs.Where("task_id = ?", this.ID).Delete(&TaskParam{})
+		Dbs.Write(func(tx *gorm.DB) error {
+			return tx.Where("task_id = ?", this.ID).Delete(&TaskParam{}).Error
+		})
+		// dbs.DB().Where("task_id = ?", this.ID).Delete(&TaskParam{})
 	}
 
 	var pss []*TaskParam
@@ -46,11 +50,16 @@ func (this *Task) GenParams(ps []*TaskParam) error {
 	}
 
 	if len(pss) > 0 {
-		return dbs.
-			Clauses(clause.OnConflict{
+		return Dbs.Write(func(tx *gorm.DB) error {
+			return tx.Clauses(clause.OnConflict{
 				DoNothing: true,
-			}).
-			Create(&pss).Debug().Error
+			}).Create(&pss).Debug().Error
+		})
+		// return dbs.DB().
+		// 	Clauses(clause.OnConflict{
+		// 		DoNothing: true,
+		// 	}).
+		// 	Create(&pss).Debug().Error
 	}
 
 	return nil

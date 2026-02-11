@@ -11,6 +11,7 @@ import (
 	"tools/runtimes/response"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type Data struct {
@@ -27,7 +28,7 @@ func List(c *gin.Context) {
 		return
 	}
 
-	model := db.DB.Model(&tag.Tag{})
+	model := db.DB.DB().Model(&tag.Tag{})
 	if dt.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", dt.Q)
 		model = model.Where("name LIKE ?", qs)
@@ -66,7 +67,9 @@ func Add(c *gin.Context) {
 		return
 	}
 
-	if err := db.DB.Create(dt).Error; err != nil {
+	if err := db.DB.Write(func(tx *gorm.DB) error {
+		return tx.Create(dt).Error
+	}); err != nil {
 		response.Error(c, http.StatusBadGateway, err.Error(), nil)
 		return
 	}
@@ -78,7 +81,9 @@ func Add(c *gin.Context) {
 func Delete(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	if id > 0 {
-		db.DB.Where("id = ?", id).Delete(&tag.Tag{})
+		db.DB.Write(func(tx *gorm.DB) error {
+			return tx.Where("id = ?", id).Delete(&tag.Tag{}).Error
+		})
 	}
 
 	response.Success(c, nil, "")

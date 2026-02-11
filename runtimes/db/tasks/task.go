@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 	"tools/runtimes/db"
 	"tools/runtimes/db/jses"
-	"tools/runtimes/listens/ws"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -66,6 +64,7 @@ type Task struct {
 	Headless   int            `json:"headless" gorm:"type:tinyint(1);default:0"`                          // 0为静默(不显示窗口) 1为显示窗口
 	_mu        sync.Mutex     `json:"-" gorm:"-"`                                                         // 锁
 	Clients    []*TaskClients `json:"-" gorm:"-"`
+	db.BaseModel
 	// Priority      int                   `json:"priority" gorm:"default:0" form:"priority"`                          // 优先级
 	// CatchUp       bool                  `json:"catch_up" gorm:"default:false" form:"catch_up"`                      // 补跑漏掉的周期
 	// DataSpec      string                `json:"data_spec" gorm:"default:null" form:"data_spec"` // 数据来源配置（JSON）,这种方式需要的参数
@@ -93,19 +92,19 @@ type TaskToTag struct {
 	TagID  int64 `json:"tag_id" gorm:"primaryKey"`
 }
 
-var dbs = db.TaskDB
+var Dbs = db.TaskDB
 
 // var Seched *scheduler.Scheduler
 
 func init() {
-	dbs.AutoMigrate(&Task{})
-	dbs.AutoMigrate(&TaskClients{})
-	dbs.AutoMigrate(&TaskTag{})
-	dbs.AutoMigrate(&TaskToTag{})
-	dbs.AutoMigrate(&TaskParam{})
+	Dbs.DB().AutoMigrate(&Task{})
+	Dbs.DB().AutoMigrate(&TaskClients{})
+	Dbs.DB().AutoMigrate(&TaskTag{})
+	Dbs.DB().AutoMigrate(&TaskToTag{})
+	Dbs.DB().AutoMigrate(&TaskParam{})
 
 	var tsks []*Task
-	dbs.Model(&Task{}).Where("status = 1").Find(&tsks)
+	Dbs.DB().Model(&Task{}).Where("status = 1").Find(&tsks)
 
 	// // Seched = scheduler.New()
 
@@ -114,90 +113,90 @@ func init() {
 	}
 }
 
-func (this *Task) Save(tx *gorm.DB) error {
-	if this.ID < 0 {
-		return nil
-	}
-	if tx == nil {
-		tx = dbs
-	}
+// func (this *Task) Save(tx *gorm.DB) error {
+// 	if this.ID < 0 {
+// 		return nil
+// 	}
+// 	if tx == nil {
+// 		tx = dbs
+// 	}
 
-	if this.Title == "" {
-		return fmt.Errorf("请填写任务标题")
-	}
+// 	if this.Title == "" {
+// 		return fmt.Errorf("请填写任务标题")
+// 	}
 
-	if this.Status == 1 {
-		if this.Script < 1 {
-			return fmt.Errorf("请设置脚本，否则任务无法启动!")
-		}
-		if len(this.Devices) < 1 {
-			return fmt.Errorf("请设置执行客户端，否则任务无法启动!")
-		}
-	}
+// 	if this.Status == 1 {
+// 		if this.Script < 1 {
+// 			return fmt.Errorf("请设置脚本，否则任务无法启动!")
+// 		}
+// 		if len(this.Devices) < 1 {
+// 			return fmt.Errorf("请设置执行客户端，否则任务无法启动!")
+// 		}
+// 	}
 
-	older := new(Task)
+// 	older := new(Task)
 
-	defer func() {
-		if older.ID > 0 {
-			if this.Status == 1 {
-				go this.ReStart()
-			} else {
-				go this.Stop()
-			}
-		}
+// 	defer func() {
+// 		if older.ID > 0 {
+// 			if this.Status == 1 {
+// 				go this.ReStart()
+// 			} else {
+// 				go this.Stop()
+// 			}
+// 		}
 
-	}()
+// 	}()
 
-	if this.SeNum < 1 {
-		this.SeNum = 2
-	}
-	if this.ID > 0 {
-		dbs.Model(&Task{}).Where("id = ?", this.ID).First(older)
-		return tx.Model(&Task{}).Where("id = ?", this.ID).
-			Updates(map[string]any{
-				"title":       this.Title,
-				"tp":          this.Tp,
-				"starttime":   this.Starttime,
-				"endtime":     this.Endtime,
-				"status":      this.Status,
-				"errmsg":      this.Errmsg,
-				"admin_id":    this.AdminId,
-				"cycle":       this.Cycle,
-				"cycle_delay": this.CycleDelay,
-				"retry_max":   this.RetryMax,
-				"timeout":     this.Timeout,
-				// "priority":  this.Priority,
-				// "catch_up":  this.CatchUp,
-				"script": this.Script,
-				"se_num": this.SeNum,
-				// "data_spec": this.DataSpec,
-				// "data_type": this.DataType,
-				"def_url":  this.DefUrl,
-				"headless": this.Headless,
-			}).Error
-	} else {
-		if this.Addtime < 1 {
-			this.Addtime = time.Now().Unix()
-		}
-		err := tx.Create(this).Error
-		if err == nil {
-			ws.SentBus(this.AdminId, "task", this, "")
-		}
-		return err
-	}
-}
+// 	if this.SeNum < 1 {
+// 		this.SeNum = 2
+// 	}
+// 	if this.ID > 0 {
+// 		dbs.Model(&Task{}).Where("id = ?", this.ID).First(older)
+// 		return tx.Model(&Task{}).Where("id = ?", this.ID).
+// 			Updates(map[string]any{
+// 				"title":       this.Title,
+// 				"tp":          this.Tp,
+// 				"starttime":   this.Starttime,
+// 				"endtime":     this.Endtime,
+// 				"status":      this.Status,
+// 				"errmsg":      this.Errmsg,
+// 				"admin_id":    this.AdminId,
+// 				"cycle":       this.Cycle,
+// 				"cycle_delay": this.CycleDelay,
+// 				"retry_max":   this.RetryMax,
+// 				"timeout":     this.Timeout,
+// 				// "priority":  this.Priority,
+// 				// "catch_up":  this.CatchUp,
+// 				"script": this.Script,
+// 				"se_num": this.SeNum,
+// 				// "data_spec": this.DataSpec,
+// 				// "data_type": this.DataType,
+// 				"def_url":  this.DefUrl,
+// 				"headless": this.Headless,
+// 			}).Error
+// 	} else {
+// 		if this.Addtime < 1 {
+// 			this.Addtime = time.Now().Unix()
+// 		}
+// 		err := tx.Create(this).Error
+// 		if err == nil {
+// 			ws.SentBus(this.AdminId, "task", this, "")
+// 		}
+// 		return err
+// 	}
+// }
 
 // 获取Task
 func GetTaskById(id any) *Task {
 	tsk := new(Task)
-	dbs.Model(&Task{}).Where("id = ?", id).First(tsk)
+	Dbs.DB().Model(&Task{}).Where("id = ?", id).First(tsk)
 	return tsk
 }
 
 // 获取任务总数
 func GetTotalTask(groupname string, adminid int64) int64 {
 	var total int64
-	md := dbs.Model(&Task{}).Where("admin_id = ?", adminid)
+	md := Dbs.DB().Model(&Task{}).Where("admin_id = ?", adminid)
 	if groupname != "" {
 		md.Where("group_name = ?", groupname)
 	}
@@ -215,7 +214,7 @@ func GetTasks(adminid int64, dt *db.ListFinder) ([]*Task, int64) {
 		dt.Limit = 20
 	}
 	fmt.Println("----- 查找任务!")
-	md := dbs.Model(&Task{}).Where("admin_id = ?", adminid)
+	md := Dbs.DB().Model(&Task{}).Where("admin_id = ?", adminid)
 	if dt.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", dt.Q)
 		md.Where("title like ?", qs)
@@ -227,7 +226,7 @@ func GetTasks(adminid int64, dt *db.ListFinder) ([]*Task, int64) {
 
 	if len(dt.Tags) > 0 {
 		var taskids []int64
-		dbs.Model(&TaskToTag{}).Select("task_id").Where("tag_id in ?", dt.Tags).Find(&taskids)
+		Dbs.DB().Model(&TaskToTag{}).Select("task_id").Where("tag_id in ?", dt.Tags).Find(&taskids)
 		if len(taskids) > 0 {
 			md.Where("id in ?", taskids)
 		}
@@ -264,7 +263,7 @@ func GetTasks(adminid int64, dt *db.ListFinder) ([]*Task, int64) {
 // 获取任务下的设备列表
 func (this *Task) GetDevices() []int64 {
 	var dids []int64
-	dbs.Model(&TaskClients{}).Select("device_id").Where("task_id = ?", this.ID).Find(&dids)
+	Dbs.DB().Model(&TaskClients{}).Select("device_id").Where("task_id = ?", this.ID).Find(&dids)
 	return dids
 }
 
@@ -283,30 +282,41 @@ func (this *Task) GenDevices() error {
 		})
 	}
 	if len(dvs) > 0 {
-		return dbs.
-			Clauses(clause.OnConflict{
+		return Dbs.Write(func(tx *gorm.DB) error {
+			return tx.Clauses(clause.OnConflict{
 				DoNothing: true,
 			}).
-			Create(&dvs).Error
+				Create(&dvs).Error
+		})
+		// return dbs.
+		// 	Clauses(clause.OnConflict{
+		// 		DoNothing: true,
+		// 	}).
+		// 	Create(&dvs).Error
 	}
 	return nil
 }
 
 // 删除不存在的设备
 func (this *Task) removeNotUsedDevices(deviceIDs []int64) error {
-	return dbs.
-		Where("task_id = ?", this.ID).
-		Where("device_id not in ? or device_type != ?", deviceIDs, this.Tp).
-		Delete(&TaskClients{}).Error
+	return Dbs.Write(func(tx *gorm.DB) error {
+		return tx.Where("task_id = ?", this.ID).
+			Where("device_id not in ? or device_type != ?", deviceIDs, this.Tp).
+			Delete(&TaskClients{}).Error
+	})
+	// return dbs.
+	// 	Where("task_id = ?", this.ID).
+	// 	Where("device_id not in ? or device_type != ?", deviceIDs, this.Tp).
+	// 	Delete(&TaskClients{}).Error
 }
 
 // 获取任务的tags
 func (this *Task) GetTags() []*TaskTag {
 	var ttids []int64
-	dbs.Model(&TaskToTag{}).Select("tag_id").Where("task_id = ?", this.ID).Find(&ttids)
+	Dbs.DB().Model(&TaskToTag{}).Select("tag_id").Where("task_id = ?", this.ID).Find(&ttids)
 
 	var tags []*TaskTag
-	dbs.Model(&TaskTag{}).Where("id in ?", ttids).Find(&tags)
+	Dbs.DB().Model(&TaskTag{}).Where("id in ?", ttids).Find(&tags)
 	return tags
 }
 
@@ -318,7 +328,10 @@ func (this *Task) AddTags() error {
 		tagIds = append(tagIds, v.ID)
 	}
 
-	dbs.Where("task_id = ?", this.ID).Where("tag_id not in ?", tagIds).Delete(&TaskToTag{}) // 不管三七二十一,将对应表中不存在的标签id删除
+	Dbs.Write(func(tx *gorm.DB) error {
+		return tx.Where("task_id = ?", this.ID).Where("tag_id not in ?", tagIds).Delete(&TaskToTag{}).Error
+	})
+	// dbs.Where("task_id = ?", this.ID).Where("tag_id not in ?", tagIds).Delete(&TaskToTag{}) // 不管三七二十一,将对应表中不存在的标签id删除
 
 	if len(tagIds) > 0 {
 		tags := make([]*TaskToTag, 0, len(tagIds))
@@ -329,11 +342,17 @@ func (this *Task) AddTags() error {
 			})
 		}
 
-		return dbs.
-			Clauses(clause.OnConflict{
+		return Dbs.Write(func(tx *gorm.DB) error {
+			return tx.Clauses(clause.OnConflict{
 				DoNothing: true,
 			}).
-			Create(&tags).Error
+				Create(&tags).Error
+		})
+		// return dbs.
+		// 	Clauses(clause.OnConflict{
+		// 		DoNothing: true,
+		// 	}).
+		// 	Create(&tags).Error
 	}
 	return nil
 }
@@ -341,7 +360,9 @@ func (this *Task) AddTags() error {
 func DeleteByID(id any) error {
 	tsk := GetTaskById(id)
 	if tsk != nil && tsk.ID > 0 {
-		if err := dbs.Where("id = ?", id).Delete(&Task{}).Error; err != nil {
+		if err := Dbs.Write(func(tx *gorm.DB) error {
+			return tx.Where("id = ?", id).Delete(&Task{}).Error
+		}); err != nil {
 			return err
 		}
 		// Seched.Remove(GenTaskID(tsk.ID))

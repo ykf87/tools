@@ -23,6 +23,7 @@ import (
 
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/tidwall/gjson"
+	"gorm.io/gorm"
 )
 
 type AutoInfo struct {
@@ -154,7 +155,10 @@ func (mu *MediaUser) AutoStarts() {
 						mu.autodownload(vids)
 					}
 					mu.LastDownTime = time.Now().Unix()
-					mu.Save(nil)
+					dbs.Write(func(tx *gorm.DB) error {
+						return mu.Save(mu, tx)
+					})
+
 					mu.Commpare()
 					bs.Close()
 				},
@@ -368,7 +372,7 @@ type pms struct {
 
 func (t *MediaUser) autodownload(videos []string) {
 	var lastGetVideoId string
-	dbs.Model(&Media{}).Select("video_id").Where("user_id = ?", t.Id).Order("id DESC").First(&lastGetVideoId)
+	dbs.DB().Model(&Media{}).Select("video_id").Where("user_id = ?", t.Id).Order("id DESC").First(&lastGetVideoId)
 
 	maxget := 4
 	var waitdown []string

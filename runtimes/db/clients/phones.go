@@ -3,9 +3,7 @@ package clients
 import (
 	"errors"
 	"fmt"
-	"time"
 	"tools/runtimes/db"
-	"tools/runtimes/db/configs"
 	"tools/runtimes/eventbus"
 	"tools/runtimes/ws"
 
@@ -21,7 +19,7 @@ type Phone struct {
 	Os          string   `json:"os" gorm:"index;default:null;type:varchar(32)"`         // 手机系统
 	Brand       string   `json:"brand" gorm:"index;default:null;type:varchar(32)"`      // 手机品牌
 	Version     string   `json:"version" gorm:"index;default:null;type:varchar(32)"`    // 系统的版本
-	Addtime     int64    `json:"addtime" gorm:"index;default:0"`                        // 添加时间
+	Addtime     int64    `json:"addtime" gorm:"index;default:0" update:"false"`         // 添加时间
 	Conntime    int64    `json:"conntime" gorm:"index;default:0"`                       // 上一次连接的时间
 	Proxy       int64    `json:"proxy" gorm:"index;default:0" form:"proxy"`             // 代理
 	ProxyName   string   `json:"proxy_name" gorm:"index;default:null" form:"-"`         // 代理的名称,只有设置了代理id才有
@@ -36,6 +34,7 @@ type Phone struct {
 	Status      int      `json:"status" gorm:"index;default:0;type:tinyint(1)"`         // 设备状态
 	CloseMsg    string   `json:"close_msg" gorm:"default:null"`                         // 异常提示
 	Infos       string   `json:"infos" gorm:"default:null" parse:"-"`                   // 存储手机端的信息,json格式
+	db.BaseModel
 }
 
 var MaxPhoneNum int64 = 2 // 最大的手机设备连接数量
@@ -43,95 +42,109 @@ var MaxPhoneNum int64 = 2 // 最大的手机设备连接数量
 type PhoneTag struct {
 	Id   int64  `json:"id" gorm:"primaryKey;autoIncrement"`
 	Name string `json:"name" gorm:"index"`
+	db.BaseModel
 }
 
 type PhoneToTag struct {
 	PhoneId int64 `json:"phone_id" gorm:"primaryKey;not null"`
 	TagId   int64 `json:"tag_id" gorm:"primaryKey;not null"`
+	db.BaseModel
 }
 
 func init() {
-	db.DB.AutoMigrate(&Phone{})
-	db.DB.AutoMigrate(&PhoneTag{})
-	db.DB.AutoMigrate(&PhoneToTag{})
+	db.DB.DB().AutoMigrate(&Phone{})
+	db.DB.DB().AutoMigrate(&PhoneTag{})
+	db.DB.DB().AutoMigrate(&PhoneToTag{})
 
 }
 
-func (t *Phone) Save(tx *gorm.DB) error {
-	if tx == nil {
-		tx = db.DB
-	}
-	var err error
-	if t.Id > 0 {
-		err = tx.Model(&Phone{}).Where("id = ?", t.Id).Updates(map[string]any{
-			"name":         t.Name,
-			"os":           t.Os,
-			"brand":        t.Brand,
-			"num":          t.Num,
-			"admin_id":     t.AdminId,
-			"version":      t.Version,
-			"conntime":     t.Conntime,
-			"proxy":        t.Proxy,
-			"proxy_name":   t.ProxyName,
-			"proxy_config": t.ProxyConfig,
-			"local":        t.Local,
-			"lang":         t.Lang,
-			"timezone":     t.Timezone,
-			"ip":           t.Ip,
-			"status":       t.Status,
-			"infos":        t.Infos,
-		}).Error
+// func (t *Phone) Save(tx *db.SQLiteWriter) error {
+// 	if tx == nil {
+// 		tx = db.DB
+// 	}
+// 	var err error
+// 	if t.Id > 0 {
+// 		err = tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Model(&Phone{}).Where("id = ?", t.Id).Updates(map[string]any{
+// 				"name":         t.Name,
+// 				"os":           t.Os,
+// 				"brand":        t.Brand,
+// 				"num":          t.Num,
+// 				"admin_id":     t.AdminId,
+// 				"version":      t.Version,
+// 				"conntime":     t.Conntime,
+// 				"proxy":        t.Proxy,
+// 				"proxy_name":   t.ProxyName,
+// 				"proxy_config": t.ProxyConfig,
+// 				"local":        t.Local,
+// 				"lang":         t.Lang,
+// 				"timezone":     t.Timezone,
+// 				"ip":           t.Ip,
+// 				"status":       t.Status,
+// 				"infos":        t.Infos,
+// 			}).Error
+// 		})
 
-		if t.Status != 1 {
-			eventbus.Bus.Publish("phone-status-change", t)
-		}
-	} else {
-		auto, ok := configs.GetValue("autojoin")
-		if !ok || auto != "1" {
-			return errors.New("服务端关闭自动连接,请在后台打开")
-		}
+// 		if t.Status != 1 {
+// 			eventbus.Bus.Publish("phone-status-change", t)
+// 		}
+// 	} else {
+// 		auto, ok := configs.GetValue("autojoin")
+// 		if !ok || auto != "1" {
+// 			return errors.New("服务端关闭自动连接,请在后台打开")
+// 		}
 
-		var total int64
-		tx.Model(&Phone{}).Where("status = 1").Count(&total)
-		if total >= MaxPhoneNum {
-			errmsg := fmt.Sprintf("设备数量超出限制: %d", MaxPhoneNum)
-			return errors.New(errmsg)
-		}
-		if t.Addtime < 1 {
-			t.Addtime = time.Now().Unix()
-		}
-		err = tx.Create(t).Error
-	}
-	return err
-}
+// 		var total int64
+// 		tx.DB().Model(&Phone{}).Where("status = 1").Count(&total)
+// 		if total >= MaxPhoneNum {
+// 			errmsg := fmt.Sprintf("设备数量超出限制: %d", MaxPhoneNum)
+// 			return errors.New(errmsg)
+// 		}
+// 		if t.Addtime < 1 {
+// 			t.Addtime = time.Now().Unix()
+// 		}
+// 		err = tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Create(t).Error
+// 		})
+// 	}
+// 	return err
+// }
 
 // 标签操作开始-----------------------------------
 // 保存标签
-func (this *PhoneTag) Save(tx *gorm.DB) error {
-	if tx == nil {
-		tx = db.DB
-	}
-	if this.Id > 0 {
-		return tx.Model(&PhoneTag{}).Where("id = ?", this.Id).
-			Updates(map[string]any{
-				"name": this.Name,
-			}).Error
-	} else {
-		return tx.Create(this).Error
-	}
-}
+// func (this *PhoneTag) Save(tx *db.SQLiteWriter) error {
+// 	if tx == nil {
+// 		tx = db.DB
+// 	}
+// 	if this.Id > 0 {
+// 		return tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Model(&PhoneTag{}).Where("id = ?", this.Id).
+// 				Updates(map[string]any{
+// 					"name": this.Name,
+// 				}).Error
+// 		})
+// 	} else {
+// 		return tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Create(this).Error
+// 		})
+// 	}
+// }
 
 // 删除标签
-func (this *PhoneTag) Remove(tx *gorm.DB) error {
+func (this *PhoneTag) Remove(tx *db.SQLiteWriter) error {
 	if tx == nil {
 		tx = db.DB
 	}
 	if this != nil && this.Id > 0 {
-		err := tx.Where("id = ?", this.Id).Delete(&PhoneTag{}).Error
+		err := tx.Write(func(txx *gorm.DB) error {
+			return txx.Where("id = ?", this.Id).Delete(&PhoneTag{}).Error
+		})
 		if err != nil {
 			return err
 		}
-		return tx.Where("tag_id = ?", this.Id).Delete(&PhoneToTag{}).Error
+		return tx.Write(func(txx *gorm.DB) error {
+			return txx.Where("tag_id = ?", this.Id).Delete(&PhoneToTag{}).Error
+		})
 	}
 	return nil
 }
@@ -139,17 +152,17 @@ func (this *PhoneTag) Remove(tx *gorm.DB) error {
 // 通过id获取标签
 func GetPhoneTagsById(id any) *PhoneTag {
 	tg := new(PhoneTag)
-	db.DB.Model(&PhoneTag{}).Where("id = ?", id).First(tg)
+	db.DB.DB().Model(&PhoneTag{}).Where("id = ?", id).First(tg)
 	return tg
 }
 
 // 通过标签名称获取对应的数组
-func GetPhoneTagsByNames(names []string, tx *gorm.DB) map[string]int64 {
+func GetPhoneTagsByNames(names []string, tx *db.SQLiteWriter) map[string]int64 {
 	if tx == nil {
 		tx = db.DB
 	}
 	var tgs []*PhoneTag
-	tx.Model(&PhoneTag{}).Where("name in ?", names).Find(&tgs)
+	tx.DB().Model(&PhoneTag{}).Where("name in ?", names).Find(&tgs)
 	mp := make(map[string]int64)
 	for _, v := range tgs {
 		mp[v.Name] = v.Id
@@ -162,7 +175,9 @@ func GetPhoneTagsByNames(names []string, tx *gorm.DB) map[string]int64 {
 		}
 	}
 	if len(addn) > 0 {
-		tx.Create(&addn)
+		tx.Write(func(txx *gorm.DB) error {
+			return txx.Create(&addn).Error
+		})
 	}
 	for _, v := range addn {
 		mp[v.Name] = v.Id
@@ -174,7 +189,7 @@ func GetPhoneTagsByNames(names []string, tx *gorm.DB) map[string]int64 {
 // 通过id获取对应的数组
 func GetPhoneTagsByIds(ids []int64) map[int64]string {
 	var tgs []*PhoneTag
-	db.DB.Model(&PhoneTag{}).Where("id in ?", ids).Find(&tgs)
+	db.DB.DB().Model(&PhoneTag{}).Where("id in ?", ids).Find(&tgs)
 	mp := make(map[int64]string)
 	for _, v := range tgs {
 		mp[v.Id] = v.Name
@@ -185,7 +200,7 @@ func GetPhoneTagsByIds(ids []int64) map[int64]string {
 // 获取标签列表
 func GetPhoneTags() []*PhoneTag {
 	var tgs []*PhoneTag
-	db.DB.Model(&PhoneTag{}).Find(&tgs)
+	db.DB.DB().Model(&PhoneTag{}).Find(&tgs)
 	return tgs
 }
 
@@ -194,7 +209,7 @@ func GetPhoneTags() []*PhoneTag {
 // 通过id获取手机设备
 func GetPhoneById(id any) (*Phone, error) {
 	b := new(Phone)
-	err := db.DB.Model(&Phone{}).Where("id = ?", id).First(b).Error
+	err := db.DB.DB().Model(&Phone{}).Where("id = ?", id).First(b).Error
 	if err != nil {
 		return nil, err
 	}
@@ -202,16 +217,18 @@ func GetPhoneById(id any) (*Phone, error) {
 }
 
 // 删除某个手机设备下的tag
-func (this *Phone) RemovePhoneTags(tx *gorm.DB) error {
+func (this *Phone) RemovePhoneTags(tx *db.SQLiteWriter) error {
 	if tx == nil {
 		tx = db.DB
 	}
-	return tx.Where("phone_id = ?", this.Id).Delete(&PhoneToTag{}).Error
+	return tx.Write(func(txx *gorm.DB) error {
+		return txx.Where("phone_id = ?", this.Id).Delete(&PhoneToTag{}).Error
+	})
 }
 
 // 使用当前的tag标签完全替换已有标签
 // 使用此方法会清空已有的tag
-func (this *Phone) CoverTgs(tagsName []string, tx *gorm.DB) error {
+func (this *Phone) CoverTgs(tagsName []string, tx *db.SQLiteWriter) error {
 	if tx == nil {
 		tx = db.DB
 	}
@@ -230,7 +247,9 @@ func (this *Phone) CoverTgs(tagsName []string, tx *gorm.DB) error {
 	}
 
 	if len(ntag) > 0 {
-		if err := tx.Create(ntag).Error; err != nil {
+		if err := tx.Write(func(txx *gorm.DB) error {
+			return txx.Create(ntag).Error
+		}); err != nil {
 			return err
 		}
 	}
@@ -249,7 +268,7 @@ func SetPhoneTags(pcs []*Phone) {
 	}
 
 	var pxtgs []*PhoneToTag
-	db.DB.Model(&PhoneToTag{}).Where("phone_id in ?", ids).Find(&pxtgs)
+	db.DB.DB().Model(&PhoneToTag{}).Where("phone_id in ?", ids).Find(&pxtgs)
 
 	var tagids []int64
 	pcMap := make(map[int64][]int64)
@@ -272,10 +291,14 @@ func SetPhoneTags(pcs []*Phone) {
 }
 
 func (this *Phone) Delete() error {
-	if err := db.DB.Where("id = ?", this.Id).Delete(&Phone{}).Error; err != nil {
+	if err := db.DB.Write(func(tx *gorm.DB) error {
+		return tx.Where("id = ?", this.Id).Delete(&Phone{}).Error
+	}); err != nil {
 		return err
 	}
-	db.DB.Where("phone_id = ?", this.Id).Delete(&PhoneToTag{})
+	db.DB.Write(func(tx *gorm.DB) error {
+		return tx.Where("phone_id = ?", this.Id).Delete(&PhoneToTag{}).Error
+	})
 	// if bbs, ok := browser.Running.Load(this.Id); ok {
 	// 	if bs, ok := bbs.(*browser.User); ok {
 	// 		return bs.Close()
@@ -289,7 +312,7 @@ func (this *Phone) Delete() error {
 // 通过deviceid获取设备
 func GetPhoneByDeviceId(deviceId string) (*Phone, error) {
 	b := new(Phone)
-	err := db.DB.Model(&Phone{}).Where("device_id = ?", deviceId).First(b).Error
+	err := db.DB.DB().Model(&Phone{}).Where("device_id = ?", deviceId).First(b).Error
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +320,7 @@ func GetPhoneByDeviceId(deviceId string) (*Phone, error) {
 		return nil, errors.New("no phone")
 	}
 
-	db.DB.Select("phone_tags.name").Model(&PhoneTag{}).
+	db.DB.DB().Select("phone_tags.name").Model(&PhoneTag{}).
 		Joins("right join phone_to_tags as ptt on phone_tags.id = ptt.tag_id").
 		Where("ptt.phone_id = ?", b.Id).Find(&b.Tags)
 	return b, nil
@@ -306,7 +329,7 @@ func GetPhoneByDeviceId(deviceId string) (*Phone, error) {
 // 获取客户端表的总数
 func PhoneTotal() int64 {
 	var total int64
-	db.DB.Model(&Phone{}).Count(&total)
+	db.DB.DB().Model(&Phone{}).Count(&total)
 	return total
 }
 
@@ -320,7 +343,7 @@ func GetAllPhones(page, limit int, query string) []*Phone {
 	if limit < 1 {
 		limit = 20
 	}
-	model := db.DB.Model(&Phone{}).Where("status = 1")
+	model := db.DB.DB().Model(&Phone{}).Where("status = 1")
 	if query != "" {
 		qs := fmt.Sprintf("%%%s%%", query)
 		model.Where("name like ?", qs)
@@ -334,6 +357,6 @@ func GetAllPhones(page, limit int, query string) []*Phone {
 // 通过id列表获取手机列表
 func GetPhonesByIds(ids []int64) []*Phone {
 	var bs []*Phone
-	db.DB.Model(&Phone{}).Where("id in ?", ids).Find(&bs)
+	db.DB.DB().Model(&Phone{}).Where("id in ?", ids).Find(&bs)
 	return bs
 }

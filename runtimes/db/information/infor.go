@@ -3,12 +3,8 @@ package information
 // 消息
 
 import (
-	"time"
 	"tools/runtimes/db"
 	"tools/runtimes/eventbus"
-	"tools/runtimes/listens/ws"
-
-	"gorm.io/gorm"
 )
 
 type Information struct {
@@ -22,37 +18,42 @@ type Information struct {
 	Readtime int64  `json:"readtime" gorm:"index;default:0"`                // 查看时间
 	AdminId  int64  `json:"admin_id" gorm:"index;default:0"`                // 发给哪个用户的,0为本地所有用户
 	Addtime  int64  `json:"addtime" gorm:"index;default:0"`                 // 添加时间
+	db.BaseModel
 }
 
 func init() {
-	db.DB.AutoMigrate(&Information{})
+	db.DB.DB().AutoMigrate(&Information{})
 }
 
-func (this *Information) Save(tx *gorm.DB) error {
-	if tx == nil {
-		tx = db.DB
-	}
-	var err error
-	if this.Id > 0 {
-		err = tx.Model(&Information{}).Where("id = ?", this.Id).
-			Updates(map[string]any{
-				"title":     this.Title,
-				"content":   this.Content,
-				"jump":      this.Jump,
-				"jump_txt":  this.JumpTxt,
-				"jump_icon": this.JumpIcon,
-				"readtime":  this.Readtime,
-				"admin_id":  this.AdminId,
-			}).Error
-	} else {
-		this.Addtime = time.Now().Unix()
-		err = tx.Create(this).Error
-		if err == nil {
-			go ws.SentBus(this.AdminId, "information", this, "")
-		}
-	}
-	return err
-}
+// func (this *Information) Save(tx *db.SQLiteWriter) error {
+// 	if tx == nil {
+// 		tx = db.DB
+// 	}
+// 	var err error
+// 	if this.Id > 0 {
+// 		err = tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Model(&Information{}).Where("id = ?", this.Id).
+// 				Updates(map[string]any{
+// 					"title":     this.Title,
+// 					"content":   this.Content,
+// 					"jump":      this.Jump,
+// 					"jump_txt":  this.JumpTxt,
+// 					"jump_icon": this.JumpIcon,
+// 					"readtime":  this.Readtime,
+// 					"admin_id":  this.AdminId,
+// 				}).Error
+// 		})
+// 	} else {
+// 		this.Addtime = time.Now().Unix()
+// 		err = tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Create(this).Error
+// 		})
+// 		if err == nil {
+// 			go ws.SentBus(this.AdminId, "information", this, "")
+// 		}
+// 	}
+// 	return err
+// }
 
 func (t *Information) SendWs() {
 	eventbus.Bus.Publish("information", t)
@@ -75,12 +76,12 @@ const DEFLIMIT = 20
 
 func GetInforTabs(uid int64) []TabStru {
 	var tabs []string
-	db.DB.Model(&Information{}).Select("tab").Where("admin_id = 0 or admin_id = ?", uid).Group("tab").Find(&tabs)
+	db.DB.DB().Model(&Information{}).Select("tab").Where("admin_id = 0 or admin_id = ?", uid).Group("tab").Find(&tabs)
 
 	var total int64
 	var notread int64
-	db.DB.Model(&Information{}).Where("admin_id = 0 or admin_id = ?", uid).Count(&total)
-	db.DB.Model(&Information{}).Where("admin_id = 0 or admin_id = ?", uid).Where("readtime = 0").Count(&notread)
+	db.DB.DB().Model(&Information{}).Where("admin_id = 0 or admin_id = ?", uid).Count(&total)
+	db.DB.DB().Model(&Information{}).Where("admin_id = 0 or admin_id = ?", uid).Where("readtime = 0").Count(&notread)
 	tabstru := []TabStru{
 		TabStru{
 			Page:    1,
@@ -95,8 +96,8 @@ func GetInforTabs(uid int64) []TabStru {
 	for _, v := range tabs {
 		var ttotal int64
 		var tnread int64
-		db.DB.Model(&Information{}).Where("admin_id = 0 or admin_id = ?", uid).Where("tab = ?", v).Count(&ttotal)
-		db.DB.Model(&Information{}).Where("admin_id = 0 or admin_id = ?", uid).Where("readtime = 0").Where("tab = ?", v).Count(&tnread)
+		db.DB.DB().Model(&Information{}).Where("admin_id = 0 or admin_id = ?", uid).Where("tab = ?", v).Count(&ttotal)
+		db.DB.DB().Model(&Information{}).Where("admin_id = 0 or admin_id = ?", uid).Where("readtime = 0").Where("tab = ?", v).Count(&tnread)
 		tabstru = append(tabstru, TabStru{
 			Page:    1,
 			Limit:   DEFLIMIT,
@@ -113,7 +114,7 @@ func GetInforTabs(uid int64) []TabStru {
 // 获取消息总数
 func GetInfomationsTotal(adminid int64, tab string) int64 {
 	var total int64
-	db.DB.Model(&Information{}).
+	db.DB.DB().Model(&Information{}).
 		Where("admin_id = ? or admin_id = 0", adminid).Where("tab = ?", tab).Count(&total)
 	return total
 }
@@ -128,7 +129,7 @@ func GetInfomation(page, limit int, adminid int64, tab string) []*Information {
 	}
 
 	var nfs []*Information
-	model := db.DB.Model(&Information{}).
+	model := db.DB.DB().Model(&Information{}).
 		Where("admin_id = ? or admin_id = 0", adminid)
 	if tab != "" {
 		model.Where("tab = ?", tab)
@@ -141,7 +142,7 @@ func GetInfomation(page, limit int, adminid int64, tab string) []*Information {
 
 // 获取未读消息
 func GetNotRead(uid int64, tab string, page, limit int) []*Information {
-	model := db.DB.Model(&Information{})
+	model := db.DB.DB().Model(&Information{})
 	if uid > 0 {
 		model.Where("admin_id = 0 or admin_id = ?", uid)
 	} else {

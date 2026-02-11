@@ -3,7 +3,6 @@ package clients
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"time"
 	"tools/runtimes/apptask"
@@ -20,16 +19,17 @@ import (
 // 任务添加时并不执行启动,需要执行 *AppTask.Run() 启动
 type AppTask struct {
 	Id        int64  `json:"id" gorm:"primaryKey;autoIncrement"`
-	Type      string `json:"type" gorm:"index;not null"`       // 任务类型
-	Data      string `json:"data" gorm:"default:null"`         // 任务数据
-	Addtime   int64  `json:"addtime" gorm:"index;default:0"`   // 添加时间
-	Status    int    `json:"status" gorm:"index;default:0"`    // 任务状态 0:待启动 1:执行中
-	ErrMsg    string `json:"err_msg" gorm:"default:null"`      // 错误信息
-	DeviceId  string `json:"device_id" gorm:"index;not null"`  // 设备唯一id
-	AdminId   int64  `json:"admin_id" gorm:"index;default:0"`  // 管理员id
-	Starttime int64  `json:"starttime" gorm:"index;default:0"` // 任务允许的开始时间,也就是可以设置在某个时间段执行
-	Endtime   int64  `json:"endtime" gorm:"index;default:0"`   // 任务关闭时间,也就是大于这个时间不执行
-	Cycle     int64  `json:"cycle" gorm:"default:0"`           // 任务周期,单位秒,0为不重复执行,大于0表示间隔多久自动重复执行
+	Type      string `json:"type" gorm:"index;not null"`                     // 任务类型
+	Data      string `json:"data" gorm:"default:null"`                       // 任务数据
+	Addtime   int64  `json:"addtime" gorm:"index;default:0" update:"false"`  // 添加时间
+	Status    int    `json:"status" gorm:"index;default:0"`                  // 任务状态 0:待启动 1:执行中
+	ErrMsg    string `json:"err_msg" gorm:"default:null"`                    // 错误信息
+	DeviceId  string `json:"device_id" gorm:"index;not null" update:"false"` // 设备唯一id
+	AdminId   int64  `json:"admin_id" gorm:"index;default:0" update:"false"` // 管理员id
+	Starttime int64  `json:"starttime" gorm:"index;default:0"`               // 任务允许的开始时间,也就是可以设置在某个时间段执行
+	Endtime   int64  `json:"endtime" gorm:"index;default:0"`                 // 任务关闭时间,也就是大于这个时间不执行
+	Cycle     int64  `json:"cycle" gorm:"default:0"`                         // 任务周期,单位秒,0为不重复执行,大于0表示间隔多久自动重复执行
+	db.BaseModel
 }
 
 // 由于要兼顾任务可定时执行和周期性任务,因此需要额外增加一张表存储任务执行情况
@@ -47,8 +47,8 @@ var dbs = db.AppTask
 var TaskMgr *apptask.Manager
 
 func init() {
-	dbs.AutoMigrate(&AppTask{})
-	dbs.AutoMigrate(&AppTaskRun{})
+	dbs.DB().AutoMigrate(&AppTask{})
+	dbs.DB().AutoMigrate(&AppTaskRun{})
 	rmvDay := 7
 	if v, ok := configs.GetValue("taskremoveDay"); ok {
 		if vv, err := strconv.Atoi(v); err == nil {
@@ -59,7 +59,9 @@ func init() {
 	rmvDay64 := int64(rmvDay * 86400)
 	s := scheduler.New(mainsignal.MainCtx)
 	s.NewRunner(func(ctx context.Context) error {
-		dbs.Where("addtime < ?", (time.Now().Unix() - rmvDay64)).Where("status != 0").Delete(&AppTask{})
+		dbs.Write(func(tx *gorm.DB) error {
+			return tx.Where("addtime < ?", (time.Now().Unix() - rmvDay64)).Where("status != 0").Delete(&AppTask{}).Error
+		})
 		return nil
 	}, 0, nil).Every(time.Second * time.Duration(rmvDay64)).SetMaxTry(3).Run()
 }
@@ -72,40 +74,46 @@ func init() {
 // 	TaskMgr.Start()
 // }
 
-func (this *AppTask) Save(tx *gorm.DB) error {
-	if tx == nil {
-		tx = db.AppTask
-	}
-	if this.Id > 0 {
-		return tx.Model(&AppTask{}).Where("id = ?", this.Id).
-			Updates(map[string]any{
-				"type":      this.Type,
-				"data":      this.Data,
-				"starttime": this.Starttime,
-				"endtime":   this.Endtime,
-				"status":    this.Status,
-				"err_msg":   this.ErrMsg,
-				// "device_id": this.DeviceId,
-				"cycle": this.Cycle,
-			}).Error
-	} else {
-		if this.Addtime < 1 {
-			this.Addtime = time.Now().Unix()
-		}
-		// if this.AdminId < 1 {
-		// 	return errors.New("缺少adminid")
-		// }
-		if this.DeviceId == "" {
-			return errors.New("缺少设备id")
-		}
-		return tx.Create(this).Error
-	}
-}
+// func (this *AppTask) Save(tx *db.SQLiteWriter) error {
+// 	if tx == nil {
+// 		tx = db.AppTask
+// 	}
+// 	if this.Id > 0 {
+// 		return tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Model(&AppTask{}).Where("id = ?", this.Id).
+// 				Updates(map[string]any{
+// 					"type":      this.Type,
+// 					"data":      this.Data,
+// 					"starttime": this.Starttime,
+// 					"endtime":   this.Endtime,
+// 					"status":    this.Status,
+// 					"err_msg":   this.ErrMsg,
+// 					// "device_id": this.DeviceId,
+// 					"cycle": this.Cycle,
+// 				}).Error
+// 		})
+// 	} else {
+// 		if this.Addtime < 1 {
+// 			this.Addtime = time.Now().Unix()
+// 		}
+// 		// if this.AdminId < 1 {
+// 		// 	return errors.New("缺少adminid")
+// 		// }
+// 		if this.DeviceId == "" {
+// 			return errors.New("缺少设备id")
+// 		}
+// 		return tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Create(this).Error
+// 		})
+// 	}
+// }
 
 // 运行任务
 func (this *AppTask) Run() {
 	this.Status = 1
-	if this.Save(nil) == nil {
+	if dbs.Write(func(tx *gorm.DB) error {
+		return this.Save(this, tx)
+	}) == nil {
 		if msg, err := config.Json.Marshal(this); err == nil {
 			Hubs.SentClient(this.DeviceId, msg)
 		}
@@ -128,7 +136,7 @@ func (this *AppTask) CanRunTask() bool {
 // 2️⃣ 是否存在“正在执行”的记录
 func (this *AppTask) GetRunningMsg() (*AppTaskRun, error) {
 	var msg AppTaskRun
-	err := dbs.
+	err := dbs.DB().
 		Where("task_id = ? AND run_status = 0", this.Id).
 		Order("run_id DESC").
 		First(&msg).Error
@@ -147,7 +155,9 @@ func (this *AppTask) CreateRun() (*AppTaskRun, error) {
 		Exectime:  time.Now().Unix(),
 	}
 
-	err := dbs.Create(msg).Error
+	err := dbs.Write(func(tx *gorm.DB) error {
+		return tx.Create(msg).Error
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +196,7 @@ func (task *AppTask) RunTaskLoop(
 					return
 				case <-time.After(time.Second):
 					var check AppTaskRun
-					err := dbs.First(&check, running.RunId).Error
+					err := dbs.DB().First(&check, running.RunId).Error
 					if err != nil {
 						continue
 					}
@@ -217,9 +227,11 @@ func (task *AppTask) RunTaskLoop(
 		} else {
 			updates["run_status"] = 1
 		}
-		dbs.Model(&AppTaskRun{}).
-			Where("run_id = ?", run.RunId).
-			Updates(updates)
+		dbs.Write(func(tx *gorm.DB) error {
+			return tx.Model(&AppTaskRun{}).
+				Where("run_id = ?", run.RunId).
+				Updates(updates).Error
+		})
 
 		// 6. 是否继续循环
 		if task.Cycle <= 0 {
@@ -238,6 +250,6 @@ func (task *AppTask) RunTaskLoop(
 // 获取需要执行的任务
 func GetTask(deviceid string) []*AppTask {
 	var list []*AppTask
-	dbs.Model(&AppTask{}).Where("status = 1 and device_id = ? and starttime = 0", deviceid).Find(&list)
+	dbs.DB().Model(&AppTask{}).Where("status = 1 and device_id = ? and starttime = 0", deviceid).Find(&list)
 	return list
 }

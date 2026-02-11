@@ -14,6 +14,7 @@ import (
 	"tools/runtimes/response"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type TagList struct {
@@ -29,7 +30,7 @@ func BrowserTags(c *gin.Context) {
 		return
 	}
 
-	model := db.DB.Model(&browserdb.BrowserTag{})
+	model := db.DB.DB().Model(&browserdb.BrowserTag{})
 	if dt.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", dt.Q)
 		model = model.Where("name LIKE ?", qs)
@@ -73,7 +74,7 @@ func List(c *gin.Context) {
 		return
 	}
 
-	model := db.DB.Model(&browserdb.Browser{})
+	model := db.DB.DB().Model(&browserdb.Browser{})
 	if l.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", l.Q)
 		model = model.Where("name LIKE ? OR lang local = ? or lang = ?", qs, qs, l.Q)
@@ -244,7 +245,9 @@ func Editer(c *gin.Context) {
 	}
 	if changeed {
 		browserObj.AdminID = user.Id
-		if err := browserObj.Save(nil); err != nil {
+		if err := db.DB.Write(func(tx *gorm.DB) error {
+			return browserObj.Save(browserObj, tx)
+		}); err != nil {
 			response.Error(c, http.StatusNotFound, err.Error(), nil)
 			return
 		}

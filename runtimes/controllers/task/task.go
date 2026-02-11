@@ -15,6 +15,7 @@ import (
 	"tools/runtimes/response"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func List(c *gin.Context) {
@@ -100,7 +101,29 @@ func AddOrEdit(c *gin.Context) {
 	}
 
 	dt.AdminId = user.Id
-	if err := dt.Save(nil); err != nil {
+	if err := tasks.Dbs.Write(func(tx *gorm.DB) error {
+		if dt.SeNum < 1 {
+			dt.SeNum = 2
+		}
+		if dt.Status == 1 {
+			if dt.Script < 1 {
+				return fmt.Errorf("请设置脚本，否则任务无法启动!")
+			}
+			if len(dt.Devices) < 1 {
+				return fmt.Errorf("请设置执行客户端，否则任务无法启动!")
+			}
+		}
+		if err := dt.Save(dt, tx); err != nil {
+			return err
+		}
+
+		if dt.Status == 1 {
+			go dt.ReStart()
+		} else {
+			go dt.Stop()
+		}
+		return nil
+	}); err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}

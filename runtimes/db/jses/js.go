@@ -4,7 +4,6 @@ package jses
 import (
 	"fmt"
 	"strings"
-	"time"
 	"tools/runtimes/aess"
 	"tools/runtimes/db"
 	"tools/runtimes/funcs"
@@ -18,19 +17,20 @@ import (
 // replace_end 默认是 >>
 type Js struct {
 	ID          int64      `json:"id" gorm:"primaryKey;autoIncrement"`
-	Code        string     `json:"code" gorm:"uniqueIndex;not null"`              // 唯一标识符
-	Name        string     `json:"name" gorm:"index"`                             // 名称
-	Tp          int        `json:"tp" gorm:"type:tinyint(1);index;default:0"`     // 脚本类型,适用什么设备的, 0-代表web端  1-代表手机端autos
-	IsSys       int        `json:"is_sys" gorm:"type:tinyint(1);index;default:0"` // 是否是从服务端获取的脚本,如果从服务器获取的脚本,将使用aes加密,1为系统获取, 0为用户自写
-	AdminID     int64      `json:"admin_id" gorm:"index;default:0"`               // 管理员id, 如果是系统的则为0,如果是用户自己写的,则对应用户的id
-	Content     string     `json:"content" gorm:"not null;type:longtext"`         // 执行的脚本
-	ReplacePrev string     `json:"replace_prev"`                                  // 变量替换前缀
-	ReplaceEnd  string     `json:"replace_end"`                                   // 变量替换后缀
-	Icon        string     `json:"icon"`                                          // 此js的图标
-	Addtime     int64      `json:"addtime" gorm:"index;default:0"`                // 添加时间
-	Def         string     `json:"def" gorm:"default:null"`                       // 默认网址或者app
-	Tags        []string   `json:"tags" gorm:"-"`                                 // 标签
-	Params      []*JsParam `json:"params" gorm:"-"`                               // 参数
+	Code        string     `json:"code" gorm:"uniqueIndex;not null"`                             // 唯一标识符
+	Name        string     `json:"name" gorm:"index"`                                            // 名称
+	Tp          int        `json:"tp" gorm:"type:tinyint(1);index;default:0"`                    // 脚本类型,适用什么设备的, 0-代表web端  1-代表手机端autos
+	IsSys       int        `json:"is_sys" gorm:"type:tinyint(1);index;default:0" update:"false"` // 是否是从服务端获取的脚本,如果从服务器获取的脚本,将使用aes加密,1为系统获取, 0为用户自写
+	AdminID     int64      `json:"admin_id" gorm:"index;default:0" update:"false"`               // 管理员id, 如果是系统的则为0,如果是用户自己写的,则对应用户的id
+	Content     string     `json:"content" gorm:"not null;type:longtext"`                        // 执行的脚本
+	ReplacePrev string     `json:"replace_prev"`                                                 // 变量替换前缀
+	ReplaceEnd  string     `json:"replace_end"`                                                  // 变量替换后缀
+	Icon        string     `json:"icon"`                                                         // 此js的图标
+	Addtime     int64      `json:"addtime" gorm:"index;default:0"`                               // 添加时间
+	Def         string     `json:"def" gorm:"default:null"`                                      // 默认网址或者app
+	Tags        []string   `json:"tags" gorm:"-"`                                                // 标签
+	Params      []*JsParam `json:"params" gorm:"-"`                                              // 参数
+	db.BaseModel
 }
 
 type RplsContent struct {
@@ -40,40 +40,44 @@ type RplsContent struct {
 }
 
 func init() {
-	db.DB.AutoMigrate(&Js{})
-	db.DB.AutoMigrate(&JsParam{})
+	db.DB.DB().AutoMigrate(&Js{})
+	db.DB.DB().AutoMigrate(&JsParam{})
 }
 
-func (this *Js) Save(tx *gorm.DB) error {
-	if tx == nil {
-		tx = db.DB
-	}
+// func (this *Js) Save(tx *db.SQLiteWriter) error {
+// 	if tx == nil {
+// 		tx = db.DB
+// 	}
 
-	if this.Name == "" {
-		return fmt.Errorf("请填写脚本标题")
-	}
+// 	if this.Name == "" {
+// 		return fmt.Errorf("请填写脚本标题")
+// 	}
 
-	// defer NotifyTaskChanged(this.ID)
-	if this.ID > 0 {
-		return tx.Model(&Js{}).Where("id = ?", this.ID).
-			Updates(map[string]any{
-				"name":         this.Name,
-				"code":         this.Code,
-				"content":      this.Content,
-				"replace_prev": this.ReplacePrev,
-				"replace_end":  this.ReplaceEnd,
-				"icon":         this.Icon,
-				"admin_id":     this.AdminID,
-			}).Error
-	} else {
-		if this.Addtime < 1 {
-			this.Addtime = time.Now().Unix()
-		}
-		// this.IsSys = 1
-		err := tx.Create(this).Error
-		return err
-	}
-}
+// 	// defer NotifyTaskChanged(this.ID)
+// 	if this.ID > 0 {
+// 		return tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Model(&Js{}).Where("id = ?", this.ID).
+// 				Updates(map[string]any{
+// 					"name":         this.Name,
+// 					"code":         this.Code,
+// 					"content":      this.Content,
+// 					"replace_prev": this.ReplacePrev,
+// 					"replace_end":  this.ReplaceEnd,
+// 					"icon":         this.Icon,
+// 					"admin_id":     this.AdminID,
+// 				}).Error
+// 		})
+// 	} else {
+// 		if this.Addtime < 1 {
+// 			this.Addtime = time.Now().Unix()
+// 		}
+// 		// this.IsSys = 1
+// 		err := tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Create(this).Error
+// 		})
+// 		return err
+// 	}
+// }
 
 // 获取js的内容
 func (this *Js) GetContent(taskParams map[string]any) string {
@@ -108,7 +112,7 @@ func (this *Js) GetContent(taskParams map[string]any) string {
 
 func (this *Js) GetParams() []*JsParam {
 	var jps []*JsParam
-	db.DB.Model(&JsParam{}).Where("js_id = ?", this.ID).Find(&jps)
+	db.DB.DB().Model(&JsParam{}).Where("js_id = ?", this.ID).Find(&jps)
 	return jps
 }
 
@@ -118,7 +122,7 @@ func GetJsById(id int64) *Js {
 		return nil
 	}
 	jsobj := new(Js)
-	db.DB.Model(&Js{}).Where("id = ?", id).First(jsobj)
+	db.DB.DB().Model(&Js{}).Where("id = ?", id).First(jsobj)
 	return jsobj
 }
 
@@ -128,7 +132,7 @@ func GetJsByCode(code string) *Js {
 		return nil
 	}
 	jsobj := new(Js)
-	db.DB.Model(&Js{}).Where("code = ?", code).First(jsobj)
+	db.DB.DB().Model(&Js{}).Where("code = ?", code).First(jsobj)
 	return jsobj
 }
 
@@ -140,7 +144,7 @@ func GetJsList(dt *db.ListFinder) ([]*Js, int64) {
 	if dt.Limit < 1 {
 		dt.Limit = 20
 	}
-	md := db.DB.Model(&Js{})
+	md := db.DB.DB().Model(&Js{})
 	if dt.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", dt.Q)
 		md.Where("title like ?", qs)
@@ -152,7 +156,7 @@ func GetJsList(dt *db.ListFinder) ([]*Js, int64) {
 
 	if len(dt.Tags) > 0 {
 		var taskids []int64
-		db.DB.Model(&JsToTag{}).Select("js_id").Where("tag_id in ?", dt.Tags).Find(&taskids)
+		db.DB.DB().Model(&JsToTag{}).Select("js_id").Where("tag_id in ?", dt.Tags).Find(&taskids)
 		if len(taskids) > 0 {
 			md.Where("id in ?", taskids)
 		}
@@ -185,7 +189,9 @@ func GetJsList(dt *db.ListFinder) ([]*Js, int64) {
 }
 
 func Delete(id any) error {
-	return db.DB.Where("id = ?", id).Delete(&Js{}).Error
+	return db.DB.Write(func(tx *gorm.DB) error {
+		return tx.Where("id = ?", id).Delete(&Js{}).Error
+	})
 }
 
 // 通过task添加tags
@@ -196,7 +202,9 @@ func (this *Js) AddTags() error {
 		tagIds = append(tagIds, v.ID)
 	}
 
-	db.DB.Where("js_id = ?", this.ID).Where("tag_id not in ?", tagIds).Delete(&JsToTag{}) // 不管三七二十一,将对应表中不存在的标签id删除
+	db.DB.Write(func(tx *gorm.DB) error {
+		return tx.Where("js_id = ?", this.ID).Where("tag_id not in ?", tagIds).Delete(&JsToTag{}).Error // 不管三七二十一,将对应表中不存在的标签id删除
+	})
 
 	if len(tagIds) > 0 {
 		tags := make([]*JsToTag, 0, len(tagIds))
@@ -207,11 +215,12 @@ func (this *Js) AddTags() error {
 			})
 		}
 
-		return db.DB.
-			Clauses(clause.OnConflict{
+		return db.DB.Write(func(tx *gorm.DB) error {
+			return tx.Clauses(clause.OnConflict{
 				DoNothing: true,
 			}).
-			Create(&tags).Error
+				Create(&tags).Error
+		})
 	}
 	return nil
 }

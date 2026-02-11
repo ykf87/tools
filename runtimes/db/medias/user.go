@@ -30,8 +30,8 @@ type MediaUser struct {
 	Platform     string          `json:"platform" gorm:"index:plu;not null"`                   // 怕太
 	Uuid         string          `json:"uuid" gorm:"index:plu;not null"`                       // 访问主页等
 	Account      string          `json:"account" gorm:"index;"`                                // 例如抖音号,用于用户搜索的
-	AdminID      int64           `json:"admin_id" gorm:"index;default:0"`                      // 哪个后台用户添加的
-	Addtime      int64           `json:"addtime" gorm:"default:0;index"`                       // 添加时间
+	AdminID      int64           `json:"admin_id" gorm:"index;default:0" update:"false"`       // 哪个后台用户添加的
+	Addtime      int64           `json:"addtime" gorm:"default:0;index" update:"false"`        // 添加时间
 	Works        int64           `json:"works" gorm:"index;default:-1"`                        // 发布作品数量
 	Fans         int64           `json:"fans" gorm:"index;default:-1"`                         // 粉丝数
 	Local        string          `json:"local" gorm:"index;default:null"`                      // 所在地区
@@ -46,6 +46,7 @@ type MediaUser struct {
 	Proxys       []int64         `json:"proxys" gorm:"-"`                                      // 使用的代理列表
 	Isruner      bool            `json:"isruner" gorm:"-"`                                     // 是否正在执行
 	trans        string          `json:"-" gorm:"-"`                                           // 代理
+	db.BaseModel
 }
 
 type MediaUserToTag struct {
@@ -75,62 +76,62 @@ type MediaUserDay struct {
 	Zan   int64  `json:"zan" gorm:"index;default:-1"`       // 获赞数
 }
 
-func (this *MediaUser) Save(tx *gorm.DB) error {
-	if tx == nil {
-		tx = dbs
-	}
+// func (this *MediaUser) Save(tx *db.SQLiteWriter) error {
+// 	if tx == nil {
+// 		tx = dbs
+// 	}
 
-	if strings.HasPrefix(this.Cover, config.MediaUrl) {
-		if af, ok := strings.CutPrefix(this.Cover, config.MediaUrl); ok {
-			this.Cover = af
-		}
-	}
-	if this.Id > 0 {
-		err := tx.Model(&MediaUser{}).Where("id = ?", this.Id).
-			Updates(map[string]any{
-				"platform":       this.Platform,
-				"name":           this.Name,
-				"cover":          this.Cover,
-				"uuid":           this.Uuid,
-				"fans":           this.Fans,
-				"works":          this.Works,
-				"local":          this.Local,
-				"account":        this.Account,
-				"autoinfo":       this.Autoinfo,
-				"auto_download":  this.AutoDownload,
-				"auto_timer":     this.AutoTimer,
-				"down_freq":      this.DownFreq,
-				"last_down_time": this.LastDownTime,
-			}).Error
-		if err != nil {
-			return err
-		}
-		// eventbus.Bus.Publish("media_save", this)
-		return nil
-	} else {
-		this.Addtime = time.Now().Unix()
-		return tx.Create(this).Error
-	}
-}
+// 	if strings.HasPrefix(this.Cover, config.MediaUrl) {
+// 		if af, ok := strings.CutPrefix(this.Cover, config.MediaUrl); ok {
+// 			this.Cover = af
+// 		}
+// 	}
+// 	if this.Id > 0 {
+// 		err := tx.Model(&MediaUser{}).Where("id = ?", this.Id).
+// 			Updates(map[string]any{
+// 				"platform":       this.Platform,
+// 				"name":           this.Name,
+// 				"cover":          this.Cover,
+// 				"uuid":           this.Uuid,
+// 				"fans":           this.Fans,
+// 				"works":          this.Works,
+// 				"local":          this.Local,
+// 				"account":        this.Account,
+// 				"autoinfo":       this.Autoinfo,
+// 				"auto_download":  this.AutoDownload,
+// 				"auto_timer":     this.AutoTimer,
+// 				"down_freq":      this.DownFreq,
+// 				"last_down_time": this.LastDownTime,
+// 			}).Error
+// 		if err != nil {
+// 			return err
+// 		}
+// 		// eventbus.Bus.Publish("media_save", this)
+// 		return nil
+// 	} else {
+// 		this.Addtime = time.Now().Unix()
+// 		return tx.Create(this).Error
+// 	}
+// }
 
 func GetUserMedias(id any) []*Media {
 	var mus []*Media
-	dbs.Model(&Media{}).Where("user_id = ?", id).Find(&mus)
+	dbs.DB().Model(&Media{}).Where("user_id = ?", id).Find(&mus)
 	return mus
 }
 
 func (this *MediaUser) GetTags() []*MediaUserTag {
 	var tagIDs []int64
-	dbs.Model(&MediaUserToTag{}).Select("tag_id").Where("user_id = ?", this.Id).Find(&tagIDs)
+	dbs.DB().Model(&MediaUserToTag{}).Select("tag_id").Where("user_id = ?", this.Id).Find(&tagIDs)
 
 	var tags []*MediaUserTag
-	dbs.Model(&MediaUserTag{}).Where("id in ?", tagIDs).Find(&tags)
+	dbs.DB().Model(&MediaUserTag{}).Where("id in ?", tagIDs).Find(&tags)
 	return tags
 }
 
 func (this *MediaUser) GetClients() map[int][]int64 {
 	var rows []*MediaUserToClient
-	dbs.Model(&MediaUserToClient{}).Where("m_uid = ?", this.Id).Find(&rows)
+	dbs.DB().Model(&MediaUserToClient{}).Where("m_uid = ?", this.Id).Find(&rows)
 	this.Clients = make(map[int][]int64)
 	for _, v := range rows {
 		this.Clients[v.ClientType] = append(this.Clients[v.ClientType], v.ClientID)
@@ -159,14 +160,14 @@ func (this *MediaUser) GenAvatarToHttp() {
 // 获取代理列表
 func (this *MediaUser) GetProxys() []int64 {
 	var ids []int64
-	dbs.Model(&MediaUserProxy{}).Select("proxy_id").Where("m_uid = ?", this.Id).Find(&ids)
+	dbs.DB().Model(&MediaUserProxy{}).Select("proxy_id").Where("m_uid = ?", this.Id).Find(&ids)
 	this.Proxys = ids
 	return this.Proxys
 }
 
 func GetUserPlatforms() map[string]string {
 	var pls []string
-	dbs.Model(&MediaUser{}).Select("platform").Group("platform").Find(&pls)
+	dbs.DB().Model(&MediaUser{}).Select("platform").Group("platform").Find(&pls)
 
 	plsmap := make(map[string]string)
 	for _, v := range pls {
@@ -183,7 +184,7 @@ func GetMediaUsers(adminID int64, dt *db.ListFinder) ([]*MediaUser, int64) {
 	if dt.Limit < 1 {
 		dt.Limit = 20
 	}
-	md := dbs.Model(&MediaUser{}).Where("admin_id = ?", adminID)
+	md := dbs.DB().Model(&MediaUser{}).Where("admin_id = ?", adminID)
 	if dt.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", dt.Q)
 		md.Where("name like ?", qs)
@@ -191,7 +192,7 @@ func GetMediaUsers(adminID int64, dt *db.ListFinder) ([]*MediaUser, int64) {
 
 	if len(dt.Tags) > 0 {
 		var muids []int64
-		dbs.Model(&MediaUserToTag{}).Select("user_id").Where("tag_id in ?", dt.Tags).Find(&muids)
+		dbs.DB().Model(&MediaUserToTag{}).Select("user_id").Where("tag_id in ?", dt.Tags).Find(&muids)
 		if len(muids) > 0 {
 			md.Where("id in ?", muids)
 		}
@@ -225,7 +226,7 @@ func GetMediaUsers(adminID int64, dt *db.ListFinder) ([]*MediaUser, int64) {
 // 根据id获取用户信息
 func GetMediaUserByID(id any) *MediaUser {
 	mu := new(MediaUser)
-	if err := dbs.Model(&MediaUser{}).Where("id = ?", id).First(mu).Error; err != nil || mu.Id < 1 {
+	if err := dbs.DB().Model(&MediaUser{}).Where("id = ?", id).First(mu).Error; err != nil || mu.Id < 1 {
 		return nil
 	}
 	// mu.Commpare()
@@ -233,28 +234,19 @@ func GetMediaUserByID(id any) *MediaUser {
 }
 
 func (this *MediaUser) EmptyClient(tx *gorm.DB) error {
-	if tx == nil {
-		tx = dbs
-	}
 	return tx.Where("m_uid = ?", this.Id).Delete(&MediaUserToClient{}).Error
 }
 func (this *MediaUser) EmptyProxy(tx *gorm.DB) error {
-	if tx == nil {
-		tx = dbs
-	}
 	return tx.Where("m_uid = ?", this.Id).Delete(&MediaUserProxy{}).Error
 }
 func (this *MediaUser) EmptyTag(tx *gorm.DB) error {
-	if tx == nil {
-		tx = dbs
-	}
 	return tx.Where("user_id = ?", this.Id).Delete(&MediaUserToTag{}).Debug().Error
 }
 
 // 获取需要更新或者下载的用户
 func GetAutoUsers() []*MediaUser {
 	var mus []*MediaUser
-	dbs.Model(&MediaUser{}).Where("auto_download = ? Or autoinfo = ?", 1, 1).Find(&mus)
+	dbs.DB().Model(&MediaUser{}).Where("auto_download = ? Or autoinfo = ?", 1, 1).Find(&mus)
 
 	return mus
 }
@@ -403,7 +395,10 @@ func (mu *MediaUser) ParseUserInfoData(data string) error {
 	if account := gs.Get("account").String(); account != "" {
 		mu.Account = account
 	}
-	mu.Save(nil)
+
+	dbs.Write(func(tx *gorm.DB) error {
+		return mu.Save(mu, tx)
+	})
 	mu.Commpare()
 	eventbus.Bus.Publish("media_user_info", mu)
 	return nil

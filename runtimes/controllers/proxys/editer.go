@@ -1,6 +1,7 @@
 package proxys
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"tools/runtimes/response"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func Editer(c *gin.Context) {
@@ -36,96 +38,100 @@ func Editer(c *gin.Context) {
 	id := c.Param("id")
 	px := new(proxys.Proxy)
 
-	tx := db.DB.Begin()
-
-	if id != "" {
-		idi, err := strconv.Atoi(id)
-		if err != nil {
-			response.Error(c, http.StatusNotFound, i18n.T("Agent does not exist"), nil)
-			return
-		}
-		dbid = int64(idi)
-		px = proxys.GetById(dbid)
-		if px.Id < 1 {
-			response.Error(c, http.StatusNotFound, i18n.T("Agent does not exist"), nil)
-			return
-		}
-		if px.Subscribe > 0 {
-			response.Error(c, http.StatusNotFound, i18n.T("Subscribed agents cannot be modified manually"), nil)
-			return
-		}
-	}
-
-	if pcr.Port != 0 && pcr.Port < config.PROXYMINPORT {
-		response.Error(c, http.StatusNotFound, i18n.T("The port number cannot be less than %d", config.PROXYMINPORT), nil)
-		return
-	}
-
-	// 检查端口是否重复, 要排除修改代理时被修改的代理端口和自身的端口一致问题
-	if pcr.Port > 0 {
-		portProxy := proxys.GetByPort(pcr.Port)
-		if portProxy != nil && portProxy.Id > 0 {
-			if dbid > 0 && portProxy.Id != dbid {
-				response.Error(c, http.StatusBadRequest, i18n.T("Port %d is already in use", pcr.Port), nil)
-				return
+	// tx := db.DB.Begin()
+	if err := db.DB.Write(func(tx *gorm.DB) error {
+		if id != "" {
+			idi, err := strconv.Atoi(id)
+			if err != nil {
+				// response.Error(c, http.StatusNotFound, i18n.T("Agent does not exist"), nil)
+				return errors.New(i18n.T("Agent does not exist"))
+			}
+			dbid = int64(idi)
+			px = proxys.GetById(dbid)
+			if px.Id < 1 {
+				// response.Error(c, http.StatusNotFound, i18n.T("Agent does not exist"), nil)
+				return errors.New(i18n.T("Agent does not exist"))
+			}
+			if px.Subscribe > 0 {
+				// response.Error(c, http.StatusNotFound, i18n.T("Subscribed agents cannot be modified manually"), nil)
+				return errors.New(i18n.T("Subscribed agents cannot be modified manually"))
 			}
 		}
-	}
 
-	needGetLocal := false
-	if px.Id > 0 {
-		px.Name = pcr.Name
-		if pcr.Config != px.Config {
+		if pcr.Port != 0 && pcr.Port < config.PROXYMINPORT {
+			// response.Error(c, http.StatusNotFound, i18n.T("The port number cannot be less than %d", config.PROXYMINPORT), nil)
+			return errors.New(i18n.T("The port number cannot be less than %d", config.PROXYMINPORT))
+		}
+
+		// 检查端口是否重复, 要排除修改代理时被修改的代理端口和自身的端口一致问题
+		if pcr.Port > 0 {
+			portProxy := proxys.GetByPort(pcr.Port)
+			if portProxy != nil && portProxy.Id > 0 {
+				if dbid > 0 && portProxy.Id != dbid {
+					// response.Error(c, http.StatusBadRequest, i18n.T("Port %d is already in use", pcr.Port), nil)
+					return errors.New(i18n.T("Port %d is already in use", pcr.Port))
+				}
+			}
+		}
+
+		needGetLocal := false
+		if px.Id > 0 {
+			px.Name = pcr.Name
+			if pcr.Config != px.Config {
+				px.Config = pcr.Config
+				px.ConfigMd5 = funcs.Md5String(pcr.Config)
+				needGetLocal = true
+			}
+			px.AutoRun = pcr.AutoRun
+			px.Password = pcr.Password
+			px.Port = pcr.Port
+			px.Remark = pcr.Remark
+			px.Transfer = pcr.Transfer
+			px.Username = pcr.Username
+		} else {
+			needGetLocal = true
+
+			px.AutoRun = pcr.AutoRun
+			px.Name = pcr.Name
 			px.Config = pcr.Config
 			px.ConfigMd5 = funcs.Md5String(pcr.Config)
-			needGetLocal = true
+			px.Password = pcr.Password
+			px.Port = pcr.Port
+			px.Remark = pcr.Remark
+			px.Transfer = pcr.Transfer
+			px.Username = pcr.Username
 		}
-		px.AutoRun = pcr.AutoRun
-		px.Password = pcr.Password
-		px.Port = pcr.Port
-		px.Remark = pcr.Remark
-		px.Transfer = pcr.Transfer
-		px.Username = pcr.Username
-	} else {
-		needGetLocal = true
 
-		px.AutoRun = pcr.AutoRun
-		px.Name = pcr.Name
-		px.Config = pcr.Config
-		px.ConfigMd5 = funcs.Md5String(pcr.Config)
-		px.Password = pcr.Password
-		px.Port = pcr.Port
-		px.Remark = pcr.Remark
-		px.Transfer = pcr.Transfer
-		px.Username = pcr.Username
-	}
+		if err := px.Save(px, tx); err != nil {
+			// tx.Rollback()
+			// response.Error(c, http.StatusNotFound, err.Error(), nil)
+			return err
+		}
 
-	if err := px.Save(tx); err != nil {
-		tx.Rollback()
+		if len(pcr.Tags) > 0 {
+			if err := px.CoverTgs(pcr.Tags, tx); err != nil {
+				logs.Error(err.Error())
+				// response.Error(c, http.StatusNotFound, err.Error(), nil)
+				return err
+			}
+		}
+
+		if needGetLocal == true {
+			if loc, err := proxy.GetLocal(px.GetConfig(), px.GetTransfer()); err == nil {
+				px.Local = loc.Iso
+				px.Lang = loc.Lang
+				px.Timezone = loc.Timezone
+				px.Ip = loc.Ip
+				if err := px.Save(px, tx); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}); err != nil {
 		response.Error(c, http.StatusNotFound, err.Error(), nil)
 		return
 	}
-
-	if len(pcr.Tags) > 0 {
-		if err := px.CoverTgs(pcr.Tags, tx); err != nil {
-			logs.Error(err.Error())
-			tx.Rollback()
-			response.Error(c, http.StatusNotFound, err.Error(), nil)
-			return
-		}
-	}
-
-	if needGetLocal == true {
-		if loc, err := proxy.GetLocal(px.GetConfig(), px.GetTransfer()); err == nil {
-			px.Local = loc.Iso
-			px.Lang = loc.Lang
-			px.Timezone = loc.Timezone
-			px.Ip = loc.Ip
-			px.Save(tx)
-		}
-	}
-
-	tx.Commit()
 
 	// 如果代理已经是启动状态,需要重新启动
 	if pcc := px.IsStart(); pcc != nil {
@@ -163,18 +169,32 @@ type rmvsdt struct {
 func Removes(c *gin.Context) {
 	ids := new(rmvsdt)
 	if err := c.ShouldBind(ids); err == nil {
-		tx := db.DB.Begin()
-		if err := tx.Where("id in ?", ids.Ids).Delete(&proxys.Proxy{}).Error; err != nil {
-			tx.Rollback()
-			response.Error(c, http.StatusBadGateway, "", nil)
+		// tx := db.DB.Begin()
+		if err := db.DB.Write(func(tx *gorm.DB) error {
+			if err := tx.Where("id in ?", ids.Ids).Delete(&proxys.Proxy{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("proxy_id in ?", ids.Ids).Delete(&proxys.ProxyTag{}).Error; err != nil {
+				// tx.Rollback()
+				// response.Error(c, http.StatusBadGateway, "", nil)
+				return err
+			}
+			return nil
+		}); err != nil {
+			response.Error(c, http.StatusBadGateway, err.Error(), nil)
 			return
 		}
-		if err := tx.Where("proxy_id in ?", ids.Ids).Delete(&proxys.ProxyTag{}).Error; err != nil {
-			tx.Rollback()
-			response.Error(c, http.StatusBadGateway, "", nil)
-			return
-		}
-		tx.Commit()
+		// if err := tx.Where("id in ?", ids.Ids).Delete(&proxys.Proxy{}).Error; err != nil {
+		// 	tx.Rollback()
+		// 	response.Error(c, http.StatusBadGateway, "", nil)
+		// 	return
+		// }
+		// if err := tx.Where("proxy_id in ?", ids.Ids).Delete(&proxys.ProxyTag{}).Error; err != nil {
+		// 	tx.Rollback()
+		// 	response.Error(c, http.StatusBadGateway, "", nil)
+		// 	return
+		// }
+		// tx.Commit()
 	}
 	response.Success(c, nil, "")
 }
@@ -207,7 +227,7 @@ func BatchAdd(c *gin.Context) {
 	}
 
 	var dbhads []*proxys.Proxy
-	db.DB.Model(&proxys.Proxy{}).Where("config_md5 in ?", ccmd5).Find(&dbhads)
+	db.DB.DB().Model(&proxys.Proxy{}).Where("config_md5 in ?", ccmd5).Find(&dbhads)
 	dbhadMap := make(map[string]byte)
 	for _, v := range dbhads {
 		dbhadMap[v.ConfigMd5] = 1
@@ -247,7 +267,9 @@ func BatchAdd(c *gin.Context) {
 	}
 
 	if len(pxs) > 0 {
-		if err := db.DB.Create(pxs).Error; err == nil {
+		if err := db.DB.Write(func(tx *gorm.DB) error {
+			return tx.Create(pxs).Error
+		}); err == nil {
 			if len(pcr.Tags) > 0 {
 				tagmp := tag.GetTagsByNames(pcr.Tags, nil)
 				var tagids []int64
@@ -268,7 +290,9 @@ func BatchAdd(c *gin.Context) {
 				}
 
 				if len(ptags) > 0 {
-					db.DB.Create(ptags)
+					db.DB.Write(func(tx *gorm.DB) error {
+						return tx.Create(ptags).Error
+					})
 				}
 			}
 
@@ -279,7 +303,9 @@ func BatchAdd(c *gin.Context) {
 						v.Timezone = loc.Timezone
 						v.Lang = loc.Lang
 						v.Ip = loc.Ip
-						v.Save(nil)
+						db.DB.Write(func(tx *gorm.DB) error {
+							return v.Save(v, tx)
+						})
 					}
 				}()
 			}
@@ -385,40 +411,72 @@ func BatchEditer(c *gin.Context) {
 		}
 	}
 
-	tx := db.DB.Begin()
-	if needUpdate == true {
-		if err := tx.Model(&proxys.Proxy{}).Where("id in ?", dt.Ids).Updates(upto).Error; err != nil {
-			tx.Rollback()
-			response.Error(c, http.StatusBadGateway, err.Error(), nil)
-			return
-		}
-	}
-
-	if uptags != nil && taglen > 0 {
-		if err := tx.Where("proxy_id in ?", dt.Ids).Delete(&proxys.ProxyTag{}).Error; err != nil {
-			tx.Rollback()
-			response.Error(c, http.StatusBadGateway, err.Error(), nil)
-			return
-		}
-
-		var dbProxyTag []*proxys.ProxyTag
-		for _, pid := range dt.Ids {
-			for _, tagid := range uptags {
-				dbProxyTag = append(dbProxyTag, &proxys.ProxyTag{
-					ProxyId: pid,
-					TagId:   tagid,
-				})
+	// tx := db.DB.Begin()
+	if err := db.DB.Write(func(tx *gorm.DB) error {
+		if needUpdate == true {
+			if err := tx.Model(&proxys.Proxy{}).Where("id in ?", dt.Ids).Updates(upto).Error; err != nil {
+				return err
 			}
 		}
-		if len(dbProxyTag) > 0 {
-			if err := tx.Create(dbProxyTag).Error; err != nil {
-				tx.Rollback()
-				response.Error(c, http.StatusBadGateway, err.Error(), nil)
-				return
+
+		if uptags != nil && taglen > 0 {
+			if err := tx.Where("proxy_id in ?", dt.Ids).Delete(&proxys.ProxyTag{}).Error; err != nil {
+				return err
+			}
+
+			var dbProxyTag []*proxys.ProxyTag
+			for _, pid := range dt.Ids {
+				for _, tagid := range uptags {
+					dbProxyTag = append(dbProxyTag, &proxys.ProxyTag{
+						ProxyId: pid,
+						TagId:   tagid,
+					})
+				}
+			}
+			if len(dbProxyTag) > 0 {
+				if err := tx.Create(dbProxyTag).Error; err != nil {
+					return err
+				}
 			}
 		}
+		return nil
+	}); err != nil {
+		response.Error(c, http.StatusBadGateway, err.Error(), nil)
+		return
 	}
+	// if needUpdate == true {
+	// 	if err := tx.Model(&proxys.Proxy{}).Where("id in ?", dt.Ids).Updates(upto).Error; err != nil {
+	// 		tx.Rollback()
+	// 		response.Error(c, http.StatusBadGateway, err.Error(), nil)
+	// 		return
+	// 	}
+	// }
 
-	tx.Commit()
+	// if uptags != nil && taglen > 0 {
+	// 	if err := tx.Where("proxy_id in ?", dt.Ids).Delete(&proxys.ProxyTag{}).Error; err != nil {
+	// 		tx.Rollback()
+	// 		response.Error(c, http.StatusBadGateway, err.Error(), nil)
+	// 		return
+	// 	}
+
+	// 	var dbProxyTag []*proxys.ProxyTag
+	// 	for _, pid := range dt.Ids {
+	// 		for _, tagid := range uptags {
+	// 			dbProxyTag = append(dbProxyTag, &proxys.ProxyTag{
+	// 				ProxyId: pid,
+	// 				TagId:   tagid,
+	// 			})
+	// 		}
+	// 	}
+	// 	if len(dbProxyTag) > 0 {
+	// 		if err := tx.Create(dbProxyTag).Error; err != nil {
+	// 			tx.Rollback()
+	// 			response.Error(c, http.StatusBadGateway, err.Error(), nil)
+	// 			return
+	// 		}
+	// 	}
+	// }
+
+	// tx.Commit()
 	response.Success(c, nil, "")
 }
