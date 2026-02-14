@@ -82,6 +82,18 @@ func init() {
 	taskdb.DB().AutoMigrate(&TaskRunMsg{})
 
 	// 系统启动的时候查询执行者的状态,如果是等待执行或者正在执行的强制置为执行失败
+	go func() {
+		deleteTimeoutTaskRunAndMsg(time.Now().UTC().AddDate(0, 0, -7))
+
+		for {
+			select {
+			case <-time.After(24 * time.Hour):
+				deleteTimeoutTaskRunAndMsg(time.Now().UTC().AddDate(0, 0, -7))
+			case <-mainsignal.MainCtx.Done():
+				return
+			}
+		}
+	}()
 	taskdb.Write(func(tx *gorm.DB) error {
 		return tx.Model(&TaskRun{}).Where("status = ? or status = ?", 0, 1).Updates(map[string]any{
 			"status": -1,
@@ -94,6 +106,37 @@ func init() {
 	// })
 	taskdb.Write(func(tx *gorm.DB) error {
 		return tx.Model(&Task{}).Where("endtime = 0").Update("endtime", time.Now().Unix()).Error
+	})
+}
+
+// 定时删除任务消息
+func deleteTimeoutTaskRunAndMsg(timer time.Time) {
+	taskdb.Write(func(tx *gorm.DB) error {
+		now := timer.Unix()
+		var taskIds []int64
+		if err := tx.Model(&Task{}).Select("id").Where("endtime > ? and addtime <= ?", 0, now).Find(&taskIds).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("endtime > ? and addtime <= ?", 0, now).Delete(&Task{}).Error; err != nil {
+			return err
+		}
+
+		taskRunModel := tx.Where("start_at <= ?", now)
+		if len(taskIds) > 0 {
+			taskRunModel = taskRunModel.Or("task_id in ?", taskIds)
+		}
+		if err := taskRunModel.Delete(&TaskRun{}).Error; err != nil {
+			return err
+		}
+
+		taskRunMsgModel := tx.Where("start_at <= ?", now)
+		if len(taskIds) > 0 {
+			taskRunMsgModel = taskRunMsgModel.Or("task_id in ?", taskIds)
+		}
+		if err := taskRunMsgModel.Delete(&TaskRunMsg{}).Error; err != nil {
+			return err
+		}
+		return nil
 	})
 }
 
