@@ -1,6 +1,7 @@
 package users
 
 import (
+	"fmt"
 	"net/http"
 	"tools/runtimes/db"
 	"tools/runtimes/db/admins"
@@ -71,6 +72,7 @@ func Editer(c *gin.Context) {
 	}
 
 	if err := medias.GetDb().Write(func(tx *gorm.DB) error {
+		fmt.Println("写入------")
 		if err := mmu.EmptyClient(tx); err != nil {
 			return err
 		}
@@ -132,15 +134,17 @@ func Editer(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
+	fmt.Println("其他信息处理完成... 保存")
 
 	mmu.Autoinfo = mu.Autoinfo
 	mmu.AutoDownload = mu.AutoDownload
 	mmu.AutoTimer = mu.AutoTimer
 	mmu.DownFreq = mu.DownFreq
-	if err := mmu.Save(mmu, nil); err != nil {
+	if err := mmu.Save(mmu, medias.GetDb().DB()); err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
+	go mmu.AutoStart()
 
 	// if err := mmu.EmptyClient(tx); err != nil {
 	// 	tx.Rollback()

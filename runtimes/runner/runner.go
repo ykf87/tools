@@ -9,6 +9,8 @@ import (
 	"tools/runtimes/config"
 	"tools/runtimes/proxy"
 	"tools/runtimes/runner/runbrowser"
+	"tools/runtimes/runner/runhttp"
+	"tools/runtimes/runner/runphone"
 )
 
 type Runner interface {
@@ -66,12 +68,24 @@ func GenWebOpt(
 	return opt
 }
 
+// 生成手机端的配置
+func GenPhoneOpt() *runphone.Option {
+	return &runphone.Option{}
+}
+
+// 生成http端的配置
+func GenHttpOpt() *runhttp.Option {
+	return &runhttp.Option{}
+}
+
 func GetRunner(tp int, opt any) (Runner, error) {
 	switch tp {
 	case 0: // 浏览器
 		return runbrowser.New(opt, true)
 	case 1: // 手机
+		return runphone.New(opt)
 	case 2: // http
+		return runhttp.New(opt)
 	}
 	return nil, errors.New("找不到该类型的执行器")
 }
@@ -81,7 +95,9 @@ func IsRuning(tp int, id int64) bool {
 	case 0: // 浏览器
 		return runbrowser.IsRuning(id)
 	case 1: // 手机
+		return runphone.IsRuning(id)
 	case 2: // http
+		return runhttp.IsRuning(id)
 	}
 	return false
 }

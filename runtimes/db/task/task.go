@@ -396,7 +396,7 @@ func (tr *TaskRun) runnerCallback() {
 			var status int
 			var msg string
 			if err == nil {
-				msg = i18n.T("Task run success")
+				msg = i18n.T("本次任务执行成功")
 				status = 1
 			} else {
 				status = -1

@@ -45,6 +45,13 @@ type Runner struct {
 	s  *Scheduler
 
 	firstRun atomic.Bool // 🔥 是否已经执行过
+
+	daily       bool
+	dailyHour   int
+	dailyMin    int
+	dailySec    int
+	dailyJitter int
+	dailyLoc    *time.Location
 }
 
 func newRunner(ctx context.Context, cancel context.CancelFunc, task TaskFunc, s *Scheduler) *Runner {
@@ -66,6 +73,10 @@ func (r *Runner) execute() {
 	defer r.running.Store(false)
 	// 🔥 标记：已经至少执行过一次
 	r.firstRun.Store(true)
+	// 已关闭或超时停止
+	if r.closed.Load() {
+		return
+	}
 
 	// 🔥 截止时间判断
 	if !r.stopAt.IsZero() && time.Now().After(r.stopAt) {
@@ -81,82 +92,111 @@ func (r *Runner) execute() {
 
 	r.startAt = time.Now()
 	err := r.task(r.ctx)
+
+	var nextTime time.Time
+	var needReschedule bool
+
 	if err != nil {
 		n := r.tried.Add(1)
 
-		if n >= int32(r.maxTry) {
-			// 本轮失败结束，清空失败计数
+		// 未达到最大重试次数 -> retry
+		if r.maxTry == 0 || n < int32(r.maxTry) {
+			delay := r.retryDelay
+			if delay <= 0 {
+				delay = 5 * time.Second
+			}
+
+			nextTime = time.Now().Add(r.randomizeDelay(delay))
+			needReschedule = true
+
+			if r.errFunc != nil {
+				r.errFunc(err, n)
+			}
+		} else {
+			// 达到最大重试次数
 			tried := r.tried.Load()
 			r.tried.Store(0)
 
-			// 如果是周期任务，进入下一次 interval
-			if r.interval > 0 && !r.closed.Load() {
-				// r.nextRun = time.Now().Add(r.interval)
-				r.setNextRunTime(r.interval)
-				if r.oncedone != nil {
-					r.oncedone(tried, err, r.nextRun)
-				}
-				r.s.enqueue(r)
-				return
+			if r.daily {
+				nextTime = NextDailyRandomTime(
+					time.Now(),
+					r.dailyHour,
+					r.dailyMin,
+					r.dailySec,
+					r.dailyJitter,
+					r.dailyLoc,
+				)
+				needReschedule = true
+			} else if r.interval > 0 {
+				nextTime = time.Now().Add(r.randomizeDelay(r.interval))
+				needReschedule = true
+			} else {
+				r.closed.Store(true)
 			}
 
-			// 非周期任务，才真正关闭
-			r.closed.Store(true)
-			if r.closeFun != nil {
-				r.closeFun()
+			if r.oncedone != nil {
+				r.oncedone(tried, err, nextTime)
 			}
-			return
 		}
 
-		// 🔥 失败重试调度（而不是等 interval）
-		// 🔥 失败重试：随机 3~10 秒
-		// min := 3 * time.Second
-		// max := 10 * time.Second
-		var delay time.Duration
-		if r.retryDelay > 0 {
-			delay = r.retryDelay
+	} else {
+		// ========================
+		// ✅ 执行成功
+		// ========================
+
+		tried := r.tried.Load()
+		r.tried.Store(0)
+		r.runTimers++
+
+		if r.daily {
+			nextTime = NextDailyRandomTime(
+				time.Now(),
+				r.dailyHour,
+				r.dailyMin,
+				r.dailySec,
+				r.dailyJitter,
+				r.dailyLoc,
+			)
+			needReschedule = true
+
+		} else if r.interval > 0 {
+			nextTime = time.Now().Add(r.randomizeDelay(r.interval))
+			needReschedule = true
 		} else {
-			// delay = min + time.Duration(rand.Int63n(int64(max-min)))
-			delay = time.Second * 5
-		}
-		// delay := r.retryDelay
-		if delay <= 0 {
-			delay = time.Second // 防止自旋
+			r.closed.Store(true)
 		}
 
-		// r.nextRun = time.Now().Add(delay)
-		r.setNextRunTime(delay)
-		r.s.enqueue(r)
-
-		if r.errFunc != nil {
-			r.errFunc(err, r.tried.Load())
-		}
-		return
-	}
-
-	// 成功
-	tried := r.tried.Load()
-	r.tried.Store(0)
-	r.runTimers++
-
-	// 只有成功，才进入周期调度
-	if r.interval > 0 && !r.closed.Load() {
-		// r.nextRun = time.Now().Add(r.interval)
-		r.setNextRunTime(r.interval)
 		if r.oncedone != nil {
-			r.oncedone(tried, nil, r.nextRun)
+			r.oncedone(tried, nil, nextTime)
 		}
+	}
+
+	// ========================
+	// 🔁 统一调度出口
+	// ========================
+	if needReschedule && !r.closed.Load() && r.ctx.Err() == nil {
+		r.nextRun = nextTime
 		r.s.enqueue(r)
 		return
 	}
 
-	if r.oncedone != nil {
-		r.oncedone(tried, nil, r.nextRun)
+	// 真正结束
+	if r.closed.CompareAndSwap(false, true) {
+		r.endAt = time.Now()
+		if r.closeFun != nil {
+			r.closeFun()
+		}
 	}
-	r.closed.Store(true)
-	if r.closeFun != nil {
-		r.closeFun()
+}
+
+func (r *Runner) randomizeDelay(delay time.Duration) time.Duration {
+	if r.randesesk <= 0 {
+		return delay
 	}
+
+	dlc := float64(delay) * r.randesesk
+	offset := (rand.Float64()*2 - 1) * dlc
+	return time.Duration(float64(delay) + offset)
 }
 
 // 设置下一次的执行时间
@@ -231,34 +271,49 @@ func (r *Runner) DailyRandomAt(
 		loc = time.Local
 	}
 
-	// 包一层 task（只包一次）
-	originTask := r.task
-	r.task = func(ctx context.Context) error {
-		err := originTask(ctx)
+	r.daily = true
+	r.dailyHour = hour
+	r.dailyMin = min
+	r.dailySec = sec
+	r.dailyJitter = jitterMinutes
+	r.dailyLoc = loc
 
-		// 不管成功失败，都算明天
-		next := NextDailyRandomTime(
-			time.Now(),
-			hour, min, sec,
-			jitterMinutes,
-			loc,
-		)
-
-		r.nextRun = next
-		r.s.enqueue(r)
-
-		return err
-	}
-
-	// 第一次执行时间
 	r.nextRun = NextDailyRandomTime(
 		time.Now(),
 		hour, min, sec,
 		jitterMinutes,
 		loc,
 	)
-
 	return r
+
+	// // 包一层 task（只包一次）
+	// originTask := r.task
+	// r.task = func(ctx context.Context) error {
+	// 	err := originTask(ctx)
+
+	// 	// 不管成功失败，都算明天
+	// 	next := NextDailyRandomTime(
+	// 		time.Now(),
+	// 		hour, min, sec,
+	// 		jitterMinutes,
+	// 		loc,
+	// 	)
+
+	// 	r.nextRun = next
+	// 	r.s.enqueue(r)
+
+	// 	return err
+	// }
+
+	// // 第一次执行时间
+	// r.nextRun = NextDailyRandomTime(
+	// 	time.Now(),
+	// 	hour, min, sec,
+	// 	jitterMinutes,
+	// 	loc,
+	// )
+
+	// return r
 }
 
 // 设置最大重试次数

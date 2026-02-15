@@ -12,18 +12,15 @@ import (
 	"tools/runtimes/bs"
 	"tools/runtimes/config"
 	"tools/runtimes/db/jses"
-	"tools/runtimes/db/tasklog"
-	"tools/runtimes/eventbus"
+	"tools/runtimes/db/task"
 	"tools/runtimes/funcs"
 	"tools/runtimes/listens/ws"
 	"tools/runtimes/logs"
-	"tools/runtimes/mainsignal"
 	"tools/runtimes/scheduler"
 	"tools/runtimes/videos/downloader/parser"
 
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/tidwall/gjson"
-	"gorm.io/gorm"
 )
 
 type AutoInfo struct {
@@ -45,16 +42,26 @@ type AutoDown struct {
 var autodown sync.Map // 自动下载
 var autoinfo sync.Map // 自动获取信息
 var today string
-var downsch *scheduler.Scheduler // 自动下载调度器
-var infosch *scheduler.Scheduler // 自动获取信息调度器
 
-var TaskLogger *tasklog.Task
+// var downsch *scheduler.Scheduler // 自动下载调度器
+// var infosch *scheduler.Scheduler // 自动获取信息调度器
+
+// var TaskLogger *tasklog.Task
+
+var autoDownTL *task.Task
+var autoInfoTL *task.Task
 
 func runstart() {
-	downsch = scheduler.NewWithLimit(mainsignal.MainCtx, 10)
-	infosch = scheduler.NewWithLimit(mainsignal.MainCtx, 5)
+	// downsch = scheduler.NewWithLimit(mainsignal.MainCtx, 10)
+	// infosch = scheduler.NewWithLimit(mainsignal.MainCtx, 5)
 
-	TaskLogger = tasklog.NewTaskLog("autoupdatemediauser", "自动更新/下载用户信息", 10, 30, false)
+	// TaskLogger = tasklog.NewTaskLog("autoupdatemediauser", "自动更新/下载用户信息", 10, 30, false)
+	if ad, err := task.NewTask("mediauserdown", 0, "用户自动下载任务", 10, false); err == nil {
+		autoDownTL = ad
+	}
+	if ad, err := task.NewTask("mediauserinfo", 0, "用户自动更新任务", 10, false); err == nil {
+		autoInfoTL = ad
+	}
 	for _, v := range GetAutoUsers() {
 		v.AutoStart()
 	}
@@ -74,120 +81,148 @@ func (mu *MediaUser) AutoStart() error {
 	}
 	if mu.AutoDownload == 1 && mu.DownFreq > 0 {
 		did := mu.DownID()
-		if tsk := TaskLogger.GetRunner(did); tsk == nil {
-			opt, err := GetOptions(mu)
-			if err != nil {
-				logs.Error(err.Error())
-				return err
-			}
+		tr, err := autoDownTL.AddChild(did, fmt.Sprintf("%s 自行下载中...", mu.Name), time.Second*600)
+		if err != nil {
+			logs.Error(err.Error())
+		} else {
+			err := tr.StartInterval(int64(mu.DownFreq*60), func(tr *task.TaskRun) error {
+				fmt.Println("自动下载中----")
+				time.Sleep(time.Second * 2)
+				// mu.StartGetter(func(str string, bs *bs.Browser) {
 
-			opt.runner = TaskLogger.Append(
-				mainsignal.MainCtx,
-				did,
-				fmt.Sprintf("%s 自动下载", mu.Name),
-				opt.FmtDownload,
-			)
-			if err := opt.Start(); err != nil {
-				logs.Error(err.Error())
-				return err
-			}
+				// }, func() {
+
+				// }, func(url string) {
+
+				// })
+				return nil
+			})
+			fmt.Println(err, "自动下载错误------")
 		}
+
+		// if tsk := TaskLogger.GetRunner(did); tsk == nil {
+		// 	opt, err := GetOptions(mu)
+		// 	if err != nil {
+		// 		logs.Error(err.Error())
+		// 		return err
+		// 	}
+
+		// 	opt.runner = TaskLogger.Append(
+		// 		mainsignal.MainCtx,
+		// 		did,
+		// 		fmt.Sprintf("%s 自动下载", mu.Name),
+		// 		opt.FmtDownload,
+		// 	)
+		// 	if err := opt.Start(); err != nil {
+		// 		logs.Error(err.Error())
+		// 		return err
+		// 	}
+		// }
 	}
-	if mu.Autoinfo == 1 && mu.AutoTimer != 0 {
+	if mu.Autoinfo == 1 {
 		iID := mu.InfoID()
-		h, m, s := funcs.MsToHMS(mu.AutoTimer)
-		if tsk := TaskLogger.GetRunner(iID); tsk == nil {
-			opt, err := GetOptions(mu)
-			if err != nil {
-				logs.Error(err.Error())
-				return err
-			}
-			opt.runner = TaskLogger.Append(
-				mainsignal.MainCtx,
-				iID,
-				fmt.Sprintf("%s 自动更新用户数据", mu.Name),
-				func(msg string, tr *tasklog.TaskRunner) error {
-					return mu.ParseUserInfoData(msg)
-				},
-			)
-			if err := opt.StartDailyRandomAt(h, m, s, 20); err != nil {
-				logs.Error(err.Error())
-				return err
-			}
+		tr, err := autoInfoTL.AddChild(iID, fmt.Sprintf("%s 自动获取信息", mu.Name), time.Second*30)
+		if err != nil {
+			logs.Error(err.Error())
+		} else {
+			tr.StartAtTime(mu.AutoTimer, func(tr *task.TaskRun) error {
+				fmt.Println("自动更新信息...")
+				return nil
+			})
 		}
+		// h, m, s := funcs.MsToHMS(mu.AutoTimer)
+		// if tsk := TaskLogger.GetRunner(iID); tsk == nil {
+		// 	opt, err := GetOptions(mu)
+		// 	if err != nil {
+		// 		logs.Error(err.Error())
+		// 		return err
+		// 	}
+		// 	opt.runner = TaskLogger.Append(
+		// 		mainsignal.MainCtx,
+		// 		iID,
+		// 		fmt.Sprintf("%s 自动更新用户数据", mu.Name),
+		// 		func(msg string, tr *tasklog.TaskRunner) error {
+		// 			return mu.ParseUserInfoData(msg)
+		// 		},
+		// 	)
+		// 	if err := opt.StartDailyRandomAt(h, m, s, 20); err != nil {
+		// 		logs.Error(err.Error())
+		// 		return err
+		// 	}
+		// }
 	}
 	return nil
 }
 
 func (mu *MediaUser) AutoStarts() {
-	if mu.AutoDownload == 1 && mu.DownFreq > 0 {
+	// if mu.AutoDownload == 1 && mu.DownFreq > 0 {
 
-		fmt.Println("自动下载:", mu.Id)
-		if _, ok := autodown.Load(mu.Id); ok {
-			return
-		}
-		ad := &AutoDown{
-			MID: mu.Id,
-		}
-		ad.ctx, ad.cancle = context.WithCancel(mainsignal.MainCtx)
-		runner := downsch.NewRunner(func(ctx context.Context) error {
-			bs, err := mu.StartGetter(
-				func(str string, bs *bs.Browser) {
-					dt := gjson.Parse(str)
-					if fans := dt.Get("fans").Int(); fans > 0 {
-						mu.Fans = fans
-					}
-					if works := dt.Get("works").Int(); works > 0 {
-						mu.Works = works
-					}
-					if local := dt.Get("local").String(); local != "" {
-						mu.Local = local
-					}
-					if account := dt.Get("account").String(); account != "" {
-						mu.Account = account
-					}
-					if dt.Get("lists").Exists() {
-						var vids []string
-						for _, v := range dt.Get("lists").Array() {
-							vids = append(vids, v.String())
-						}
-						fmt.Println("找到带下载视频列表:", vids)
-						mu.autodownload(vids)
-					}
-					mu.LastDownTime = time.Now().Unix()
-					dbs.Write(func(tx *gorm.DB) error {
-						return mu.Save(mu, tx)
-					})
+	// 	fmt.Println("自动下载:", mu.Id)
+	// 	if _, ok := autodown.Load(mu.Id); ok {
+	// 		return
+	// 	}
+	// 	ad := &AutoDown{
+	// 		MID: mu.Id,
+	// 	}
+	// 	ad.ctx, ad.cancle = context.WithCancel(mainsignal.MainCtx)
+	// 	runner := downsch.NewRunner(func(ctx context.Context) error {
+	// 		bs, err := mu.StartGetter(
+	// 			func(str string, bs *bs.Browser) {
+	// 				dt := gjson.Parse(str)
+	// 				if fans := dt.Get("fans").Int(); fans > 0 {
+	// 					mu.Fans = fans
+	// 				}
+	// 				if works := dt.Get("works").Int(); works > 0 {
+	// 					mu.Works = works
+	// 				}
+	// 				if local := dt.Get("local").String(); local != "" {
+	// 					mu.Local = local
+	// 				}
+	// 				if account := dt.Get("account").String(); account != "" {
+	// 					mu.Account = account
+	// 				}
+	// 				if dt.Get("lists").Exists() {
+	// 					var vids []string
+	// 					for _, v := range dt.Get("lists").Array() {
+	// 						vids = append(vids, v.String())
+	// 					}
+	// 					fmt.Println("找到带下载视频列表:", vids)
+	// 					mu.autodownload(vids)
+	// 				}
+	// 				mu.LastDownTime = time.Now().Unix()
+	// 				dbs.Write(func(tx *gorm.DB) error {
+	// 					return mu.Save(mu, tx)
+	// 				})
 
-					mu.Commpare()
-					bs.Close()
-				},
-				func() {
-					eventbus.Bus.Publish("media_user_info", mu)
-				},
-				func(url string) {
+	// 				mu.Commpare()
+	// 				bs.Close()
+	// 			},
+	// 			func() {
+	// 				eventbus.Bus.Publish("media_user_info", mu)
+	// 			},
+	// 			func(url string) {
 
-				},
-			)
-			if err != nil {
-				return nil
-			}
-			ad.bs = bs
-			return nil
-		}, time.Second*120, ad.ctx)
+	// 			},
+	// 		)
+	// 		if err != nil {
+	// 			return nil
+	// 		}
+	// 		ad.bs = bs
+	// 		return nil
+	// 	}, time.Second*120, ad.ctx)
 
-		runner.Every(time.Duration(mu.DownFreq) * time.Minute).SetCloser(func() {
-			fmt.Println("关闭自动下载任务")
-		}).SetError(func(err error, tried int32) {
-			fmt.Println("自动下载错误:", err)
-		}).RunNow()
-	}
+	// 	runner.Every(time.Duration(mu.DownFreq) * time.Minute).SetCloser(func() {
+	// 		fmt.Println("关闭自动下载任务")
+	// 	}).SetError(func(err error, tried int32) {
+	// 		fmt.Println("自动下载错误:", err)
+	// 	}).RunNow()
+	// }
 
-	if mu.Autoinfo == 1 && mu.AutoTimer > 0 {
-		if _, ok := autoinfo.Load(mu.Id); ok {
-			return
-		}
-	}
+	// if mu.Autoinfo == 1 && mu.AutoTimer > 0 {
+	// 	if _, ok := autoinfo.Load(mu.Id); ok {
+	// 		return
+	// 	}
+	// }
 
 	// return
 	// for {
