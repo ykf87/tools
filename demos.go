@@ -1,5 +1,12 @@
 package main
 
+import (
+	"context"
+	"fmt"
+	"time"
+	"tools/runtimes/sch"
+)
+
 //	func init() {
 //		s := scheduler.New(mainsignal.MainCtx)
 //		rt := s.NewRunner(func(ctx context.Context) error {
@@ -8,34 +15,59 @@ package main
 //		}, time.Second*5, nil)
 //		rt.Every(time.Second * 1).RunNow()
 //	}
+// func init() {
+// tk, err := task.NewTask("test", 1, "测试task", 5, true)
+// if err != nil {
+// 	fmt.Println("构建任务失败", err)
+// 	return
+// }
+// tr, err := tk.AddChild("text-1", "测试执行", time.Minute*60)
+// if err != nil {
+// 	fmt.Println("构建子任务失败", err)
+// 	return
+// }
+// tr.StartInterval(30, func(tr *task.TaskRun) error {
+// 	// fmt.Println("-------执行", tr.RunID, tr.Title)
+// 	tr.ReportSchedule(90, 78)
+// 	time.Sleep(time.Second * 3)
+// 	if tr.GetTried() >= 1 {
+// 		tr.ReportSchedule(90, 90)
+// 		return nil
+// 	}
+// 	return fmt.Errorf("错误的任务:%s", tr.RunID)
+// })
+
+// tr.StartAtTime(-28800000, func(tr *task.TaskRun) error {
+// 	fmt.Println("-------执行", tr.RunID, tr.Title)
+
+//		if tr.GetTried() >= 1 {
+//			return nil
+//		}
+//		return fmt.Errorf("错误的任务:%s", tr.RunID)
+//	})
+//
+// }
 func init() {
-	// tk, err := task.NewTask("test", 1, "测试task", 5, true)
-	// if err != nil {
-	// 	fmt.Println("构建任务失败", err)
-	// 	return
-	// }
-	// tr, err := tk.AddChild("text-1", "测试执行", time.Minute*60)
-	// if err != nil {
-	// 	fmt.Println("构建子任务失败", err)
-	// 	return
-	// }
-	// tr.StartInterval(30, func(tr *task.TaskRun) error {
-	// 	// fmt.Println("-------执行", tr.RunID, tr.Title)
-	// 	tr.ReportSchedule(90, 78)
-	// 	time.Sleep(time.Second * 3)
-	// 	if tr.GetTried() >= 1 {
-	// 		tr.ReportSchedule(90, 90)
-	// 		return nil
-	// 	}
-	// 	return fmt.Errorf("错误的任务:%s", tr.RunID)
-	// })
-
-	// tr.StartAtTime(-28800000, func(tr *task.TaskRun) error {
-	// 	fmt.Println("-------执行", tr.RunID, tr.Title)
-
-	// 	if tr.GetTried() >= 1 {
-	// 		return nil
-	// 	}
-	// 	return fmt.Errorf("错误的任务:%s", tr.RunID)
-	// })
+	s := sch.NewScheduler(5)
+	tr, err := s.AddInterval(
+		"task1",
+		10*time.Second, // interval
+		5*time.Second,  // timeout
+		2,              // retry
+		2*time.Second,  // retryDelay
+		time.Now().Add(time.Second*20),
+		func(ctx context.Context) error {
+			fmt.Println("interval task running:", time.Now())
+			time.Sleep(2 * time.Second)
+			return nil
+		},
+		func(id string, err error) {
+			fmt.Println("task complete:", id, "err:", err)
+		},
+		func(id string) {
+			fmt.Println("task closed:", id)
+		},
+	)
+	s.RunNow(tr.GetID())
+	fmt.Println(err)
 }

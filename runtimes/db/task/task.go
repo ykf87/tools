@@ -13,50 +13,49 @@ import (
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
-	"tools/runtimes/funcs"
 	"tools/runtimes/i18n"
 	"tools/runtimes/listens/ws"
 	"tools/runtimes/mainsignal"
-	"tools/runtimes/scheduler"
+	"tools/runtimes/sch"
 
 	"gorm.io/gorm"
 )
 
 type Task struct {
-	ID       int64                `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name     string               `json:"name" gorm:"index;not null"`     // 任务名称,用于查询任务：比如media_user处查询任务明细,一般用表名
-	NameID   int64                `json:"name_id" gorm:"index;default:0"` // 对应的表ID,也是方便查询的
-	Title    string               `json:"title" gorm:"not null;index"`    // 任务标题,对外显示的名称
-	Addtime  int64                `json:"addtime" gorm:"index;not null"`  // 加入时间
-	Endtime  int64                `json:"endtime" gorm:"index;default:0"` // 结束时间, 当设置了结束时间意味着任务结束了
-	Limit    int                  `json:"limit" gorm:"default:0;index"`   // 并发限制,0 为不限制
-	Nomal    int                  `json:"nomal" gorm:"index;default:0"`   // 是否临时任务,0为临时任务, 1为常规任务
-	_sch     *scheduler.Scheduler `json:"-" gorm:"-"`                     // 调度器
-	_mu      sync.Mutex           `json:"-" gorm:"-"`                     // 加锁,用于 _runners 的判断
-	_runners map[string]*TaskRun  `json:"-" gorm:"-"`                     // 执行者列表
+	ID       int64               `json:"id" gorm:"primaryKey;autoIncrement"`
+	Name     string              `json:"name" gorm:"index;not null"`     // 任务名称,用于查询任务：比如media_user处查询任务明细,一般用表名
+	NameID   int64               `json:"name_id" gorm:"index;default:0"` // 对应的表ID,也是方便查询的
+	Title    string              `json:"title" gorm:"not null;index"`    // 任务标题,对外显示的名称
+	Addtime  int64               `json:"addtime" gorm:"index;not null"`  // 加入时间
+	Endtime  int64               `json:"endtime" gorm:"index;default:0"` // 结束时间, 当设置了结束时间意味着任务结束了
+	Limit    int                 `json:"limit" gorm:"default:0;index"`   // 并发限制,0 为不限制
+	Nomal    int                 `json:"nomal" gorm:"index;default:0"`   // 是否临时任务,0为临时任务, 1为常规任务
+	_sch     *sch.Scheduler      `json:"-" gorm:"-"`                     // 调度器
+	_mu      sync.Mutex          `json:"-" gorm:"-"`                     // 加锁,用于 _runners 的判断
+	_runners map[string]*TaskRun `json:"-" gorm:"-"`                     // 执行者列表
 	db.BaseModel
 }
 
 // 任务执行者,只有在新建任务，结束任务落库
 // 结束分为正常结束，错误结束，意外结束(panic)
 type TaskRun struct {
-	ID          int64                `json:"id" gorm:"primaryKey;autoIncrement"`
-	TaskID      int64                `json:"task_id" gorm:"index;not null"`   // 任务表的ID
-	RunID       string               `json:"run_id" gorm:"index;not null"`    // 执行的id,需要调用方设置,执行器通过这个id判断是否已有执行器
-	Title       string               `json:"title" gorm:"index;not null"`     // 执行器标题
-	Cycle       int64                `json:"cycle" gorm:"index;default:0"`    // 周期,单位秒
-	AtTime      int64                `json:"at_time" gorm:"index;default:0"`  // 定点任务
-	Status      int                  `json:"status" gorm:"index; default:0"`  // 任务状态，0-等待执行 1-正在执行, 2-执行完成. 在此处无法判断是否执行成功
-	Total       float64              `json:"total" gorm:"default:0"`          // 任务总执行量
-	Doned       float64              `json:"doned" gorm:"default:0"`          // 任务已执行量
-	DoneMsg     string               `json:"done_msg" gorm:"default:null"`    // 执行完成消息
-	StartAt     int64                `json:"start_at" gorm:"index;default:0"` // 开始时间,也就是任务开始执行的时间
-	DoneTimes   int64                `json:"done_times" gorm:"default:0"`     // 执行次数
-	EndAt       int64                `json:"end_at" gorm:"index;default:0"`   // 结束时间
-	NextRuntime int64                `json:"next_runtime" gorm:"-"`           // 下一次执行时间
-	_timeout    time.Duration        `json:"-" gorm:"-"`                      // 超时时间
-	_sch        *scheduler.Scheduler `json:"-" gorm:"-"`                      // 调度器
-	_runner     *scheduler.Runner    `json:"-" gorm:"-"`                      // 调度执行器
+	ID          int64          `json:"id" gorm:"primaryKey;autoIncrement"`
+	TaskID      int64          `json:"task_id" gorm:"index;not null"`   // 任务表的ID
+	RunID       string         `json:"run_id" gorm:"index;not null"`    // 执行的id,需要调用方设置,执行器通过这个id判断是否已有执行器
+	Title       string         `json:"title" gorm:"index;not null"`     // 执行器标题
+	Cycle       int64          `json:"cycle" gorm:"index;default:0"`    // 周期,单位秒
+	AtTime      int64          `json:"at_time" gorm:"index;default:0"`  // 定点任务
+	Status      int            `json:"status" gorm:"index; default:0"`  // 任务状态，0-等待执行 1-正在执行, 2-执行完成. 在此处无法判断是否执行成功
+	Total       float64        `json:"total" gorm:"default:0"`          // 任务总执行量
+	Doned       float64        `json:"doned" gorm:"default:0"`          // 任务已执行量
+	DoneMsg     string         `json:"done_msg" gorm:"default:null"`    // 执行完成消息
+	StartAt     int64          `json:"start_at" gorm:"index;default:0"` // 开始时间,也就是任务开始执行的时间
+	DoneTimes   int64          `json:"done_times" gorm:"default:0"`     // 执行次数
+	EndAt       int64          `json:"end_at" gorm:"index;default:0"`   // 结束时间
+	NextRuntime int64          `json:"next_runtime" gorm:"-"`           // 下一次执行时间
+	_timeout    time.Duration  `json:"-" gorm:"-"`                      // 超时时间
+	_sch        *sch.Scheduler `json:"-" gorm:"-"`                      // 调度器
+	_runner     *sch.Runner    `json:"-" gorm:"-"`                      // 调度执行器
 	db.BaseModel
 }
 
@@ -185,11 +184,12 @@ func NewTask(name string, id int64, title string, limit int, temp bool) (*Task, 
 		return nil, err
 	}
 
-	if limit > 0 {
-		tsk._sch = scheduler.NewWithLimit(mainsignal.MainCtx, limit)
-	} else {
-		tsk._sch = scheduler.New(mainsignal.MainCtx)
-	}
+	// if limit > 0 {
+	// 	tsk._sch = scheduler.NewWithLimit(mainsignal.MainCtx, limit)
+	// } else {
+	// 	tsk._sch = scheduler.New(mainsignal.MainCtx)
+	// }
+	tsk._sch = sch.NewScheduler(limit)
 
 	tsk._runners = make(map[string]*TaskRun)
 	TaskActived.Store(tid, tsk)
@@ -242,7 +242,7 @@ func (t *Task) Sent() {
 					Addtime:     time.Now().Unix(),
 					Msg:         "任务等待中...",
 					Tried:       0,
-					NextRuntime: v._runner.GetNextRunTime().Unix(),
+					NextRuntime: v._runner.NextRunTime().Unix(),
 				}
 				trm.sent(v)
 			}
@@ -250,18 +250,26 @@ func (t *Task) Sent() {
 	}
 }
 
-// 添加执行的子任务
-// 子任务必须设置id,用于重复添加的限制
-func (t *Task) AddChild(runnerID, title string, timeout time.Duration) (*TaskRun, error) {
+// 添加定时子任务
+func (t *Task) AddInterval(
+	id string, // 唯一的id
+	title string, // 标题
+	interval time.Duration, // 执行间隔
+	timeout time.Duration, // 超时时间
+	retry int, // 重试次数
+	retryDelay time.Duration, // 重试间隔
+	expireAt time.Time, // ⭐ 新增,在这个时间点停止任务
+	job func(context.Context) error, // 执行的方法
+) (*TaskRun, error) {
 	t._mu.Lock()
 	defer t._mu.Unlock()
-	if tr, ok := t._runners[runnerID]; ok {
+	if tr, ok := t._runners[id]; ok {
 		return tr, nil
 	}
 
 	tr := new(TaskRun)
 	tr.TaskID = t.ID
-	tr.RunID = runnerID
+	tr.RunID = id
 	tr.Title = title
 	tr.StartAt = time.Now().Unix()
 	tr._timeout = timeout
@@ -272,16 +280,107 @@ func (t *Task) AddChild(runnerID, title string, timeout time.Duration) (*TaskRun
 	}); err != nil {
 		return nil, err
 	}
-	t._runners[runnerID] = tr
+
+	r, err := t._sch.AddInterval(
+		id,
+		interval,
+		timeout,
+		retry,
+		retryDelay,
+		expireAt,
+		job,
+		tr.onComplate,
+		tr.onClose,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	tr._runner = r
+	t._runners[id] = tr
 	tr.fullMsg()
 
 	return tr, nil
 }
 
+func (tr *TaskRun) onComplate(id string, err error) {
+	var status int
+	var msg string
+	if err == nil {
+		msg = i18n.T("本次任务执行成功")
+		status = 1
+	} else {
+		status = -1
+		msg = i18n.T("Task run error: %s", err.Error())
+	}
+	tr.DoneTimes = int64(tr._runner.RunCount())
+	taskdb.Write(func(tx *gorm.DB) error {
+		return tr.Save(tr, tx)
+	})
+	// fmt.Println(rtt, "------ 报错执行次数出错")
+	// go tr.Save(tr, taskdb)
+	trm := &TaskRunMsg{
+		TaskID:      tr.TaskID,
+		TaskRunID:   tr.ID,
+		Status:      status,
+		Addtime:     time.Now().Unix(),
+		Msg:         msg,
+		Tried:       1, //int(tried),
+		NextRuntime: tr._runner.NextRunTime().Unix(),
+	}
+	// go tr.fullMsg()
+	taskdb.Write(func(tx *gorm.DB) error {
+		return trm.Save(trm, tx)
+	})
+	trm.sent(tr)
+}
+
+func (tr *TaskRun) onClose(id string) {
+	tr.EndAt = time.Now().Unix()
+	tr.Status = 2
+	taskdb.Write(func(tx *gorm.DB) error {
+		return tr.Save(tr, tx)
+	})
+	tr.fullMsg()
+
+	taskdb.Write(func(tx *gorm.DB) error {
+		return tx.Model(&Task{}).Where("id = ?", tr.TaskID).Update("endtime", tr.EndAt).Error
+	})
+}
+
+// 添加执行的子任务
+// 子任务必须设置id,用于重复添加的限制
+func (t *Task) AddChild(runnerID, title string, timeout time.Duration) (*TaskRun, error) {
+	return nil, errors.New("添加字符任务方法已失效，不再收到启动，而是通过 AddInterval 方法直接启动")
+	// t._mu.Lock()
+	// defer t._mu.Unlock()
+	// if tr, ok := t._runners[runnerID]; ok {
+	// 	return tr, nil
+	// }
+
+	// tr := new(TaskRun)
+	// tr.TaskID = t.ID
+	// tr.RunID = runnerID
+	// tr.Title = title
+	// tr.StartAt = time.Now().Unix()
+	// tr._timeout = timeout
+	// tr._sch = t._sch
+
+	// if err := taskdb.Write(func(tx *gorm.DB) error {
+	// 	return tr.Save(tr, tx)
+	// }); err != nil {
+	// 	return nil, err
+	// }
+	// t._runners[runnerID] = tr
+	// tr.fullMsg()
+
+	// return tr, nil
+}
+
 // 发送完整的TaskRunner消息
 func (tr *TaskRun) fullMsg() {
 	if tr._runner != nil {
-		tr.NextRuntime = tr._runner.GetNextRunTime().Unix()
+		tr.NextRuntime = tr._runner.NextRunTime().Unix()
 	}
 	if dt, err := config.Json.Marshal(map[string]any{
 		"type": "task-runner",
@@ -293,8 +392,8 @@ func (tr *TaskRun) fullMsg() {
 
 // 发送执行消息
 func (trm *TaskRunMsg) sent(tr *TaskRun) {
-	trm.NextRuntime = tr._runner.GetNextRunTime().Unix()
-	trm.Doned = int64(tr._runner.GetRunTimes())
+	trm.NextRuntime = tr._runner.NextRunTime().Unix()
+	trm.Doned = tr._runner.RunCount()
 	if dt, err := config.Json.Marshal(map[string]any{
 		"type": "task-runner-msg",
 		"data": trm,
@@ -305,144 +404,147 @@ func (trm *TaskRunMsg) sent(tr *TaskRun) {
 
 // 停止任务
 func (tr *TaskRun) Stop() {
-	tr._runner.Stop()
+	tr._sch.Remove(tr._runner.GetID())
+	// tr._runner.Stop()
 }
 
 // 启动定时任务, interval - 单位是秒
 func (tr *TaskRun) StartInterval(interval int64, callback func(*TaskRun) error) error {
-	if callback == nil {
-		return errors.New(i18n.T("Please set callabck func"))
-	}
-	tr.Cycle = interval
-	taskdb.Write(func(tx *gorm.DB) error {
-		return tr.Save(tr, tx)
-	})
+	return errors.New("该方法被放弃, 请使用: func (t *Task) AddInterval")
+	// if callback == nil {
+	// 	return errors.New(i18n.T("Please set callabck func"))
+	// }
+	// tr.Cycle = interval
+	// taskdb.Write(func(tx *gorm.DB) error {
+	// 	return tr.Save(tr, tx)
+	// })
 
-	tr.setRunner(callback)._runner.Every(time.Second * time.Duration(interval))
-	tr.runnerCallback()
-	tr._runner.RunNow()
-	return nil
+	// tr.setRunner(callback)._runner.Every(time.Second * time.Duration(interval))
+	// tr.runnerCallback()
+	// tr._runner.RunNow()
+	// return nil
 }
 
 // 启动定点任务, 比如19:20:48启动
 func (tr *TaskRun) StartAtTime(timer int64, callback func(*TaskRun) error) error {
-	if callback == nil {
-		return errors.New(i18n.T("Please set callabck func"))
-	}
-	h, m, s := funcs.MsToHMS(timer)
-	tr.AtTime = timer
-	taskdb.Write(func(tx *gorm.DB) error {
-		return tr.Save(tr, tx)
-	})
+	return errors.New("该方法被放弃,请使用")
+	// if callback == nil {
+	// 	return errors.New(i18n.T("Please set callabck func"))
+	// }
+	// h, m, s := funcs.MsToHMS(timer)
+	// tr.AtTime = timer
+	// taskdb.Write(func(tx *gorm.DB) error {
+	// 	return tr.Save(tr, tx)
+	// })
 
-	tr.setRunner(callback)._runner.DailyRandomAt(h, m, s, 5, nil)
-	tr.runnerCallback()
-	tr._runner.Run()
-	return nil
+	// tr.setRunner(callback)._runner.DailyRandomAt(h, m, s, 5, nil)
+	// tr.runnerCallback()
+	// tr._runner.Run()
+	// return nil
 }
 
-// 设置执行器
+// 设置执行器， 此方法已失效
 func (tr *TaskRun) setRunner(callback func(*TaskRun) error) *TaskRun {
-	tr._runner = tr._sch.NewRunner(func(ctx context.Context) error {
-		if tr.StartAt < 1 {
-			tr.StartAt = time.Now().Unix()
-			tr.Status = 1
-			taskdb.Write(func(tx *gorm.DB) error {
-				return tr.Save(tr, tx)
-			})
-		}
-		trm := &TaskRunMsg{
-			TaskID:      tr.TaskID,
-			TaskRunID:   tr.ID,
-			Status:      1,
-			Addtime:     time.Now().Unix(),
-			Msg:         "开始执行...",
-			Tried:       tr._runner.GetTryTimers(),
-			NextRuntime: tr._runner.GetNextRunTime().Unix(),
-			Doned:       int64(tr._runner.GetRunTimes()),
-		}
-		trm.sent(tr)
-		return callback(tr)
-	}, tr._timeout, mainsignal.MainCtx)
+	// tr._runner = tr._sch.NewRunner(func(ctx context.Context) error {
+	// 	if tr.StartAt < 1 {
+	// 		tr.StartAt = time.Now().Unix()
+	// 		tr.Status = 1
+	// 		taskdb.Write(func(tx *gorm.DB) error {
+	// 			return tr.Save(tr, tx)
+	// 		})
+	// 	}
+	// 	trm := &TaskRunMsg{
+	// 		TaskID:      tr.TaskID,
+	// 		TaskRunID:   tr.ID,
+	// 		Status:      1,
+	// 		Addtime:     time.Now().Unix(),
+	// 		Msg:         "开始执行...",
+	// 		Tried:       tr._runner.GetTryTimers(),
+	// 		NextRuntime: tr._runner.GetNextRunTime().Unix(),
+	// 		Doned:       int64(tr._runner.GetRunTimes()),
+	// 	}
+	// 	trm.sent(tr)
+	// 	return callback(tr)
+	// }, tr._timeout, mainsignal.MainCtx)
 
-	trm := &TaskRunMsg{
-		TaskID:      tr.TaskID,
-		TaskRunID:   tr.ID,
-		Status:      0,
-		Addtime:     time.Now().Unix(),
-		Msg:         "任务等待中...",
-		Tried:       0,
-		NextRuntime: tr._runner.GetNextRunTime().Unix(),
-	}
-	trm.sent(tr)
+	// trm := &TaskRunMsg{
+	// 	TaskID:      tr.TaskID,
+	// 	TaskRunID:   tr.ID,
+	// 	Status:      0,
+	// 	Addtime:     time.Now().Unix(),
+	// 	Msg:         "任务等待中...",
+	// 	Tried:       0,
+	// 	NextRuntime: tr._runner.GetNextRunTime().Unix(),
+	// }
+	// trm.sent(tr)
 	return tr
 }
 
 // 设置执行器回调
 func (tr *TaskRun) runnerCallback() {
-	if tr._runner != nil {
-		tr._runner.SetCloser(func() {
-			tr.EndAt = time.Now().Unix()
-			tr.Status = 2
-			taskdb.Write(func(tx *gorm.DB) error {
-				return tr.Save(tr, tx)
-			})
-			tr.fullMsg()
+	// if tr._runner != nil {
+	// 	tr._runner.SetCloser(func() {
+	// 		tr.EndAt = time.Now().Unix()
+	// 		tr.Status = 2
+	// 		taskdb.Write(func(tx *gorm.DB) error {
+	// 			return tr.Save(tr, tx)
+	// 		})
+	// 		tr.fullMsg()
 
-			taskdb.Write(func(tx *gorm.DB) error {
-				return tx.Model(&Task{}).Where("id = ?", tr.TaskID).Update("endtime", tr.EndAt).Error
-			})
-		}).SetOnceDone(func(tried int32, err error, nextRunTime time.Time) {
-			var status int
-			var msg string
-			if err == nil {
-				msg = i18n.T("本次任务执行成功")
-				status = 1
-			} else {
-				status = -1
-				msg = i18n.T("Task run error: %s", err.Error())
-			}
-			tr.DoneTimes = int64(tr._runner.GetRunTimes())
-			taskdb.Write(func(tx *gorm.DB) error {
-				return tr.Save(tr, tx)
-			})
-			// fmt.Println(rtt, "------ 报错执行次数出错")
-			// go tr.Save(tr, taskdb)
-			trm := &TaskRunMsg{
-				TaskID:      tr.TaskID,
-				TaskRunID:   tr.ID,
-				Status:      status,
-				Addtime:     time.Now().Unix(),
-				Msg:         msg,
-				Tried:       int(tried),
-				NextRuntime: nextRunTime.Unix(),
-			}
-			// go tr.fullMsg()
-			taskdb.Write(func(tx *gorm.DB) error {
-				return trm.Save(trm, tx)
-			})
-			trm.sent(tr)
-		}).SetError(func(err error, tried int32) {
-			trm := &TaskRunMsg{
-				TaskID:      tr.TaskID,
-				TaskRunID:   tr.ID,
-				Status:      -1,
-				Addtime:     time.Now().Unix(),
-				Msg:         fmt.Sprintf("%s, 重试:%d", err.Error(), tried),
-				Tried:       int(tried),
-				NextRuntime: tr._runner.GetNextRunTime().Unix(),
-			}
-			taskdb.Write(func(tx *gorm.DB) error {
-				return trm.Save(trm, tx)
-			})
-			trm.sent(tr)
-		}).SetMaxTry(5).SetRetryDelay(time.Second * 60)
-	}
+	// 		taskdb.Write(func(tx *gorm.DB) error {
+	// 			return tx.Model(&Task{}).Where("id = ?", tr.TaskID).Update("endtime", tr.EndAt).Error
+	// 		})
+	// 	}).SetOnceDone(func(tried int32, err error, nextRunTime time.Time) {
+	// 		var status int
+	// 		var msg string
+	// 		if err == nil {
+	// 			msg = i18n.T("本次任务执行成功")
+	// 			status = 1
+	// 		} else {
+	// 			status = -1
+	// 			msg = i18n.T("Task run error: %s", err.Error())
+	// 		}
+	// 		tr.DoneTimes = int64(tr._runner.GetRunTimes())
+	// 		taskdb.Write(func(tx *gorm.DB) error {
+	// 			return tr.Save(tr, tx)
+	// 		})
+	// 		// fmt.Println(rtt, "------ 报错执行次数出错")
+	// 		// go tr.Save(tr, taskdb)
+	// 		trm := &TaskRunMsg{
+	// 			TaskID:      tr.TaskID,
+	// 			TaskRunID:   tr.ID,
+	// 			Status:      status,
+	// 			Addtime:     time.Now().Unix(),
+	// 			Msg:         msg,
+	// 			Tried:       int(tried),
+	// 			NextRuntime: nextRunTime.Unix(),
+	// 		}
+	// 		// go tr.fullMsg()
+	// 		taskdb.Write(func(tx *gorm.DB) error {
+	// 			return trm.Save(trm, tx)
+	// 		})
+	// 		trm.sent(tr)
+	// 	}).SetError(func(err error, tried int32) {
+	// 		trm := &TaskRunMsg{
+	// 			TaskID:      tr.TaskID,
+	// 			TaskRunID:   tr.ID,
+	// 			Status:      -1,
+	// 			Addtime:     time.Now().Unix(),
+	// 			Msg:         fmt.Sprintf("%s, 重试:%d", err.Error(), tried),
+	// 			Tried:       int(tried),
+	// 			NextRuntime: tr._runner.GetNextRunTime().Unix(),
+	// 		}
+	// 		taskdb.Write(func(tx *gorm.DB) error {
+	// 			return trm.Save(trm, tx)
+	// 		})
+	// 		trm.sent(tr)
+	// 	}).SetMaxTry(5).SetRetryDelay(time.Second * 60)
+	// }
 }
 
 // 获取重试次数
 func (tr *TaskRun) GetTried() int {
-	return tr._runner.GetTryTimers()
+	return int(tr._runner.LastRetryCount())
 }
 
 // 上报任务进度
@@ -454,7 +556,8 @@ func (tr *TaskRun) ReportSchedule(total, doned float64) {
 
 // 设置子任务停止时间
 func (tr *TaskRun) StopAt(t time.Time) {
-	tr._runner.SetStopAt(t)
+	tr._runner.SetExpireAt(t)
+	// tr._runner.SetStopAt(t)
 }
 
 // 获取执行器上下文
