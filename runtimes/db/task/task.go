@@ -41,6 +41,7 @@ type Task struct {
 type TaskRun struct {
 	ID          int64          `json:"id" gorm:"primaryKey;autoIncrement"`
 	TaskID      int64          `json:"task_id" gorm:"index;not null"`   // 任务表的ID
+	TaskName    string         `json:"task_name"`                       // 总任务名称
 	RunID       string         `json:"run_id" gorm:"index;not null"`    // 执行的id,需要调用方设置,执行器通过这个id判断是否已有执行器
 	Title       string         `json:"title" gorm:"index;not null"`     // 执行器标题
 	Cycle       int64          `json:"cycle" gorm:"index;default:0"`    // 周期,单位秒
@@ -69,6 +70,8 @@ type TaskRunMsg struct {
 	Tried       int    `json:"tried" gorm:"default:0"`        // 已重试次数
 	NextRuntime int64  `json:"next_runtime" gorm:"default:0"` // 下一次重试时间
 	Doned       int64  `json:"doned" gorm:"-"`                // 已执行次数
+	TaskName    string `json:"task_name"`                     // 大任务名称
+	RunID       string `json:"run_id"`                        // 子任务id
 	db.BaseModel
 }
 
@@ -239,6 +242,8 @@ func (t *Task) Sent() {
 					TaskID:      v.TaskID,
 					TaskRunID:   v.ID,
 					Status:      0,
+					TaskName:    v.TaskName,
+					RunID:       v.RunID,
 					Addtime:     time.Now().Unix(),
 					Msg:         "任务等待中...",
 					Tried:       0,
@@ -259,7 +264,7 @@ func (t *Task) AddInterval(
 	retry int, // 重试次数
 	retryDelay time.Duration, // 重试间隔
 	expireAt time.Time, // ⭐ 新增,在这个时间点停止任务
-	job func(context.Context) error, // 执行的方法
+	job func(*TaskRun) error, // 执行的方法
 ) (*TaskRun, error) {
 	t._mu.Lock()
 	defer t._mu.Unlock()
@@ -274,6 +279,7 @@ func (t *Task) AddInterval(
 	tr.StartAt = time.Now().Unix()
 	tr._timeout = timeout
 	tr._sch = t._sch
+	tr.TaskName = t.Name
 
 	if err := taskdb.Write(func(tx *gorm.DB) error {
 		return tr.Save(tr, tx)
@@ -288,13 +294,29 @@ func (t *Task) AddInterval(
 		retry,
 		retryDelay,
 		expireAt,
-		job,
+		func(context.Context) error {
+			trm := &TaskRunMsg{
+				TaskID:      tr.TaskID,
+				TaskRunID:   tr.ID,
+				Status:      1,
+				Addtime:     time.Now().Unix(),
+				TaskName:    tr.TaskName,
+				RunID:       tr.RunID,
+				Msg:         "开始执行...",
+				Tried:       int(tr._runner.LastRetryCount()),
+				NextRuntime: tr._runner.NextRunTime().Unix(),
+				Doned:       int64(tr._runner.RunCount()),
+			}
+			trm.sent(tr)
+			return job(tr)
+		},
 		tr.onComplate,
 		tr.onClose,
 	)
 	if err != nil {
 		return nil, err
 	}
+	// t._sch.RunNow(id)
 
 	tr._runner = r
 	t._runners[id] = tr
@@ -307,7 +329,7 @@ func (tr *TaskRun) onComplate(id string, err error) {
 	var status int
 	var msg string
 	if err == nil {
-		msg = i18n.T("本次任务执行成功")
+		msg = i18n.T("本次任务执行完成")
 		status = 1
 	} else {
 		status = -1
@@ -325,7 +347,9 @@ func (tr *TaskRun) onComplate(id string, err error) {
 		Status:      status,
 		Addtime:     time.Now().Unix(),
 		Msg:         msg,
-		Tried:       1, //int(tried),
+		TaskName:    tr.TaskName,
+		RunID:       tr.RunID,
+		Tried:       int(tr._runner.LastRetryCount()),
 		NextRuntime: tr._runner.NextRunTime().Unix(),
 	}
 	// go tr.fullMsg()
@@ -351,7 +375,7 @@ func (tr *TaskRun) onClose(id string) {
 // 添加执行的子任务
 // 子任务必须设置id,用于重复添加的限制
 func (t *Task) AddChild(runnerID, title string, timeout time.Duration) (*TaskRun, error) {
-	return nil, errors.New("添加字符任务方法已失效，不再收到启动，而是通过 AddInterval 方法直接启动")
+	return nil, errors.New("添加子任务方法已失效，不再收到启动，而是通过 AddInterval 方法直接启动")
 	// t._mu.Lock()
 	// defer t._mu.Unlock()
 	// if tr, ok := t._runners[runnerID]; ok {
@@ -390,10 +414,23 @@ func (tr *TaskRun) fullMsg() {
 	}
 }
 
+// 发送结束信号
+func (tr *TaskRun) RemoveMsg() {
+	fmt.Println("发送删除ws")
+	if dt, err := config.Json.Marshal(map[string]any{
+		"type": "task-runner-remove",
+		"data": tr,
+	}); err == nil {
+		ws.Broadcost(dt)
+	}
+}
+
 // 发送执行消息
 func (trm *TaskRunMsg) sent(tr *TaskRun) {
 	trm.NextRuntime = tr._runner.NextRunTime().Unix()
 	trm.Doned = tr._runner.RunCount()
+	trm.TaskName = tr.TaskName
+	trm.RunID = tr.RunID
 	if dt, err := config.Json.Marshal(map[string]any{
 		"type": "task-runner-msg",
 		"data": trm,
@@ -563,4 +600,46 @@ func (tr *TaskRun) StopAt(t time.Time) {
 // 获取执行器上下文
 func (tr *TaskRun) GetCtx() context.Context {
 	return tr._runner.GetCtx()
+}
+
+// 马上执行
+func (tr *TaskRun) RunNow() {
+	tr._sch.RunNow(tr.RunID)
+}
+
+// 发送消息给前端
+func (tr *TaskRun) SentMsg(msg string) {
+	trm := &TaskRunMsg{
+		TaskID:      tr.TaskID,
+		TaskRunID:   tr.ID,
+		Status:      0,
+		Addtime:     time.Now().Unix(),
+		Msg:         msg,
+		TaskName:    tr.TaskName,
+		RunID:       tr.RunID,
+		Tried:       int(tr._runner.LastRetryCount()),
+		NextRuntime: tr._runner.NextRunTime().Unix(),
+	}
+	trm.sent(tr)
+}
+
+// 查询任务
+func (t *Task) Query(runid string) *TaskRun {
+	t._mu.Lock()
+	defer t._mu.Unlock()
+	if t, ok := t._runners[runid]; ok {
+		return t
+	}
+	return nil
+}
+
+// 停止任务
+func (t *Task) Stop(runid string) {
+	if tr := t.Query(runid); tr != nil {
+		t._sch.Remove(runid)
+		t._mu.Lock()
+		delete(t._runners, runid)
+		t._mu.Unlock()
+		tr.RemoveMsg()
+	}
 }

@@ -8,7 +8,6 @@ import (
 	"tools/runtimes/config"
 	"tools/runtimes/db"
 	"tools/runtimes/downloader"
-	"tools/runtimes/eventbus"
 	"tools/runtimes/funcs"
 
 	"gorm.io/gorm"
@@ -29,6 +28,7 @@ type Media struct {
 	Size     int64     `json:"size" gorm:"index;default:0" form:"size"`            //大小
 	Filetime int64     `json:"filetime" gorm:"index;default:0" form:"filetime"`    // 文件最后修改日期
 	Addtime  time.Time // 本数据添加日期
+	db.BaseModel
 }
 
 var dbs *db.SQLiteWriter
@@ -93,38 +93,38 @@ func MkerMediaUser(platform, uid, cover, name, proxy, searchID string, adminID i
 	return mu
 }
 
-func (this *Media) Save(tx *db.SQLiteWriter) error {
-	if tx == nil {
-		tx = dbs
-	}
+// func (this *Media) Save(tx *db.SQLiteWriter) error {
+// 	if tx == nil {
+// 		tx = dbs
+// 	}
 
-	if this.Id > 0 {
-		err := tx.Write(func(txx *gorm.DB) error {
-			return txx.Model(&Media{}).Where("id = ?", this.Id).
-				Updates(map[string]any{
-					"title":    this.Title,
-					"name":     this.Name,
-					"path":     this.Path,
-					"md5":      this.Md5,
-					"platform": this.Platform,
-					"url":      this.Url,
-					"mime":     this.Mime,
-					"size":     this.Size,
-					"filetime": this.Filetime,
-				}).Error
-		})
-		if err != nil {
-			return err
-		}
-		eventbus.Bus.Publish("media_save", this)
-		return nil
-	} else {
-		this.Addtime = time.Now()
-		return tx.Write(func(txx *gorm.DB) error {
-			return txx.Create(this).Error
-		})
-	}
-}
+// 	if this.Id > 0 {
+// 		err := tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Model(&Media{}).Where("id = ?", this.Id).
+// 				Updates(map[string]any{
+// 					"title":    this.Title,
+// 					"name":     this.Name,
+// 					"path":     this.Path,
+// 					"md5":      this.Md5,
+// 					"platform": this.Platform,
+// 					"url":      this.Url,
+// 					"mime":     this.Mime,
+// 					"size":     this.Size,
+// 					"filetime": this.Filetime,
+// 				}).Error
+// 		})
+// 		if err != nil {
+// 			return err
+// 		}
+// 		eventbus.Bus.Publish("media_save", this)
+// 		return nil
+// 	} else {
+// 		this.Addtime = time.Now()
+// 		return tx.Write(func(txx *gorm.DB) error {
+// 			return txx.Create(this).Error
+// 		})
+// 	}
+// }
 
 func GetMediasUserFromName(names []string) map[string]*MediaUser {
 	var mmus []*Media

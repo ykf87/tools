@@ -12,10 +12,8 @@ import (
 	"tools/runtimes/db/clients/browserdb"
 	"tools/runtimes/db/jses"
 	"tools/runtimes/db/proxys"
-	"tools/runtimes/db/tasklog"
 	"tools/runtimes/eventbus"
 	"tools/runtimes/logs"
-	"tools/runtimes/mainsignal"
 	"tools/runtimes/proxy"
 	"tools/runtimes/runner"
 
@@ -405,14 +403,15 @@ func (mu *MediaUser) ParseUserInfoData(data string) error {
 }
 
 // 下载用户视频
-func (mu *MediaUser) DownMedia(srcs []string) error {
-	opt, err := GetOptions(mu)
-	if err != nil {
-		return err
-	}
+// func (mu *MediaUser) DownMedia(srcs []string) error {
+// 	opt, err := GetOptions(mu, context.Background(), nil)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	tl := tasklog.NewTaskLog(fmt.Sprintf("handledmudown%d", mu.Id), fmt.Sprintf("用户: %s 视频下载", mu.Name), 1, 0, true)
-	opt.runner = tl.Append(mainsignal.MainCtx, fmt.Sprintf("%d", mu.Id), fmt.Sprintf("用户: %s 视频下载", mu.Name), opt.FmtDownload)
-	opt.runner.Runner.SetMaxTry(3).RunNow()
-	return nil
-}
+// 	tl := tasklog.NewTaskLog(fmt.Sprintf("handledmudown%d", mu.Id), fmt.Sprintf("用户: %s 视频下载", mu.Name), 1, 0, true)
+// 	opt.runner = tl.Append(mainsignal.MainCtx, fmt.Sprintf("%d", mu.Id), fmt.Sprintf("用户: %s 视频下载", mu.Name), opt.FmtDownload)
+// 	opt.runner.Runner.SetMaxTry(3).RunNow()
+// 	return nil
+// }
+//

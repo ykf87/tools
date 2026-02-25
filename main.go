@@ -41,6 +41,7 @@ import (
 	"strings"
 	"time"
 	_ "tools/runtimes"
+	"tools/runtimes/bs"
 	"tools/runtimes/config"
 	_ "tools/runtimes/db"
 	"tools/runtimes/db/tasks"
@@ -89,7 +90,7 @@ func checkLocal() error {
 
 func flush() {
 	tasks.Flush()
-	// bs.Flush()
+	bs.Flush()
 	web.WebCloseCh()
 	time.Sleep(time.Second)
 }

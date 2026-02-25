@@ -396,7 +396,7 @@ func Download(c *gin.Context) {
 
 func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vurl string, uid int64, cover string) {
 	if parseRes.VideoUrl != "" {
-		md, err := medias.DownLoadVideo(parseRes.VideoUrl, path, "", proxy, func(percent float64, downloaded, total int64) {
+		md, err := medias.DownLoadVideo(vurl, parseRes.VideoUrl, path, "", proxy, func(percent float64, downloaded, total int64) {
 			fmt.Printf("\r下载进度: %.2f%%", percent)
 			dbk := new(Pms)
 			dbk.DownFile = urlmd5
@@ -429,7 +429,8 @@ func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vu
 			mu := medias.MkerMediaUser(parseRes.Platform, parseRes.Author.Uid, parseRes.Author.Avatar, parseRes.Author.Name, proxy, parseRes.Author.SearchID, uid)
 			md.UserId = mu.Id
 		}
-		md.Save(nil)
+		// md.Save(nil)
+		md.Save(md, medias.GetDb().DB())
 
 		dbk := new(Pms)
 		dbk.DownFile = urlmd5

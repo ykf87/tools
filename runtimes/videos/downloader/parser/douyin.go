@@ -32,6 +32,7 @@ func (d douYin) parseVideoID(videoId string, transport *http.Transport) (*VideoP
 	// fmt.Println(string(res.Body()))
 	re := regexp.MustCompile(`window._ROUTER_DATA\s*=\s*(.*?)</script>`)
 	findRes := re.FindSubmatch(res.Body())
+	// fmt.Println(string(res.Body()))
 	if len(findRes) < 2 {
 		return nil, errors.New("parse video json info from html fail")
 	}

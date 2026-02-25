@@ -32,7 +32,7 @@ func MediaUrlName(name string) string {
 
 }
 
-func DownLoadVideo(urlstr, dir, saveName, proxy string, execing func(percent float64, downloaded, total int64)) (*Media, error) {
+func DownLoadVideo(ourl, urlstr, dir, saveName, proxy string, execing func(percent float64, downloaded, total int64)) (*Media, error) {
 	d := downloader.NewDownloader(proxy, execing, nil)
 
 	if saveName == "" {
@@ -76,7 +76,7 @@ func DownLoadVideo(urlstr, dir, saveName, proxy string, execing func(percent flo
 	md.Addtime = time.Now()
 	md.Name = saveName
 	md.Path = dir
-	md.Url = urlstr
+	md.Url = ourl
 	md.UrlMd5 = funcs.Md5String(urlstr)
 
 	return md, nil

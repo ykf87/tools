@@ -718,6 +718,7 @@ type Browser struct {
 	onConsole   atomic.Value // func([]*runtime.RemoteObject)
 	onClose     atomic.Value
 	Locker      chan byte
+	acquired    bool
 }
 
 var BROWSERPATH string

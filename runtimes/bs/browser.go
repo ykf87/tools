@@ -10,6 +10,7 @@ import (
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/i18n"
+	"tools/runtimes/logs"
 	"tools/runtimes/mainsignal"
 
 	"github.com/chromedp/chromedp"
@@ -30,8 +31,6 @@ func init() {
 func (b *Browser) OpenBrowser() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-
-	maxNumsCh <- 1
 
 	allocOpts := make([]chromedp.ExecAllocatorOption, 0, len(chromedp.DefaultExecAllocatorOptions)+8)
 	allocOpts = append(allocOpts, chromedp.DefaultExecAllocatorOptions[:]...)
@@ -82,12 +81,15 @@ func (b *Browser) OpenBrowser() error {
 
 	if err := chromedp.Run(ctx); err != nil {
 		fmt.Println("浏览器 browser 启动失败:", b.ID, err)
+		logs.Error(fmt.Sprintf("浏览器 browser 启动失败: %d - %s", b.ID, err.Error()))
 		cancel()
 		allocCancel()
 		return err
 	}
-	fmt.Println(b.ID, "---- 启动成功")
+	// fmt.Println(b.ID, "---- 启动成功")
 	b.survival.Store(true)
+	maxNumsCh <- 1
+	b.acquired = true
 
 	url := "about:blank"
 	if b.Opts.Url != "" {
@@ -212,7 +214,7 @@ func (this *Browser) GetCtx() context.Context {
 // 释放所有已打开的浏览器
 func Flush() {
 	OpendBrowser.Range(func(k, v any) bool {
-		fmt.Println("释放浏览器id: ", k)
+		// fmt.Println("释放浏览器id: ", k)
 		if b, ok := v.(*Browser); ok {
 			b.Close()
 		}

@@ -1,12 +1,5 @@
 package main
 
-import (
-	"context"
-	"fmt"
-	"time"
-	"tools/runtimes/sch"
-)
-
 //	func init() {
 //		s := scheduler.New(mainsignal.MainCtx)
 //		rt := s.NewRunner(func(ctx context.Context) error {
@@ -48,26 +41,26 @@ import (
 //
 // }
 func init() {
-	s := sch.NewScheduler(5)
-	tr, err := s.AddInterval(
-		"task1",
-		10*time.Second, // interval
-		5*time.Second,  // timeout
-		2,              // retry
-		2*time.Second,  // retryDelay
-		time.Now().Add(time.Second*20),
-		func(ctx context.Context) error {
-			fmt.Println("interval task running:", time.Now())
-			time.Sleep(2 * time.Second)
-			return nil
-		},
-		func(id string, err error) {
-			fmt.Println("task complete:", id, "err:", err)
-		},
-		func(id string) {
-			fmt.Println("task closed:", id)
-		},
-	)
-	s.RunNow(tr.GetID())
-	fmt.Println(err)
+	// s := sch.NewScheduler(5)
+	// tr, err := s.AddInterval(
+	// 	"task1",
+	// 	10*time.Second, // interval
+	// 	5*time.Second,  // timeout
+	// 	2,              // retry
+	// 	2*time.Second,  // retryDelay
+	// 	time.Now().Add(time.Second*20),
+	// 	func(ctx context.Context) error {
+	// 		fmt.Println("interval task running:", time.Now())
+	// 		time.Sleep(2 * time.Second)
+	// 		return nil
+	// 	},
+	// 	func(id string, err error) {
+	// 		fmt.Println("task complete:", id, "err:", err)
+	// 	},
+	// 	func(id string) {
+	// 		fmt.Println("task closed:", id)
+	// 	},
+	// )
+	// s.RunNow(tr.GetID())
+	// fmt.Println(err)
 }

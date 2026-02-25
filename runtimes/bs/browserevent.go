@@ -63,7 +63,11 @@ func (b *Browser) Close() {
 			b.Locker <- 1
 		}
 		b.mu.Unlock()
-		<-maxNumsCh
+		// <-maxNumsCh
+		if b.acquired {
+			<-maxNumsCh
+			b.acquired = false
+		}
 	}()
 
 	BsManager.mu.Lock()

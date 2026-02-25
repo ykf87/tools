@@ -134,7 +134,7 @@ func Editer(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
-	fmt.Println("其他信息处理完成... 保存")
+	// fmt.Println("其他信息处理完成... 保存")
 
 	mmu.Autoinfo = mu.Autoinfo
 	mmu.AutoDownload = mu.AutoDownload

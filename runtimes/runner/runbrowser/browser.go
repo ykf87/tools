@@ -49,43 +49,30 @@ func (r *RunBrowser) Start(timeout time.Duration, callback func(str string) erro
 	}
 	r.Browser.Opts.Msg = make(chan string)
 
-	var idx int
+	// var idx int
 	bbctx := r.Browser.GetCtx()
-	var err error
+
+	defer func() {
+		r.Stop()
+		r.cancle()
+	}()
 	for {
 		select {
 		case <-r.ctx.Done():
-			err = errors.New("超时")
-			fmt.Println("超时结束")
-			goto BREAK
+			return nil
 		case msg := <-r.Browser.Opts.Msg:
 			if callback != nil {
-				if errr := callback(msg); errr != nil {
-					idx++
-					if idx >= 5 {
-						err = errr
-						goto BREAK
-					}
-					r.Start(timeout, callback)
-				} else {
-					r.Stop()
-				}
+				err := callback(msg)
+				return err
+			} else {
+				return errors.New("未设置回调函数...")
 			}
 		case <-bbctx.Done():
 			if errors.Is(bbctx.Err(), context.DeadlineExceeded) {
-				err = errors.New("浏览器超时")
-				fmt.Println("浏览器超时了")
+				return errors.New("浏览器超时")
 			}
-			if errors.Is(bbctx.Err(), context.Canceled) {
-				err = errors.New("浏览器意外关闭")
-				fmt.Println("浏览器被关闭")
-			}
-			goto BREAK
 		}
 	}
-BREAK:
-	r.cancle()
-	return err
 }
 
 func (r *RunBrowser) sendMsg(str string) {

@@ -1,6 +1,7 @@
 package medias
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -8,17 +9,19 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"tools/runtimes/bs"
 	"tools/runtimes/db/clients/browserdb"
 	"tools/runtimes/db/jses"
 	"tools/runtimes/db/proxys"
-	"tools/runtimes/db/tasklog"
+	"tools/runtimes/db/task"
+	"tools/runtimes/eventbus"
 	"tools/runtimes/funcs"
-	"tools/runtimes/listens/ws"
 	"tools/runtimes/proxy"
+	"tools/runtimes/runner"
 	"tools/runtimes/videos/downloader/parser"
 
 	"github.com/tidwall/gjson"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Options struct {
@@ -37,19 +40,24 @@ type Options struct {
 	Timeout     time.Duration
 	mu          *MediaUser
 	ProxyConfig *proxy.ProxyConfig
-	runner      *tasklog.TaskRunner
+	// runner      *tasklog.TaskRunner
+	ctx context.Context
+	tr  *task.TaskRun
 }
 
 var MURUNNERS sync.Map
 
-func GetOptions(mu *MediaUser) (*Options, error) {
-	if opt, err := getRunnerOption(mu.Id); err == nil {
-		return opt, nil
-	}
+func GetOptions(mu *MediaUser, ctx context.Context, tr *task.TaskRun) (*Options, error) {
+	// if opt, err := getRunnerOption(mu.Id); err == nil {
+	// 	return opt, nil
+	// }
 	opt := &Options{
-		MUID:    mu.Id,
-		mu:      mu,
-		Timeout: time.Second * 300,
+		MUID:     mu.Id,
+		mu:       mu,
+		Timeout:  time.Second * 300,
+		ctx:      ctx,
+		tr:       tr,
+		Headless: false,
 	}
 	if err := opt.getJsAndUrl(); err != nil {
 		return nil, err
@@ -63,79 +71,231 @@ func GetOptions(mu *MediaUser) (*Options, error) {
 
 // 启动周期性自动任务
 func (opt *Options) Start() error {
+	var opts any
+
 	switch opt.ClientType {
-	case 0:
-		// runner.GenWebOpt()
-		bsopt := &bs.Options{
-			Url:      opt.Url,
-			JsStr:    opt.Js,
-			Headless: opt.Headless,
-			Timeout:  opt.Timeout,
-			Pc:       opt.ProxyConfig,
-			ID:       opt.ClientID,
-		}
-		if opt.runner != nil { // 周期性任务
-			if err := opt.runner.StartWeb(bsopt, opt.Timeout); err != nil {
-				return err
-			}
-			MURUNNERS.Store(opt.MUID, opt)
-			opt.runner.SetMsg("任务加入队列准备执行...")
-			opt.runner.Runner.Every(time.Duration(opt.mu.DownFreq) * time.Minute).SetError(func(err error, tried int32) {
-				fmt.Println("执行失败:", err)
-			}).SetMaxTry(5).Run()
-		} else {
-			// opt.runner = TaskLogger.Append(
-			// 	mainsignal.MainCtx,
-			// 	fmt.Sprintf("muautodown-%d", mu.Id),
-			// 	fmt.Sprintf("%s 自动下载", mu.Name),
-			// 	opt.FmtDownload,
-			// )
-		}
 	case 1:
-		return fmt.Errorf("手机端暂未支持")
+		opts = runner.GenPhoneOpt()
+		// return fmt.Errorf("手机端暂未支持")
 	case 2:
-		return fmt.Errorf("HTTP端暂未支持")
+		opts = runner.GenHttpOpt()
+	// return fmt.Errorf("HTTP端暂未支持")
+	default:
+		opts = runner.GenWebOpt(
+			opt.ctx,
+			opt.ClientID,
+			opt.Headless,
+			opt.Url,
+			opt.Js,
+			opt.ProxyConfig,
+			opt.Timeout,
+			opt.Width,
+			opt.Height,
+			opt.Lang,
+			opt.Timezone,
+		)
 	}
+
+	r, err := runner.GetRunner(opt.ClientType, opts)
+	if err != nil {
+		return err
+	}
+
+	err = r.Start(opt.Timeout, func(str string) error {
+		r.Stop()
+		opt.tr.SentMsg("信息获取成功,正在解析...")
+		return opt.ParseInfos(str, true)
+	})
+	return err
+}
+
+// 将js获取到的内容格式化到用户
+func (opt *Options) ParseInfos(str string, downloads bool) error {
+	gs := gjson.Parse(str)
+	if downloads == true {
+		if !gs.Get("lists").Exists() || len(gs.Get("lists").Array()) < 1 {
+			// return errors.New("找不到下载列表")
+			return nil
+		}
+
+		var lastVideoID string
+		dbs.DB().Model(&Media{}).Select("video_id").Where("user_id = ? and video_id is not null and video_id != ''", opt.MUID).Order("addtime DESC").First(&lastVideoID)
+		var urls []string
+		// fmt.Println("当前最新的videoid:", lastVideoID)
+		for _, v := range gs.Get("lists").Array() {
+			vstr := v.String()
+			vtem := strings.Split(vstr, "/")
+			if lastVideoID == vtem[len(vtem)-1] {
+				break
+			}
+			urls = append(urls, vstr)
+		}
+		// fmt.Println("查找到的地址:", urls)
+		// return nil
+		if opt.Proxy == "" && opt.ProxyConfig != nil {
+			opt.Proxy = opt.ProxyConfig.Listened()
+		}
+		var transport *http.Transport
+		if opt.Proxy != "" {
+			if proxyURL, err := url.Parse(opt.Proxy); err == nil {
+				transport = &http.Transport{
+					Proxy: http.ProxyURL(proxyURL),
+				}
+			}
+		}
+
+		// fmt.Println("找到 ", len(urls), " 个待下载视频!", urls)
+		if len(urls) > 0 {
+			var idx float64
+			urlstotal := float64(len(urls))
+			opt.tr.ReportSchedule(urlstotal, 0)
+			// var wg sync.WaitGroup
+			// sem := make(chan struct{}, 1)
+
+			for _, url := range urls {
+				select {
+				case <-opt.ctx.Done():
+					fmt.Println("ctx 结束....")
+					return nil
+				default:
+					parseRes, err := parser.ParseVideoShareUrlByRegexp(url, transport)
+					if err != nil {
+						fmt.Println("解析地址错误:", err)
+						idx = idx + 1
+						opt.tr.ReportSchedule(urlstotal, idx)
+						// opt.runner.SentErr("解析视频地址错误: " + err.Error() + " - " + v)
+						// return nil
+					} else {
+						if parseRes.VideoUrl != "" {
+							// fn := funcs.Md5String(parseRes.VideoUrl)
+							path := fmt.Sprintf(".auto/%s%d", opt.mu.Uuid, opt.mu.Id)
+							if md, err := DownLoadVideo(url, parseRes.VideoUrl, path, "", opt.Proxy, func(percent float64, downloaded, total int64) {
+								// fmt.Println(percent, "----", downloaded, "----", total)
+								if percent >= 100 {
+									idx = idx + 1
+									opt.tr.ReportSchedule(urlstotal, idx)
+								}
+							}); err == nil {
+								md.UserId = opt.MUID
+								vtem := strings.Split(url, "/")
+								md.VideoID = vtem[len(vtem)-1]
+								md.Platform = opt.mu.Platform
+								md.Title = parseRes.Title
+								err := dbs.Write(func(tx *gorm.DB) error {
+									return md.Save(md, tx)
+								})
+								fmt.Println(err, "===== 保存media", md.Md5, ":", md.Url)
+							}
+						}
+					}
+					time.Sleep(time.Duration(funcs.RandomNumber(3, 10)) * time.Second)
+				}
+				// wg.Go(func() {
+				// 	select {
+				// 	case sem <- struct{}{}:
+				// 	case <-opt.ctx.Done():
+				// 		fmt.Println("ctx 结束....")
+				// 		return
+				// 	}
+				// 	defer func() { <-sem }()
+
+				// })
+			}
+			// wg.Wait()
+
+		} else {
+			// fmt.Println("没有新的视频以供下载!")
+			// return errors.New("没有新的视频以供下载!")
+			return nil
+		}
+	}
+
+	mud := new(MediaUserDay)
+	if fans := gs.Get("fans").Int(); fans > 0 {
+		mud.Fans = fans
+		opt.mu.Fans = fans
+	}
+	if works := gs.Get("works").Int(); works > 0 {
+		opt.mu.Works = works
+		mud.Works = works
+	}
+	if local := gs.Get("local").String(); local != "" {
+		opt.mu.Local = local
+	}
+	if account := gs.Get("account").String(); account != "" {
+		opt.mu.Account = account
+	}
+
+	if zan := gs.Get("zan").Int(); zan > 0 {
+		mud.Zan = zan
+	}
+
+	if mud.Works > 0 {
+		ymd := time.Now().Format("20060102")
+		mud.MUID = opt.mu.Id
+		mud.Ymd = ymd
+		if err := dbs.Write(func(tx *gorm.DB) error {
+			return tx.Clauses(clause.OnConflict{
+				Columns: []clause.Column{
+					{Name: "m_uid"},
+					{Name: "ymd"},
+				},
+				DoUpdates: clause.AssignmentColumns([]string{
+					"works",
+					"fans",
+					"zan",
+				}),
+			}).Create(&mud).Error
+		}); err != nil {
+			return err
+		}
+	}
+
+	dbs.Write(func(tx *gorm.DB) error {
+		return opt.mu.Save(opt.mu, tx)
+	})
+	opt.mu.Commpare()
+	eventbus.Bus.Publish("media_user_info", opt.mu)
 	return nil
 }
 
 // 启动每天的定点任务
-func (opt *Options) StartDailyRandomAt(h, m, s, j int) error {
-	switch opt.ClientType {
-	case 0:
-		bsopt := &bs.Options{
-			Url:      opt.Url,
-			JsStr:    opt.Js,
-			Headless: opt.Headless,
-			Timeout:  opt.Timeout,
-			Pc:       opt.ProxyConfig,
-			ID:       opt.ClientID,
-		}
-		if opt.runner != nil { // 定时任务
-			if err := opt.runner.StartWeb(bsopt, opt.Timeout); err != nil {
-				return err
-			}
-			MURUNNERS.Store(opt.MUID, opt)
-			opt.runner.SetMsg("任务加入定点队列准备执行...")
-			opt.runner.Runner.DailyRandomAt(h, m, s, j, nil).SetError(func(err error, tried int32) {
-				fmt.Println("执行失败:", err)
-			}).SetMaxTry(5).Run()
-		}
-	case 1:
-		return fmt.Errorf("手机端暂未支持")
-	case 2:
-		return fmt.Errorf("HTTP端暂未支持")
-	}
-	return nil
-}
+// func (opt *Options) StartDailyRandomAt(h, m, s, j int) error {
+// 	switch opt.ClientType {
+// 	case 0:
+// 		bsopt := &bs.Options{
+// 			Url:      opt.Url,
+// 			JsStr:    opt.Js,
+// 			Headless: opt.Headless,
+// 			Timeout:  opt.Timeout,
+// 			Pc:       opt.ProxyConfig,
+// 			ID:       opt.ClientID,
+// 		}
+// 		if opt.runner != nil { // 定时任务
+// 			if err := opt.runner.StartWeb(bsopt, opt.Timeout); err != nil {
+// 				return err
+// 			}
+// 			MURUNNERS.Store(opt.MUID, opt)
+// 			opt.runner.SetMsg("任务加入定点队列准备执行...")
+// 			opt.runner.Runner.DailyRandomAt(h, m, s, j, nil).SetError(func(err error, tried int32) {
+// 				fmt.Println("执行失败:", err)
+// 			}).SetMaxTry(5).Run()
+// 		}
+// 	case 1:
+// 		return fmt.Errorf("手机端暂未支持")
+// 	case 2:
+// 		return fmt.Errorf("HTTP端暂未支持")
+// 	}
+// 	return nil
+// }
 
-// 停止任务
-func (opt *Options) Stop() {
-	if opt.runner != nil {
-		opt.runner.Runner.Stop()
-	}
-	MURUNNERS.Delete(opt.MUID)
-}
+// // 停止任务
+// func (opt *Options) Stop() {
+// 	if opt.runner != nil {
+// 		opt.runner.Runner.Stop()
+// 	}
+// 	MURUNNERS.Delete(opt.MUID)
+// }
 
 func RandomInt64Fast(m map[int][]int64) (int64, int, bool) {
 	if len(m) == 0 {
@@ -232,138 +392,138 @@ func (opt *Options) getProxyAndClient() error {
 }
 
 // 自动更新用户信息
-func (opt *Options) FmtInfo(msg string, tr *tasklog.TaskRunner) error {
-	tr.Msg <- "开始执行任务"
-	// fmt.Println(msg, "------ run")
+// func (opt *Options) FmtInfo(msg string, tr *tasklog.TaskRunner) error {
+// 	tr.Msg <- "开始执行任务"
+// 	// fmt.Println(msg, "------ run")
 
-	if tr.Msg != nil {
-		tr.Msg <- "本次任务完成-来自getter"
-	}
-	return nil
-}
+// 	if tr.Msg != nil {
+// 		tr.Msg <- "本次任务完成-来自getter"
+// 	}
+// 	return nil
+// }
 
-// 自动下载用户视频
-func (opt *Options) FmtDownload(msg string, tr *tasklog.TaskRunner) error {
-	tr.SetMsg("信息获取成功,正在处理获得的信息...")
+// // 自动下载用户视频
+// func (opt *Options) FmtDownload(msg string, tr *tasklog.TaskRunner) error {
+// 	tr.SetMsg("信息获取成功,正在处理获得的信息...")
 
-	dt := gjson.Parse(msg)
-	if fans := dt.Get("fans").Int(); fans > 0 {
-		opt.mu.Fans = fans
-	}
-	if works := dt.Get("works").Int(); works > 0 {
-		opt.mu.Works = works
-	}
-	if local := dt.Get("local").String(); local != "" {
-		opt.mu.Local = local
-	}
-	if account := dt.Get("account").String(); account != "" {
-		opt.mu.Account = account
-	}
-	if dt.Get("lists").Exists() {
-		var vids []string
-		for _, v := range dt.Get("lists").Array() {
-			vids = append(vids, v.String())
-		}
-		opt.autodownload(vids)
-	}
+// 	dt := gjson.Parse(msg)
+// 	if fans := dt.Get("fans").Int(); fans > 0 {
+// 		opt.mu.Fans = fans
+// 	}
+// 	if works := dt.Get("works").Int(); works > 0 {
+// 		opt.mu.Works = works
+// 	}
+// 	if local := dt.Get("local").String(); local != "" {
+// 		opt.mu.Local = local
+// 	}
+// 	if account := dt.Get("account").String(); account != "" {
+// 		opt.mu.Account = account
+// 	}
+// 	if dt.Get("lists").Exists() {
+// 		var vids []string
+// 		for _, v := range dt.Get("lists").Array() {
+// 			vids = append(vids, v.String())
+// 		}
+// 		opt.autodownload(vids)
+// 	}
 
-	tr.Bss.Close()
-	return nil
-}
+// 	tr.Bss.Close()
+// 	return nil
+// }
 
-// 下载视频
-func (opt *Options) autodownload(srcs []string) {
-	if len(srcs) < 1 {
-		opt.runner.SetErrMsg("账号主页没有视频.")
-		return
-	}
-	var lastVid string
-	dbs.DB().Model(&Media{}).Select("video_id").
-		Where("user_id = ?", opt.mu.Id).
-		Where("video_id is not null or video_id != ''").
-		Order("id DESC").First(&lastVid)
+// // 下载视频
+// func (opt *Options) autodownload(srcs []string) {
+// 	if len(srcs) < 1 {
+// 		opt.runner.SetErrMsg("账号主页没有视频.")
+// 		return
+// 	}
+// 	var lastVid string
+// 	dbs.DB().Model(&Media{}).Select("video_id").
+// 		Where("user_id = ?", opt.mu.Id).
+// 		Where("video_id is not null or video_id != ''").
+// 		Order("id DESC").First(&lastVid)
 
-	var getterSrcs []string
-	if lastVid != "" {
-		for _, v := range srcs {
-			if v == "" || !strings.Contains(v, "/") {
-				continue
-			}
-			ssr := strings.Split(v, "/")
-			vid := ssr[len(ssr)-1]
-			if vid == lastVid {
-				break
-			}
-			getterSrcs = append(getterSrcs, v)
-		}
-	} else {
-		defLen := 5
-		opt.runner.SetMsg(fmt.Sprintf("该账号未下载过视频,默认下载最新的 %d 条", defLen))
-		brkLen := defLen - 1
-		for k, v := range srcs {
-			getterSrcs = append(getterSrcs, v)
-			if k >= brkLen {
-				break
-			}
-		}
-	}
+// 	var getterSrcs []string
+// 	if lastVid != "" {
+// 		for _, v := range srcs {
+// 			if v == "" || !strings.Contains(v, "/") {
+// 				continue
+// 			}
+// 			ssr := strings.Split(v, "/")
+// 			vid := ssr[len(ssr)-1]
+// 			if vid == lastVid {
+// 				break
+// 			}
+// 			getterSrcs = append(getterSrcs, v)
+// 		}
+// 	} else {
+// 		defLen := 5
+// 		opt.runner.SetMsg(fmt.Sprintf("该账号未下载过视频,默认下载最新的 %d 条", defLen))
+// 		brkLen := defLen - 1
+// 		for k, v := range srcs {
+// 			getterSrcs = append(getterSrcs, v)
+// 			if k >= brkLen {
+// 				break
+// 			}
+// 		}
+// 	}
 
-	if len(getterSrcs) > 0 {
-		wg := new(sync.WaitGroup)
-		var transport *http.Transport
-		if opt.Proxy != "" {
-			if proxyURL, err := url.Parse(opt.Proxy); err == nil {
-				transport = &http.Transport{
-					Proxy: http.ProxyURL(proxyURL),
-				}
-			}
-		}
-		for _, v := range getterSrcs {
-			wg.Go(func() {
-				parseRes, err := parser.ParseVideoShareUrlByRegexp(v, transport)
-				if err != nil {
-					opt.runner.SentErr("解析视频地址错误: " + err.Error() + " - " + v)
-					return
-				}
-				if parseRes.VideoUrl != "" {
-					fn := funcs.Md5String(parseRes.VideoUrl)
-					path := fmt.Sprintf(".auto/%s%d", opt.mu.Uuid, opt.mu.Id)
-					md, err := DownLoadVideo(parseRes.VideoUrl, path, "", opt.Proxy, func(percent float64, downloaded, total int64) {
-						fmt.Printf("\r下载进度: %.2f%%", percent)
-						opt.runner.Total = float64(total)
-						opt.runner.Doned = float64(downloaded)
-						opt.runner.Sent(fmt.Sprintf("下载进度: %.2f%%", percent))
+// 	if len(getterSrcs) > 0 {
+// 		wg := new(sync.WaitGroup)
+// 		var transport *http.Transport
+// 		if opt.Proxy != "" {
+// 			if proxyURL, err := url.Parse(opt.Proxy); err == nil {
+// 				transport = &http.Transport{
+// 					Proxy: http.ProxyURL(proxyURL),
+// 				}
+// 			}
+// 		}
+// 		for _, v := range getterSrcs {
+// 			wg.Go(func() {
+// 				parseRes, err := parser.ParseVideoShareUrlByRegexp(v, transport)
+// 				if err != nil {
+// 					opt.runner.SentErr("解析视频地址错误: " + err.Error() + " - " + v)
+// 					return
+// 				}
+// 				if parseRes.VideoUrl != "" {
+// 					fn := funcs.Md5String(parseRes.VideoUrl)
+// 					path := fmt.Sprintf(".auto/%s%d", opt.mu.Uuid, opt.mu.Id)
+// 					md, err := DownLoadVideo(parseRes.VideoUrl, path, "", opt.Proxy, func(percent float64, downloaded, total int64) {
+// 						fmt.Printf("\r下载进度: %.2f%%", percent)
+// 						opt.runner.Total = float64(total)
+// 						opt.runner.Doned = float64(downloaded)
+// 						opt.runner.Sent(fmt.Sprintf("下载进度: %.2f%%", percent))
 
-						dbk := new(pms)
-						dbk.DownFile = fn
-						dbk.Fmt = fmt.Sprintf("%.2f%%", percent)
-						dbk.Num = percent
-						dbk.Dir = false
-						dbk.Cover = parseRes.CoverUrl
-						dbk.Name = fn
-						dbk.Platform = parseRes.Platform
-						ws.SentBus(opt.mu.AdminID, "video-download", dbk, "")
-					})
+// 						dbk := new(pms)
+// 						dbk.DownFile = fn
+// 						dbk.Fmt = fmt.Sprintf("%.2f%%", percent)
+// 						dbk.Num = percent
+// 						dbk.Dir = false
+// 						dbk.Cover = parseRes.CoverUrl
+// 						dbk.Name = fn
+// 						dbk.Platform = parseRes.Platform
+// 						ws.SentBus(opt.mu.AdminID, "video-download", dbk, "")
+// 					})
 
-					if err != nil {
-						opt.runner.SetErrMsg("视频下载失败: " + err.Error())
-					}
+// 					if err != nil {
+// 						opt.runner.SetErrMsg("视频下载失败: " + err.Error())
+// 					}
 
-					md.Title = parseRes.Title
-					md.Platform = parseRes.Platform
-					md.VideoID = parseRes.VideoID
-					md.UserId = opt.mu.Id
+// 					md.Title = parseRes.Title
+// 					md.Platform = parseRes.Platform
+// 					md.VideoID = parseRes.VideoID
+// 					md.UserId = opt.mu.Id
 
-					if err := md.Save(nil); err != nil {
-						opt.runner.SetErrMsg("视频落库失败: " + err.Error())
-						return
-					}
-				}
-			})
-		}
-		wg.Wait()
-		opt.mu.LastDownTime = time.Now().Unix()
-	}
+// 					if err := md.Save(nil); err != nil {
+// 						opt.runner.SetErrMsg("视频落库失败: " + err.Error())
+// 						return
+// 					}
+// 				}
+// 			})
+// 		}
+// 		wg.Wait()
+// 		opt.mu.LastDownTime = time.Now().Unix()
+// 	}
 
-	// opt.mu.Id
-}
+// 	// opt.mu.Id
+// }

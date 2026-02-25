@@ -76,29 +76,77 @@ func (mu *MediaUser) InfoID() string {
 }
 
 func (mu *MediaUser) AutoStart() error {
-	if opt, err := getRunnerOption(mu.Id); err == nil {
-		opt.Stop()
-	}
+	did := mu.DownID()
+	autoDownTL.Stop(did)
+	// if tr := autoDownTL.Query(did); tr != nil {
+	// 	fmt.Println("找到自动下载内容, 停止他!!!!!")
+	// 	autoDownTL.Stop(tr.RunID)
+	// 	// tr.RemoveMsg()
+	// } else {
+	// 	fmt.Println("未找到自动下载内容...")
+	// }
+
+	iid := mu.InfoID()
+	autoInfoTL.Stop(iid)
+	// if tr := autoInfoTL.Query(iid); tr != nil {
+	// 	autoInfoTL.Stop(tr.RunID)
+	// 	// tr.RemoveMsg()
+	// }
+	// if opt, err := getRunnerOption(mu.Id); err == nil {
+	// 	opt.Stop()
+	// }
+	// fmt.Println(mu.Id, "用户id启动---")
 	if mu.AutoDownload == 1 && mu.DownFreq > 0 {
-		did := mu.DownID()
-		tr, err := autoDownTL.AddChild(did, fmt.Sprintf("%s 自行下载中...", mu.Name), time.Second*600)
+		tr, err := autoDownTL.AddInterval(
+			did,
+			fmt.Sprintf("%s 自动下载中...", mu.Name),
+			time.Second*time.Duration(mu.DownFreq*60),
+			time.Second*600,
+			3,
+			time.Second*10,
+			time.Time{},
+			func(tr *task.TaskRun) error {
+				lastmedia := new(Media)
+				dbs.DB().Model(&Media{}).Where("user_id = ?", mu.Id).Order("addtime DESC").First(lastmedia)
+				if lastmedia.Id > 0 {
+					if time.Since(lastmedia.Addtime) < time.Duration(mu.DownFreq*60) {
+						fmt.Println("执行时间未到...")
+						return nil
+					}
+				}
+
+				// fmt.Println("自动下载中----", mu.Id, lastmedia.VideoID)
+				err := mu.RunJsInClient(tr.GetCtx(), tr)
+				// fmt.Println(err, "------执行结果")
+				return err
+				// time.Sleep(time.Second * 2)
+				// return nil
+			},
+		)
 		if err != nil {
 			logs.Error(err.Error())
 		} else {
-			err := tr.StartInterval(int64(mu.DownFreq*60), func(tr *task.TaskRun) error {
-				fmt.Println("自动下载中----")
-				time.Sleep(time.Second * 2)
-				// mu.StartGetter(func(str string, bs *bs.Browser) {
-
-				// }, func() {
-
-				// }, func(url string) {
-
-				// })
-				return nil
-			})
-			fmt.Println(err, "自动下载错误------")
+			tr.RunNow()
 		}
+
+		// tr, err := autoDownTL.AddChild(did, fmt.Sprintf("%s 自行下载中...", mu.Name), time.Second*600)
+		// if err != nil {
+		// 	logs.Error(err.Error())
+		// } else {
+		// 	err := tr.StartInterval(int64(mu.DownFreq*60), func(tr *task.TaskRun) error {
+		// 		fmt.Println("自动下载中----")
+		// 		time.Sleep(time.Second * 2)
+		// 		// mu.StartGetter(func(str string, bs *bs.Browser) {
+
+		// 		// }, func() {
+
+		// 		// }, func(url string) {
+
+		// 		// })
+		// 		return nil
+		// 	})
+		// 	fmt.Println(err, "自动下载错误------")
+		// }
 
 		// if tsk := TaskLogger.GetRunner(did); tsk == nil {
 		// 	opt, err := GetOptions(mu)
@@ -445,7 +493,7 @@ func (t *MediaUser) autodownload(videos []string) {
 			if parseRes.VideoUrl != "" {
 				fn := funcs.Md5String(parseRes.VideoUrl)
 				path := fmt.Sprintf(".auto/%s%d", t.Uuid, t.Id)
-				md, err := DownLoadVideo(parseRes.VideoUrl, path, "", t.trans, func(percent float64, downloaded, total int64) {
+				md, err := DownLoadVideo(v, parseRes.VideoUrl, path, "", t.trans, func(percent float64, downloaded, total int64) {
 					fmt.Printf("\r下载进度: %.2f%%", percent)
 					dbk := new(pms)
 					dbk.DownFile = fn
@@ -475,7 +523,7 @@ func (t *MediaUser) autodownload(videos []string) {
 				md.Platform = parseRes.Platform
 				md.VideoID = parseRes.VideoID
 				md.UserId = t.Id
-				if err := md.Save(nil); err != nil {
+				if err := md.Save(md, dbs.DB()); err != nil {
 					return
 				}
 
@@ -508,4 +556,24 @@ func (t *MediaUser) autodownload(videos []string) {
 		})
 	}
 	wg.Wait()
+}
+
+// 使用终端打开用户主页并执行脚本
+func (mu *MediaUser) RunJsInClient(ctx context.Context, tr *task.TaskRun) error {
+	opts, err := GetOptions(mu, ctx, tr)
+	if err != nil {
+		return err
+	}
+	return opts.Start()
+	// ctp, cid := mu.GetCanUseClient()
+	// var opt any
+	// switch ctp {
+	// case 1:
+	// default:
+	// 	opt = runner.GenWebOpt(
+	// 		ctx,
+	// 		cid,
+	// 		true,
+	// 	)
+	// }
 }

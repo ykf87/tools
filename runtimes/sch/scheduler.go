@@ -3,6 +3,7 @@ package sch
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -122,6 +123,7 @@ func (r *Runner) RunCount() int64 {
 func (r *Runner) NextRunTime() time.Time {
 	v := r.nextRun.Load()
 	if v == nil {
+		fmt.Println("找不到下次执行时间...")
 		return time.Time{}
 	}
 	return v.(time.Time)
@@ -147,9 +149,16 @@ func applyJitter(base time.Time, percent float64) time.Time {
 	return base.Add(time.Duration(offset))
 }
 
-func (r *Runner) calcNextIntervalRun() time.Time {
-	base := time.Now().Add(r.interval)
-	return applyJitter(base, r.jitter)
+func (r *Runner) calcNextIntervalRun(base time.Time) time.Time {
+	interval := r.interval
+
+	if r.jitter > 0 {
+		delta := float64(interval) * r.jitter
+		offset := (rand.Float64()*2 - 1) * delta
+		interval = time.Duration(float64(interval) + offset)
+	}
+
+	return base.Add(interval)
 }
 
 func (r *Runner) calcNextCronRun(base time.Time) time.Time {
@@ -222,6 +231,11 @@ func (r *Runner) execute() {
 	atomic.StoreInt64(&r.lastRetryCount, retryTimes)
 	atomic.AddInt64(&r.runCount, 1)
 
+	if r.taskType == TaskInterval && atomic.LoadInt32(&r.closed) == 0 {
+		next := r.calcNextIntervalRun(time.Now())
+		r.nextRun.Store(next)
+	}
+
 	if r.onComplete != nil {
 		func() {
 			defer func() { recover() }()
@@ -292,10 +306,16 @@ func (s *Scheduler) AddInterval(
 		s:          s,
 	}
 
-	r.nextRun.Store(r.calcNextIntervalRun())
+	firstNext := time.Now().Add(interval)
+	r.nextRun.Store(firstNext)
+	// r.nextRun.Store(r.calcNextIntervalRun())
 	s.tasks.Store(id, r)
 	go func() {
 		for {
+			wait := time.Until(r.NextRunTime())
+			if wait < 0 {
+				wait = 0
+			}
 			select {
 			case <-time.After(time.Until(r.NextRunTime())):
 				if !r.expireAt.IsZero() && time.Now().After(r.expireAt) {
@@ -307,8 +327,10 @@ func (s *Scheduler) AddInterval(
 					return
 				}
 
+				// next := r.calcNextIntervalRun()
+				// r.nextRun.Store(next)
 				r.execute()
-				r.nextRun.Store(r.calcNextIntervalRun())
+				// r.nextRun.Store(r.calcNextIntervalRun())
 			case <-r.ctx.Done():
 				return
 			}
@@ -368,12 +390,16 @@ func (s *Scheduler) AddCron(
 			return
 		}
 
-		r.execute()
-
 		entry := s.cron.Entry(r.entryID)
 		if !entry.Next.IsZero() {
 			r.nextRun.Store(r.calcNextCronRun(entry.Next))
 		}
+		r.execute()
+
+		// entry := s.cron.Entry(r.entryID)
+		// if !entry.Next.IsZero() {
+		// 	r.nextRun.Store(r.calcNextCronRun(entry.Next))
+		// }
 	}
 
 	entryID, err := s.cron.AddFunc(expr, wrapped)
