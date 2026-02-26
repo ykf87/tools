@@ -690,7 +690,7 @@ type Options struct {
 	UserAgent string
 	Timezone  string
 	Language  string
-	Headless  bool
+	Show      bool
 	Width     int
 	Height    int
 	Timeout   time.Duration

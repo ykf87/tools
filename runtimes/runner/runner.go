@@ -22,7 +22,7 @@ type Runner interface {
 func GenWebOpt(
 	ctx context.Context, // 上下文
 	id int64, // 浏览器id
-	headless bool, // 是否隐藏执行,true 不打开窗口, false 显示窗口
+	isshow bool, // 是否隐藏执行,true 打开窗口, false 不显示窗口
 	url string, // 默认打开的地址
 	js string, // 执行的js脚本
 	proxyConfig *proxy.ProxyConfig, // 必须使用本地启动的, http://127.0.0.1:3521 这种地址也可以通过 proxy.Client() 生成
@@ -55,7 +55,7 @@ func GenWebOpt(
 	opt := &bs.Options{
 		Width:    width,
 		Height:   height,
-		Headless: headless,
+		Show:     isshow,
 		ID:       id,
 		Url:      url,
 		JsStr:    js,

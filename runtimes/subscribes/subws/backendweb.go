@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"tools/runtimes/bs"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
 	"tools/runtimes/db/clients/browserdb"
@@ -94,6 +95,15 @@ func closeBrowser() {
 				if bs, err := browserdb.GetBrowserById(bu.Id); err == nil {
 					msgdata := new(ws.SentWsStruct)
 					msgdata.UserId = bu.AdminID
+					msgdata.Type = "browser"
+					msgdata.Content = bs
+					eventbus.Bus.Publish("ws", msgdata)
+				}
+			}
+		} else if bu, ok := dt.(*bs.Browser); ok {
+			if bu.ID > 0 {
+				if bs, err := browserdb.GetBrowserById(bu.ID); err == nil {
+					msgdata := new(ws.SentWsStruct)
 					msgdata.Type = "browser"
 					msgdata.Content = bs
 					eventbus.Bus.Publish("ws", msgdata)

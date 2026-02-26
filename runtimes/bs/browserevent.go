@@ -3,6 +3,7 @@ package bs
 import (
 	"os"
 	"sync"
+	"tools/runtimes/eventbus"
 
 	"github.com/chromedp/cdproto/page"
 	rt "github.com/chromedp/cdproto/runtime"
@@ -82,7 +83,7 @@ func (b *Browser) Close() {
 		b.cancel()
 		b.alloc()
 
-		if b.Opts.Temp {
+		if b.Opts.Temp || b.ID < 1 {
 			_ = os.RemoveAll(b.Opts.UserDir)
 		}
 		b.survival.Store(false)
@@ -100,6 +101,7 @@ func (b *Browser) Close() {
 	}
 
 	b.closed.Store(true)
+	eventbus.Bus.Publish("browser-close", b)
 }
 
 // func (b *Browser) OnClosed() <-chan struct{} {

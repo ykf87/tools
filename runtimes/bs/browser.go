@@ -32,14 +32,16 @@ func (b *Browser) OpenBrowser() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	b.Opts.UserDir = config.FullPath(b.Opts.UserDir)
+
 	allocOpts := make([]chromedp.ExecAllocatorOption, 0, len(chromedp.DefaultExecAllocatorOptions)+8)
 	allocOpts = append(allocOpts, chromedp.DefaultExecAllocatorOptions[:]...)
 	allocOpts = append(allocOpts,
 		chromedp.ExecPath(b.Opts.ExecPath),
 		chromedp.UserDataDir(b.Opts.UserDir),
 		chromedp.WindowSize(b.Opts.Width, b.Opts.Height),
-		chromedp.Flag("headless", b.Opts.Headless),
-		chromedp.Flag("disable-gpu", b.Opts.Headless),
+		chromedp.Flag("headless", !b.Opts.Show),
+		chromedp.Flag("disable-gpu", !b.Opts.Show),
 		chromedp.Flag("worker-id", fmt.Sprintf("%d", b.ID)),
 	)
 
@@ -80,7 +82,7 @@ func (b *Browser) OpenBrowser() error {
 	// })
 
 	if err := chromedp.Run(ctx); err != nil {
-		fmt.Println("浏览器 browser 启动失败:", b.ID, err)
+		// fmt.Println("浏览器 browser 启动失败:", b.ID, err)
 		logs.Error(fmt.Sprintf("浏览器 browser 启动失败: %d - %s", b.ID, err.Error()))
 		cancel()
 		allocCancel()

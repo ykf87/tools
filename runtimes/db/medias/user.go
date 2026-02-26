@@ -310,10 +310,10 @@ func (mu *MediaUser) GenBrowserOpt(id int64) (*bs.Options, error) {
 		hdless = false
 	}
 	bopt := &bs.Options{
-		ID:       id,
-		Url:      gotourl,
-		JsStr:    jsstr,
-		Headless: hdless,
+		ID:    id,
+		Url:   gotourl,
+		JsStr: jsstr,
+		Show:  hdless,
 	}
 
 	// 代理

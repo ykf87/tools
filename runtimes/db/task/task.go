@@ -13,6 +13,7 @@ import (
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
+	"tools/runtimes/funcs"
 	"tools/runtimes/i18n"
 	"tools/runtimes/listens/ws"
 	"tools/runtimes/mainsignal"
@@ -23,6 +24,7 @@ import (
 
 type Task struct {
 	ID       int64               `json:"id" gorm:"primaryKey;autoIncrement"`
+	Tid      string              `json:"tid" gorm:"-"`
 	Name     string              `json:"name" gorm:"index;not null"`     // 任务名称,用于查询任务：比如media_user处查询任务明细,一般用表名
 	NameID   int64               `json:"name_id" gorm:"index;default:0"` // 对应的表ID,也是方便查询的
 	Title    string              `json:"title" gorm:"not null;index"`    // 任务标题,对外显示的名称
@@ -41,6 +43,7 @@ type Task struct {
 type TaskRun struct {
 	ID          int64          `json:"id" gorm:"primaryKey;autoIncrement"`
 	TaskID      int64          `json:"task_id" gorm:"index;not null"`   // 任务表的ID
+	TaskTid     string         `json:"task_tid" gorm:"-"`               // 用于查找已存在的任务
 	TaskName    string         `json:"task_name"`                       // 总任务名称
 	RunID       string         `json:"run_id" gorm:"index;not null"`    // 执行的id,需要调用方设置,执行器通过这个id判断是否已有执行器
 	Title       string         `json:"title" gorm:"index;not null"`     // 执行器标题
@@ -178,6 +181,7 @@ func NewTask(name string, id int64, title string, limit int, temp bool) (*Task, 
 	tsk.Title = title
 	tsk.Addtime = time.Now().Unix()
 	tsk.Limit = limit
+	tsk.Tid = tid
 	if temp == true {
 		tsk.Nomal = 0
 	}
@@ -187,11 +191,6 @@ func NewTask(name string, id int64, title string, limit int, temp bool) (*Task, 
 		return nil, err
 	}
 
-	// if limit > 0 {
-	// 	tsk._sch = scheduler.NewWithLimit(mainsignal.MainCtx, limit)
-	// } else {
-	// 	tsk._sch = scheduler.New(mainsignal.MainCtx)
-	// }
 	tsk._sch = sch.NewScheduler(limit)
 
 	tsk._runners = make(map[string]*TaskRun)
@@ -280,6 +279,7 @@ func (t *Task) AddInterval(
 	tr._timeout = timeout
 	tr._sch = t._sch
 	tr.TaskName = t.Name
+	tr.TaskTid = t.Tid
 
 	if err := taskdb.Write(func(tx *gorm.DB) error {
 		return tr.Save(tr, tx)
@@ -294,6 +294,7 @@ func (t *Task) AddInterval(
 		retry,
 		retryDelay,
 		expireAt,
+		0.18,
 		func(context.Context) error {
 			trm := &TaskRunMsg{
 				TaskID:      tr.TaskID,
@@ -316,7 +317,78 @@ func (t *Task) AddInterval(
 	if err != nil {
 		return nil, err
 	}
-	// t._sch.RunNow(id)
+
+	tr._runner = r
+	t._runners[id] = tr
+	tr.fullMsg()
+
+	return tr, nil
+}
+
+func (t *Task) AddCron(
+	id string, // 唯一的id
+	title string, // 标题
+	timer int64, // 可以转成时分秒的时间差，如:-28800000
+	timeout time.Duration, // 超时时间
+	retry int, // 重试次数
+	retryDelay time.Duration, // 重试间隔
+	expireAt time.Time, // ⭐ 新增,在这个时间点停止任务
+	job func(*TaskRun) error, // 执行的方法
+) (*TaskRun, error) {
+	t._mu.Lock()
+	defer t._mu.Unlock()
+	if tr, ok := t._runners[id]; ok {
+		return tr, nil
+	}
+
+	tr := new(TaskRun)
+	tr.TaskID = t.ID
+	tr.RunID = id
+	tr.Title = title
+	tr.StartAt = time.Now().Unix()
+	tr._timeout = timeout
+	tr._sch = t._sch
+	tr.TaskName = t.Name
+	tr.TaskTid = t.Tid
+
+	if err := taskdb.Write(func(tx *gorm.DB) error {
+		return tr.Save(tr, tx)
+	}); err != nil {
+		return nil, err
+	}
+
+	h, m, s := funcs.MsToHMS(timer)
+	fmt.Println("启动时间: ", h, m, s, "---", timer)
+	r, err := t._sch.AddCron(
+		id,
+		fmt.Sprintf("%d %d %d * * *", s, m, h),
+		timeout,
+		retry,
+		retryDelay,
+		expireAt,
+		0.043,
+		func(context.Context) error {
+			trm := &TaskRunMsg{
+				TaskID:      tr.TaskID,
+				TaskRunID:   tr.ID,
+				Status:      1,
+				Addtime:     time.Now().Unix(),
+				TaskName:    tr.TaskName,
+				RunID:       tr.RunID,
+				Msg:         "开始执行...",
+				Tried:       int(tr._runner.LastRetryCount()),
+				NextRuntime: tr._runner.NextRunTime().Unix(),
+				Doned:       int64(tr._runner.RunCount()),
+			}
+			trm.sent(tr)
+			return job(tr)
+		},
+		tr.onComplate,
+		tr.onClose,
+	)
+	if err != nil {
+		return nil, err
+	}
 
 	tr._runner = r
 	t._runners[id] = tr
@@ -403,20 +475,26 @@ func (t *Task) AddChild(runnerID, title string, timeout time.Duration) (*TaskRun
 
 // 发送完整的TaskRunner消息
 func (tr *TaskRun) fullMsg() {
-	if tr._runner != nil {
-		tr.NextRuntime = tr._runner.NextRunTime().Unix()
-	}
-	if dt, err := config.Json.Marshal(map[string]any{
-		"type": "task-runner",
-		"data": tr,
-	}); err == nil {
-		ws.Broadcost(dt)
+	if toc, ok := TaskActived.Load(tr.TaskTid); ok {
+		if t, ok := toc.(*Task); ok {
+			if _, ok := t._runners[tr.RunID]; ok {
+				if tr._runner != nil {
+					tr.NextRuntime = tr._runner.NextRunTime().Unix()
+				}
+				if dt, err := config.Json.Marshal(map[string]any{
+					"type": "task-runner",
+					"data": tr,
+				}); err == nil {
+					ws.Broadcost(dt)
+				}
+			}
+		}
 	}
 }
 
 // 发送结束信号
 func (tr *TaskRun) RemoveMsg() {
-	fmt.Println("发送删除ws")
+	// fmt.Println("发送删除ws")
 	if dt, err := config.Json.Marshal(map[string]any{
 		"type": "task-runner-remove",
 		"data": tr,
@@ -427,15 +505,25 @@ func (tr *TaskRun) RemoveMsg() {
 
 // 发送执行消息
 func (trm *TaskRunMsg) sent(tr *TaskRun) {
-	trm.NextRuntime = tr._runner.NextRunTime().Unix()
-	trm.Doned = tr._runner.RunCount()
-	trm.TaskName = tr.TaskName
-	trm.RunID = tr.RunID
-	if dt, err := config.Json.Marshal(map[string]any{
-		"type": "task-runner-msg",
-		"data": trm,
-	}); err == nil {
-		ws.Broadcost(dt)
+	if toc, ok := TaskActived.Load(tr.TaskTid); ok {
+		if t, ok := toc.(*Task); ok {
+			t._mu.Lock()
+			if _, ok := t._runners[tr.RunID]; ok {
+				t._mu.Unlock()
+				trm.NextRuntime = tr._runner.NextRunTime().Unix()
+				trm.Doned = tr._runner.RunCount()
+				trm.TaskName = tr.TaskName
+				trm.RunID = tr.RunID
+				if dt, err := config.Json.Marshal(map[string]any{
+					"type": "task-runner-msg",
+					"data": trm,
+				}); err == nil {
+					ws.Broadcost(dt)
+				}
+			} else {
+				t._mu.Unlock()
+			}
+		}
 	}
 }
 
@@ -597,6 +685,11 @@ func (tr *TaskRun) StopAt(t time.Time) {
 	// tr._runner.SetStopAt(t)
 }
 
+// 设置开始时间
+func (tr *TaskRun) SetStartAt(t time.Time) {
+	tr._runner.SetStartAt(t)
+}
+
 // 获取执行器上下文
 func (tr *TaskRun) GetCtx() context.Context {
 	return tr._runner.GetCtx()
@@ -608,11 +701,11 @@ func (tr *TaskRun) RunNow() {
 }
 
 // 发送消息给前端
-func (tr *TaskRun) SentMsg(msg string) {
+func (tr *TaskRun) SentMsg(msg string, status int) {
 	trm := &TaskRunMsg{
 		TaskID:      tr.TaskID,
 		TaskRunID:   tr.ID,
-		Status:      0,
+		Status:      status,
 		Addtime:     time.Now().Unix(),
 		Msg:         msg,
 		TaskName:    tr.TaskName,
@@ -642,4 +735,13 @@ func (t *Task) Stop(runid string) {
 		t._mu.Unlock()
 		tr.RemoveMsg()
 	}
+}
+
+// 停止所有任务
+func (t *Task) StopAll() {
+	t._sch.Stop()
+	t._mu.Lock()
+	t._runners = make(map[string]*TaskRun)
+	t._mu.Unlock()
+	t.Sent()
 }

@@ -56,12 +56,24 @@ func runstart() {
 	// infosch = scheduler.NewWithLimit(mainsignal.MainCtx, 5)
 
 	// TaskLogger = tasklog.NewTaskLog("autoupdatemediauser", "自动更新/下载用户信息", 10, 30, false)
-	if ad, err := task.NewTask("mediauserdown", 0, "用户自动下载任务", 10, false); err == nil {
-		autoDownTL = ad
+	ad, err := task.NewTask("mediauserdown", 0, "用户自动下载任务", 3, false)
+	if err != nil {
+		panic("用户自动下载任务 加载失败:" + err.Error())
 	}
-	if ad, err := task.NewTask("mediauserinfo", 0, "用户自动更新任务", 10, false); err == nil {
-		autoInfoTL = ad
+	autoDownTL = ad
+
+	sd, err := task.NewTask("mediauserinfo", 0, "用户自动更新任务", 3, false)
+	if err != nil {
+		panic("用户自动更新任务 加载失败:" + err.Error())
 	}
+	autoInfoTL = sd
+
+	// if ad, err := task.NewTask("mediauserdown", 0, "用户自动下载任务", 3, false); err == nil {
+	// 	autoDownTL = ad
+	// }
+	// if ad, err := task.NewTask("mediauserinfo", 0, "用户自动更新任务", 3, false); err == nil {
+	// 	autoInfoTL = ad
+	// }
 	for _, v := range GetAutoUsers() {
 		v.AutoStart()
 	}
@@ -78,24 +90,9 @@ func (mu *MediaUser) InfoID() string {
 func (mu *MediaUser) AutoStart() error {
 	did := mu.DownID()
 	autoDownTL.Stop(did)
-	// if tr := autoDownTL.Query(did); tr != nil {
-	// 	fmt.Println("找到自动下载内容, 停止他!!!!!")
-	// 	autoDownTL.Stop(tr.RunID)
-	// 	// tr.RemoveMsg()
-	// } else {
-	// 	fmt.Println("未找到自动下载内容...")
-	// }
 
 	iid := mu.InfoID()
 	autoInfoTL.Stop(iid)
-	// if tr := autoInfoTL.Query(iid); tr != nil {
-	// 	autoInfoTL.Stop(tr.RunID)
-	// 	// tr.RemoveMsg()
-	// }
-	// if opt, err := getRunnerOption(mu.Id); err == nil {
-	// 	opt.Stop()
-	// }
-	// fmt.Println(mu.Id, "用户id启动---")
 	if mu.AutoDownload == 1 && mu.DownFreq > 0 {
 		tr, err := autoDownTL.AddInterval(
 			did,
@@ -115,12 +112,8 @@ func (mu *MediaUser) AutoStart() error {
 					}
 				}
 
-				// fmt.Println("自动下载中----", mu.Id, lastmedia.VideoID)
-				err := mu.RunJsInClient(tr.GetCtx(), tr)
-				// fmt.Println(err, "------执行结果")
+				err := mu.RunJsInClient(tr.GetCtx(), tr, true)
 				return err
-				// time.Sleep(time.Second * 2)
-				// return nil
 			},
 		)
 		if err != nil {
@@ -128,56 +121,36 @@ func (mu *MediaUser) AutoStart() error {
 		} else {
 			tr.RunNow()
 		}
+	}
+	if mu.Autoinfo == 1 {
+		fmt.Println("开启自动更新信息...")
+		iID := mu.InfoID()
+		_, err := autoInfoTL.AddCron(
+			iID,
+			fmt.Sprintf("%s 自动更新中...", mu.Name),
+			mu.AutoTimer,
+			time.Second*600,
+			3,
+			time.Second*10,
+			time.Time{},
+			func(tr *task.TaskRun) error {
+				err := mu.RunJsInClient(tr.GetCtx(), tr, false)
+				return err
+			},
+		)
+		if err != nil {
+			logs.Error(err.Error())
+		}
 
-		// tr, err := autoDownTL.AddChild(did, fmt.Sprintf("%s 自行下载中...", mu.Name), time.Second*600)
+		// tr, err := autoInfoTL.AddChild(iID, fmt.Sprintf("%s 自动获取信息", mu.Name), time.Second*30)
 		// if err != nil {
 		// 	logs.Error(err.Error())
 		// } else {
-		// 	err := tr.StartInterval(int64(mu.DownFreq*60), func(tr *task.TaskRun) error {
-		// 		fmt.Println("自动下载中----")
-		// 		time.Sleep(time.Second * 2)
-		// 		// mu.StartGetter(func(str string, bs *bs.Browser) {
-
-		// 		// }, func() {
-
-		// 		// }, func(url string) {
-
-		// 		// })
+		// 	tr.StartAtTime(mu.AutoTimer, func(tr *task.TaskRun) error {
+		// 		fmt.Println("自动更新信息...")
 		// 		return nil
 		// 	})
-		// 	fmt.Println(err, "自动下载错误------")
 		// }
-
-		// if tsk := TaskLogger.GetRunner(did); tsk == nil {
-		// 	opt, err := GetOptions(mu)
-		// 	if err != nil {
-		// 		logs.Error(err.Error())
-		// 		return err
-		// 	}
-
-		// 	opt.runner = TaskLogger.Append(
-		// 		mainsignal.MainCtx,
-		// 		did,
-		// 		fmt.Sprintf("%s 自动下载", mu.Name),
-		// 		opt.FmtDownload,
-		// 	)
-		// 	if err := opt.Start(); err != nil {
-		// 		logs.Error(err.Error())
-		// 		return err
-		// 	}
-		// }
-	}
-	if mu.Autoinfo == 1 {
-		iID := mu.InfoID()
-		tr, err := autoInfoTL.AddChild(iID, fmt.Sprintf("%s 自动获取信息", mu.Name), time.Second*30)
-		if err != nil {
-			logs.Error(err.Error())
-		} else {
-			tr.StartAtTime(mu.AutoTimer, func(tr *task.TaskRun) error {
-				fmt.Println("自动更新信息...")
-				return nil
-			})
-		}
 		// h, m, s := funcs.MsToHMS(mu.AutoTimer)
 		// if tsk := TaskLogger.GetRunner(iID); tsk == nil {
 		// 	opt, err := GetOptions(mu)
@@ -392,10 +365,10 @@ func (t *MediaUser) StartGetter(consoleFun func(str string, bs *bs.Browser), clo
 	runjs := js.GetContent(nil)
 
 	brows, _ := bs.BsManager.New(0, &bs.Options{
-		Url:      runurl,
-		JsStr:    runjs,
-		Headless: false,
-		Timeout:  time.Duration(time.Second * 30),
+		Url:     runurl,
+		JsStr:   runjs,
+		Show:    false,
+		Timeout: time.Duration(time.Second * 30),
 	}, true)
 
 	brows.OnClosed(func() {
@@ -559,12 +532,12 @@ func (t *MediaUser) autodownload(videos []string) {
 }
 
 // 使用终端打开用户主页并执行脚本
-func (mu *MediaUser) RunJsInClient(ctx context.Context, tr *task.TaskRun) error {
+func (mu *MediaUser) RunJsInClient(ctx context.Context, tr *task.TaskRun, download bool) error {
 	opts, err := GetOptions(mu, ctx, tr)
 	if err != nil {
 		return err
 	}
-	return opts.Start()
+	return opts.Start(download)
 	// ctp, cid := mu.GetCanUseClient()
 	// var opt any
 	// switch ctp {

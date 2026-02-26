@@ -95,6 +95,7 @@ type TaskToTag struct {
 var Dbs = db.TaskDB
 
 // var Seched *scheduler.Scheduler
+// var RunnerTask *task.Task
 
 func init() {
 	Dbs.DB().AutoMigrate(&Task{})
@@ -103,13 +104,16 @@ func init() {
 	Dbs.DB().AutoMigrate(&TaskToTag{})
 	Dbs.DB().AutoMigrate(&TaskParam{})
 
+	// t, err := task.NewTask("task", 0, "自动化任务", 5, false)
+	// if err != nil {
+	// 	panic("自动化任务 加载失败:" + err.Error())
+	// }
+	// RunnerTask = t
+
 	var tsks []*Task
 	Dbs.DB().Model(&Task{}).Where("status = 1").Find(&tsks)
-
-	// // Seched = scheduler.New()
-
 	for _, v := range tsks {
-		v.Start()
+		v.Run()
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -30,7 +31,7 @@ type Options struct {
 	Height      int
 	ClientType  int
 	ClientID    int64
-	Headless    bool
+	IsShow      bool
 	Url         string
 	Js          string
 	Proxy       string
@@ -52,13 +53,13 @@ func GetOptions(mu *MediaUser, ctx context.Context, tr *task.TaskRun) (*Options,
 	// 	return opt, nil
 	// }
 	opt := &Options{
-		MUID:     mu.Id,
-		mu:       mu,
-		Timeout:  time.Second * 300,
-		ctx:      ctx,
-		tr:       tr,
-		Headless: false,
-	}
+		MUID:    mu.Id,
+		mu:      mu,
+		Timeout: time.Second * 300,
+		ctx:     ctx,
+		tr:      tr,
+		IsShow:  true,
+	} 
 	if err := opt.getJsAndUrl(); err != nil {
 		return nil, err
 	}
@@ -70,7 +71,7 @@ func GetOptions(mu *MediaUser, ctx context.Context, tr *task.TaskRun) (*Options,
 }
 
 // 启动周期性自动任务
-func (opt *Options) Start() error {
+func (opt *Options) Start(downloads bool) error {
 	var opts any
 
 	switch opt.ClientType {
@@ -84,7 +85,7 @@ func (opt *Options) Start() error {
 		opts = runner.GenWebOpt(
 			opt.ctx,
 			opt.ClientID,
-			opt.Headless,
+			opt.IsShow,
 			opt.Url,
 			opt.Js,
 			opt.ProxyConfig,
@@ -103,8 +104,8 @@ func (opt *Options) Start() error {
 
 	err = r.Start(opt.Timeout, func(str string) error {
 		r.Stop()
-		opt.tr.SentMsg("信息获取成功,正在解析...")
-		return opt.ParseInfos(str, true)
+		opt.tr.SentMsg("信息获取成功,正在解析...", 0)
+		return opt.ParseInfos(str, downloads)
 	})
 	return err
 }
@@ -115,23 +116,25 @@ func (opt *Options) ParseInfos(str string, downloads bool) error {
 	if downloads == true {
 		if !gs.Get("lists").Exists() || len(gs.Get("lists").Array()) < 1 {
 			// return errors.New("找不到下载列表")
+			opt.tr.SentMsg("找不到下载列表", 1)
 			return nil
 		}
 
-		var lastVideoID string
-		dbs.DB().Model(&Media{}).Select("video_id").Where("user_id = ? and video_id is not null and video_id != ''", opt.MUID).Order("addtime DESC").First(&lastVideoID)
-		var urls []string
-		// fmt.Println("当前最新的videoid:", lastVideoID)
+		var vids []string
+		mmp := make(map[string]string)
 		for _, v := range gs.Get("lists").Array() {
-			vstr := v.String()
-			vtem := strings.Split(vstr, "/")
-			if lastVideoID == vtem[len(vtem)-1] {
-				break
-			}
-			urls = append(urls, vstr)
+			sr := v.String()
+			vtem := strings.Split(sr, "/")
+			vid := vtem[len(vtem)-1]
+			vids = append(vids, vid)
+			mmp[vid] = sr
 		}
-		// fmt.Println("查找到的地址:", urls)
-		// return nil
+
+		var inMedia []string
+		dbs.DB().Model(&Media{}).
+			Select("video_id").
+			Where("user_id = ? and platform = ? and video_id in ?", opt.MUID, opt.mu.Platform, vids).
+			Find(&inMedia)
 		if opt.Proxy == "" && opt.ProxyConfig != nil {
 			opt.Proxy = opt.ProxyConfig.Listened()
 		}
@@ -144,33 +147,31 @@ func (opt *Options) ParseInfos(str string, downloads bool) error {
 			}
 		}
 
-		// fmt.Println("找到 ", len(urls), " 个待下载视频!", urls)
-		if len(urls) > 0 {
+		if len(vids) > 0 {
 			var idx float64
-			urlstotal := float64(len(urls))
+			urlstotal := float64(len(vids))
 			opt.tr.ReportSchedule(urlstotal, 0)
-			// var wg sync.WaitGroup
-			// sem := make(chan struct{}, 1)
 
-			for _, url := range urls {
+			for vid, url := range mmp {
+				if slices.Contains(inMedia, vid) {
+					continue
+				}
 				select {
 				case <-opt.ctx.Done():
-					fmt.Println("ctx 结束....")
+					// fmt.Println("ctx 结束....")
 					return nil
 				default:
 					parseRes, err := parser.ParseVideoShareUrlByRegexp(url, transport)
 					if err != nil {
-						fmt.Println("解析地址错误:", err)
+						// fmt.Println("解析地址错误:", err)
+						opt.tr.SentMsg("解析地址错误:"+err.Error(), 1)
 						idx = idx + 1
 						opt.tr.ReportSchedule(urlstotal, idx)
-						// opt.runner.SentErr("解析视频地址错误: " + err.Error() + " - " + v)
-						// return nil
 					} else {
 						if parseRes.VideoUrl != "" {
 							// fn := funcs.Md5String(parseRes.VideoUrl)
 							path := fmt.Sprintf(".auto/%s%d", opt.mu.Uuid, opt.mu.Id)
 							if md, err := DownLoadVideo(url, parseRes.VideoUrl, path, "", opt.Proxy, func(percent float64, downloaded, total int64) {
-								// fmt.Println(percent, "----", downloaded, "----", total)
 								if percent >= 100 {
 									idx = idx + 1
 									opt.tr.ReportSchedule(urlstotal, idx)
@@ -181,28 +182,16 @@ func (opt *Options) ParseInfos(str string, downloads bool) error {
 								md.VideoID = vtem[len(vtem)-1]
 								md.Platform = opt.mu.Platform
 								md.Title = parseRes.Title
-								err := dbs.Write(func(tx *gorm.DB) error {
+								dbs.Write(func(tx *gorm.DB) error {
 									return md.Save(md, tx)
 								})
-								fmt.Println(err, "===== 保存media", md.Md5, ":", md.Url)
+								// fmt.Println(err, "===== 保存media", md.Md5, ":", md.Url)
 							}
 						}
 					}
 					time.Sleep(time.Duration(funcs.RandomNumber(3, 10)) * time.Second)
 				}
-				// wg.Go(func() {
-				// 	select {
-				// 	case sem <- struct{}{}:
-				// 	case <-opt.ctx.Done():
-				// 		fmt.Println("ctx 结束....")
-				// 		return
-				// 	}
-				// 	defer func() { <-sem }()
-
-				// })
 			}
-			// wg.Wait()
-
 		} else {
 			// fmt.Println("没有新的视频以供下载!")
 			// return errors.New("没有新的视频以供下载!")
@@ -423,7 +412,7 @@ func (opt *Options) getProxyAndClient() error {
 // 		var vids []string
 // 		for _, v := range dt.Get("lists").Array() {
 // 			vids = append(vids, v.String())
-// 		}
+// 		
 // 		opt.autodownload(vids)
 // 	}
 
@@ -527,3 +516,4 @@ func (opt *Options) getProxyAndClient() error {
 
 // 	// opt.mu.Id
 // }
+

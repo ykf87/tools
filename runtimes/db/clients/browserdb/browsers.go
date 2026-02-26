@@ -26,6 +26,7 @@ type Browser struct {
 	Height      int    `json:"height" gorm:"default:1040" form:"height"`              // 屏幕高度
 	Ip          string `json:"ip" gorm:"default:null;"`                               // ip地址,设置了代理才有
 	AdminID     int64  `json:"admin_id" gorm:"index;default:0"`                       // 后台用户的登录id
+	DefUrl      string `json:"def_url" gorm:"default:null"`                           // 默认打开地址
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	Tags        []string `json:"tags" gorm:"-" form:"tags"` // 标签
@@ -83,6 +84,9 @@ func (this *Browser) Open(opt *bs.Options) error {
 	if bs.BsManager.IsArride(this.Id) {
 		return fmt.Errorf("浏览器已经打开")
 	}
+	if opt == nil {
+		opt = new(bs.Options)
+	}
 	if opt.Proxy == "" {
 		if this.Proxy > 0 {
 			px := proxys.GetById(this.Proxy)
@@ -100,11 +104,16 @@ func (this *Browser) Open(opt *bs.Options) error {
 			}
 		}
 	}
+	if this.DefUrl != "" {
+		opt.Url = this.DefUrl
+	}
 
 	opt.Width = this.Width
 	opt.Height = this.Height
 	opt.Language = this.Lang
 	opt.Timezone = this.Timezone
+	opt.ID = this.Id
+	opt.Show = true
 
 	bbs, err := bs.BsManager.New(this.Id, opt, true)
 	if err != nil {

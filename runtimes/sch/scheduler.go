@@ -51,6 +51,7 @@ type Runner struct {
 	lastRetryCount  int64
 	nextRun         atomic.Value // time.Time
 	expireAt        time.Time
+	startAt         atomic.Value
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -66,11 +67,13 @@ func NewScheduler(maxConcurrency int) *Scheduler {
 		maxConcurrency = 1
 	}
 
-	return &Scheduler{
+	s := &Scheduler{
 		cron:           cron.New(cron.WithSeconds()),
 		maxConcurrency: int32(maxConcurrency),
 		semaphore:      make(chan struct{}, maxConcurrency),
 	}
+	s.cron.Start()
+	return s
 }
 
 func (s *Scheduler) Start() {
@@ -166,10 +169,18 @@ func (r *Runner) calcNextCronRun(base time.Time) time.Time {
 }
 
 func (r *Runner) execute() {
-
 	if atomic.LoadInt32(&r.closed) == 1 {
 		return
 	}
+
+	// // 开始时间检查
+	// if v := r.startAt.Load(); v != nil {
+	// 	startTime := v.(time.Time)
+	// 	if !startTime.IsZero() && time.Now().Before(startTime) {
+	// 		// 未到开始时间，直接跳过
+	// 		return
+	// 	}
+	// }
 
 	if !atomic.CompareAndSwapInt32(&r.running, 0, 1) {
 		return
@@ -270,6 +281,7 @@ func (s *Scheduler) AddInterval(
 	retry int,
 	retryDelay time.Duration,
 	expireAt time.Time, // ⭐ 新增
+	jitter float64,
 	job func(context.Context) error,
 	onComplete func(id string, err error),
 	onClose func(id string),
@@ -289,6 +301,9 @@ func (s *Scheduler) AddInterval(
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	if jitter < 0 {
+		jitter = 0.2
+	}
 	r := &Runner{
 		id:         id,
 		taskType:   TaskInterval,
@@ -296,7 +311,7 @@ func (s *Scheduler) AddInterval(
 		timeout:    timeout,
 		retry:      retry,
 		retryDelay: retryDelay,
-		jitter:     0.2,
+		jitter:     jitter,
 		expireAt:   expireAt,
 		job:        job,
 		onComplete: onComplete,
@@ -311,30 +326,54 @@ func (s *Scheduler) AddInterval(
 	// r.nextRun.Store(r.calcNextIntervalRun())
 	s.tasks.Store(id, r)
 	go func() {
-		for {
-			wait := time.Until(r.NextRunTime())
-			if wait < 0 {
-				wait = 0
+		go func() {
+
+			// 计算第一次执行时间（考虑 startAt）
+			now := time.Now()
+
+			startTime := time.Time{}
+			if v := r.startAt.Load(); v != nil {
+				startTime = v.(time.Time)
 			}
-			select {
-			case <-time.After(time.Until(r.NextRunTime())):
-				if !r.expireAt.IsZero() && time.Now().After(r.expireAt) {
-					r.s.Remove(r.id)
+
+			var first time.Time
+			if !startTime.IsZero() && startTime.After(now) {
+				first = startTime
+			} else {
+				first = now.Add(r.interval)
+			}
+
+			first = applyJitter(first, r.jitter)
+			r.nextRun.Store(first)
+
+			timer := time.NewTimer(time.Until(first))
+			defer timer.Stop()
+
+			for {
+				select {
+				case <-timer.C:
+
+					if atomic.LoadInt32(&r.closed) == 1 {
+						return
+					}
+
+					if !r.expireAt.IsZero() && time.Now().After(r.expireAt) {
+						r.s.Remove(r.id)
+						return
+					}
+
+					r.execute()
+
+					next := r.calcNextIntervalRun(time.Now())
+					r.nextRun.Store(next)
+
+					timer.Reset(time.Until(next))
+
+				case <-r.ctx.Done():
 					return
 				}
-
-				if atomic.LoadInt32(&r.closed) == 1 {
-					return
-				}
-
-				// next := r.calcNextIntervalRun()
-				// r.nextRun.Store(next)
-				r.execute()
-				// r.nextRun.Store(r.calcNextIntervalRun())
-			case <-r.ctx.Done():
-				return
 			}
-		}
+		}()
 	}()
 
 	return r, nil
@@ -347,21 +386,25 @@ func (s *Scheduler) AddCron(
 	retry int,
 	retryDelay time.Duration,
 	expireAt time.Time, // ⭐ 新增
+	jitter float64,
 	job func(context.Context) error,
 	onComplete func(id string, err error),
 	onClose func(id string),
-) error {
+) (*Runner, error) {
 
 	if atomic.LoadInt32(&s.stopped) == 1 {
-		return errors.New("scheduler stopped")
+		return nil, errors.New("scheduler stopped")
 	}
 
 	if _, exists := s.tasks.Load(id); exists {
-		return errors.New("task id already exists")
+		return nil, errors.New("task id already exists")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	if jitter < 0 {
+		jitter = 0.2
+	}
 	r := &Runner{
 		id:         id,
 		taskType:   TaskCron,
@@ -369,7 +412,7 @@ func (s *Scheduler) AddCron(
 		timeout:    timeout,
 		retry:      retry,
 		retryDelay: retryDelay,
-		jitter:     0.2,
+		jitter:     jitter,
 		expireAt:   expireAt,
 		job:        job,
 		onComplete: onComplete,
@@ -381,44 +424,65 @@ func (s *Scheduler) AddCron(
 
 	// 先定义执行函数（使用 r.entryID，不用外部变量）
 	wrapped := func() {
-		if !r.expireAt.IsZero() && time.Now().After(r.expireAt) {
-			r.s.Remove(r.id)
-			return
-		}
 
 		if atomic.LoadInt32(&r.closed) == 1 {
 			return
 		}
 
+		if !r.expireAt.IsZero() && time.Now().After(r.expireAt) {
+			r.s.Remove(r.id)
+			return
+		}
+
+		// startAt 控制
+		if v := r.startAt.Load(); v != nil {
+			startTime := v.(time.Time)
+			if !startTime.IsZero() && time.Now().Before(startTime) {
+				return
+			}
+		}
+
+		r.execute()
+
 		entry := s.cron.Entry(r.entryID)
 		if !entry.Next.IsZero() {
 			r.nextRun.Store(r.calcNextCronRun(entry.Next))
 		}
-		r.execute()
-
-		// entry := s.cron.Entry(r.entryID)
-		// if !entry.Next.IsZero() {
-		// 	r.nextRun.Store(r.calcNextCronRun(entry.Next))
-		// }
 	}
 
 	entryID, err := s.cron.AddFunc(expr, wrapped)
 	if err != nil {
 		cancel()
-		return err
+		return nil, err
 	}
 
 	r.entryID = entryID
 
 	// 初始化 nextRun
 	entry := s.cron.Entry(r.entryID)
-	if !entry.Next.IsZero() {
-		r.nextRun.Store(r.calcNextCronRun(entry.Next))
+
+	now := time.Now()
+	startTime := time.Time{}
+	if v := r.startAt.Load(); v != nil {
+		startTime = v.(time.Time)
+	}
+
+	var next time.Time
+
+	if !startTime.IsZero() && startTime.After(now) {
+		next = entry.Schedule.Next(startTime)
+	} else {
+		next = entry.Next
+	}
+
+	if !next.IsZero() {
+		r.nextRun.Store(r.calcNextCronRun(next))
 	}
 
 	s.tasks.Store(id, r)
+	s.cron.Start()
 
-	return nil
+	return r, nil
 }
 
 func (s *Scheduler) Remove(id string) {
@@ -450,6 +514,13 @@ func (r *Runner) SetExpireAt(t time.Time) {
 	r.expireAt = t
 }
 
+func (r *Runner) SetStartAt(t time.Time) *Runner {
+	if !t.IsZero() {
+		r.startAt.Store(t)
+	}
+	return r
+}
+
 func (s *Scheduler) RunNow(id string) bool {
 	v, ok := s.tasks.Load(id)
 	if !ok {
@@ -462,7 +533,7 @@ func (s *Scheduler) RunNow(id string) bool {
 		return false
 	}
 
-	go r.execute()
+	r.execute()
 
 	return true
 }

@@ -1,7 +1,6 @@
 package users
 
 import (
-	"fmt"
 	"net/http"
 	"tools/runtimes/db"
 	"tools/runtimes/db/admins"
@@ -72,7 +71,6 @@ func Editer(c *gin.Context) {
 	}
 
 	if err := medias.GetDb().Write(func(tx *gorm.DB) error {
-		fmt.Println("写入------")
 		if err := mmu.EmptyClient(tx); err != nil {
 			return err
 		}
