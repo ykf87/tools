@@ -123,7 +123,7 @@ func (mu *MediaUser) AutoStart() error {
 		}
 	}
 	if mu.Autoinfo == 1 {
-		fmt.Println("开启自动更新信息...")
+		// fmt.Println("开启自动更新信息...")
 		iID := mu.InfoID()
 		_, err := autoInfoTL.AddCron(
 			iID,

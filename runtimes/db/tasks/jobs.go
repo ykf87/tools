@@ -18,6 +18,7 @@ import (
 var Runners sync.Map
 
 func (t *Task) ReStart() {
+	// fmt.Println("重启任务-----")
 	t.Stop()
 	time.Sleep(time.Millisecond * 100)
 	t.Run()
@@ -26,14 +27,17 @@ func (t *Task) ReStart() {
 // 启动任务
 func (t *Task) Run() error {
 	if sc := getRunner(t.ID); sc != nil {
+		// fmt.Println("任务已经存在!")
 		return nil
 	}
-
-	return t.build()
+	err := t.build()
+	// fmt.Println("任务启动结果:", err)
+	return err
 }
 
 // 停止任务
 func (t *Task) Stop() {
+	// fmt.Println("停止任务---")
 	if sc := getRunner(t.ID); sc != nil {
 		sc.StopAll()
 	}
@@ -46,7 +50,7 @@ func Flush() {
 }
 
 func getRunner(id int64) *task.Task {
-	if ttr, ok := RunnerTasks.Load(id); ok {
+	if ttr, ok := Runners.Load(id); ok {
 		if scr, ok := ttr.(*task.Task); ok {
 			return scr
 		}
@@ -59,6 +63,7 @@ func (t *Task) build() error {
 	if t.Endtime > 0 && t.Endtime < time.Now().Unix() {
 		return errors.New(i18n.T("Expired"))
 	}
+	// fmt.Println("启动任务!!!")
 
 	// 查找执行客户端
 	if len(t.Clients) < 1 {
@@ -107,13 +112,19 @@ func (t *Task) build() error {
 			tsc.RunNow()
 		}
 	}
-	RunnerTasks.Store(t.ID, sc)
+	Runners.Store(t.ID, sc)
 
 	if t.Endtime > 0 {
 		expire.Add(t.Endtime, func() {
+			// fmt.Println("到时停止任务")
 			t.Stop()
 		})
 	}
+
+	// expire.Add(time.Now().Add(time.Second*5).Unix(), func() {
+	// 	fmt.Println("到时停止任务")
+	// 	t.Stop()
+	// })
 
 	return nil
 }

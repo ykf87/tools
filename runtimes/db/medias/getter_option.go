@@ -59,7 +59,7 @@ func GetOptions(mu *MediaUser, ctx context.Context, tr *task.TaskRun) (*Options,
 		ctx:     ctx,
 		tr:      tr,
 		IsShow:  true,
-	} 
+	}
 	if err := opt.getJsAndUrl(); err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (opt *Options) Start(downloads bool) error {
 
 	err = r.Start(opt.Timeout, func(str string) error {
 		r.Stop()
-		opt.tr.SentMsg("信息获取成功,正在解析...", 0)
+		opt.tr.SentMsg("信息获取成功,正在解析...", 0, false)
 		return opt.ParseInfos(str, downloads)
 	})
 	return err
@@ -116,7 +116,7 @@ func (opt *Options) ParseInfos(str string, downloads bool) error {
 	if downloads == true {
 		if !gs.Get("lists").Exists() || len(gs.Get("lists").Array()) < 1 {
 			// return errors.New("找不到下载列表")
-			opt.tr.SentMsg("找不到下载列表", 1)
+			opt.tr.SentMsg("找不到下载列表", 1, true)
 			return nil
 		}
 
@@ -164,7 +164,7 @@ func (opt *Options) ParseInfos(str string, downloads bool) error {
 					parseRes, err := parser.ParseVideoShareUrlByRegexp(url, transport)
 					if err != nil {
 						// fmt.Println("解析地址错误:", err)
-						opt.tr.SentMsg("解析地址错误:"+err.Error(), 1)
+						opt.tr.SentMsg("解析地址错误:"+err.Error(), 1, true)
 						idx = idx + 1
 						opt.tr.ReportSchedule(urlstotal, idx)
 					} else {
@@ -412,7 +412,7 @@ func (opt *Options) getProxyAndClient() error {
 // 		var vids []string
 // 		for _, v := range dt.Get("lists").Array() {
 // 			vids = append(vids, v.String())
-// 		
+//
 // 		opt.autodownload(vids)
 // 	}
 
@@ -516,4 +516,3 @@ func (opt *Options) getProxyAndClient() error {
 
 // 	// opt.mu.Id
 // }
-
