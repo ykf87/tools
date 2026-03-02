@@ -99,9 +99,7 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 	// b.onConsole.Store((func([]*rt.RemoteObject))(nil))
 	//
 	b.onURLChange.Store(func(url string) {
-		if b.Opts.JsStr != "" {
-			b.RunJs(b.Opts.JsStr)
-		}
+		b.RunJs(b.Opts.JsStr)
 	})
 	b.onConsole.Store(func(args []*rt.RemoteObject) {
 		for _, arg := range args {
@@ -121,10 +119,10 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 						case <-b.ctx.Done():
 						}
 					}
-					// b.Close()
+					b.Close()
 				case "fail":
 					messages.ErrorMsg(gs.Get("msg").String())
-					// b.Close()
+					b.Close()
 				case "notify":
 					if b.Opts.Msg != nil {
 						select {
@@ -149,6 +147,16 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 					if b.Opts.Msg != nil {
 						select {
 						case b.Opts.Msg <- "输入数据":
+						case <-b.ctx.Done():
+						}
+					}
+				case "click": // 点击
+					x := gs.Get("x").Float()
+					y := gs.Get("y").Float()
+					b.Click(x, y)
+					if b.Opts.Msg != nil {
+						select {
+						case b.Opts.Msg <- "点击按钮":
 						case <-b.ctx.Done():
 						}
 					}

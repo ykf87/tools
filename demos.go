@@ -1,5 +1,19 @@
 package main
 
+import (
+	"context"
+	"fmt"
+	"time"
+	"tools/runtimes/bs"
+	"tools/runtimes/db/jses"
+	"tools/runtimes/db/proxys"
+	"tools/runtimes/proxy"
+	"tools/runtimes/sch"
+
+	"github.com/chromedp/cdproto/runtime"
+	"github.com/tidwall/gjson"
+)
+
 //	func init() {
 //		s := scheduler.New(mainsignal.MainCtx)
 //		rt := s.NewRunner(func(ctx context.Context) error {
@@ -41,26 +55,103 @@ package main
 //
 // }
 func init() {
-	// s := sch.NewScheduler(5)
-	// tr, err := s.AddInterval(
-	// 	"task1",
-	// 	10*time.Second, // interval
-	// 	5*time.Second,  // timeout
-	// 	2,              // retry
-	// 	2*time.Second,  // retryDelay
-	// 	time.Now().Add(time.Second*20),
-	// 	func(ctx context.Context) error {
-	// 		fmt.Println("interval task running:", time.Now())
-	// 		time.Sleep(2 * time.Second)
-	// 		return nil
-	// 	},
-	// 	func(id string, err error) {
-	// 		fmt.Println("task complete:", id, "err:", err)
-	// 	},
-	// 	func(id string) {
-	// 		fmt.Println("task closed:", id)
-	// 	},
-	// )
-	// s.RunNow(tr.GetID())
-	// fmt.Println(err)
+	// testBrowser()
+}
+
+func scheduler() {
+	s := sch.NewScheduler(5)
+	tr, err := s.AddInterval(
+		"task1",
+		10*time.Second, // interval
+		5*time.Second,  // timeout
+		2,              // retry
+		2*time.Second,  // retryDelay
+		time.Now().Add(time.Second*20),
+		0,
+		func(ctx context.Context) error {
+			fmt.Println("interval task running:", time.Now())
+			time.Sleep(2 * time.Second)
+			return nil
+		},
+		func(id string, err error) {
+			fmt.Println("task complete:", id, "err:", err)
+		},
+		func(id string) {
+			fmt.Println("task closed:", id)
+		},
+	)
+	s.RunNow(tr.GetID())
+	fmt.Println(err)
+}
+
+func testBrowser() {
+	var jsstr string
+	je := jses.GetJsByCode("ddd")
+	if je != nil {
+		jsstr = je.GetContent(nil)
+	}
+
+	pro := proxys.GetById(136)
+	ch := make(chan *proxy.ProxyConfig)
+	go func() {
+		pc, err := pro.Start(false)
+		if err != nil {
+			ch <- nil
+		} else {
+			ch <- pc
+		}
+	}()
+	pc := <-ch
+	if pc == nil {
+		panic("代理启动失败")
+	}
+
+	b, err := bs.BsManager.New(-1, &bs.Options{
+		ID:    -1,
+		Url:   "https://www.tiktok.com/",
+		JsStr: jsstr,
+		Show:  false,
+		Pc:    pc,
+	}, true)
+	if err != nil {
+		panic(err)
+	}
+
+	b.OnURLChange(func(s string) {
+		fmt.Println("url发生改变:", s)
+		b.RunJs(jsstr)
+	})
+
+	b.OnConsole(func(args []*runtime.RemoteObject) {
+		for _, arg := range args {
+			if arg.Value != nil {
+				gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
+				if gs.Get("version").String() == "" {
+					continue
+				}
+				fmt.Println(gs.String(), "-----------")
+				switch gs.Get("type").String() {
+				case "click": // 点击
+					fmt.Println("点击按钮触发")
+					x := gs.Get("x").Float()
+					y := gs.Get("y").Float()
+					b.Click(x, y)
+					if b.Opts.Msg != nil {
+						select {
+						case b.Opts.Msg <- "点击按钮":
+						case <-b.Opts.Ctx.Done():
+						}
+					}
+				case "success":
+					fmt.Println("执行完成!")
+					b.Close()
+				case "fail":
+					fmt.Println(gs.Get("msg").String())
+					b.Close()
+				}
+			}
+		}
+	})
+	fmt.Println(b.OpenBrowser())
+	// b.GoToUrl("https://www.tiktok.com/")
 }

@@ -18,5 +18,5 @@ func init() {
 			"MINIO_ROOT_PASSWORD=StrongPassword123!",
 		)
 	}, "server", config.FullPath(".mini"), "--console-address", fmt.Sprintf("0.0.0.0:%d", MINIPORT))
-	fmt.Println("minio启动端口:", MINIPORT)
+	fmt.Println("io文件存储启动端口:", MINIPORT)
 }

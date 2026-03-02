@@ -177,7 +177,7 @@ func (t *Task) genrunner(v *TaskClients) (runner.Runner, error) {
 		opt = runner.GenWebOpt(
 			mainsignal.MainCtx,
 			v.DeviceID,
-			t.Headless != 1,
+			t.Headless == 1,
 			t.DefUrl, t.GetRunJscript(),
 			pc,
 			time.Duration(t.Timeout),

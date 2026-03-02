@@ -141,7 +141,7 @@ func (b *Browser) RunJs(js string) (any, error) {
 	if js != "" {
 		js = b.packagingJs(js)
 		// fmt.Println(js, "=-=====")
-		if err := b.Run(chromedp.Evaluate(js, &rs)); err != nil {
+		if err := b.Run(chromedp.WaitReady("body", chromedp.ByQuery), chromedp.Evaluate(js, &rs)); err != nil {
 			return nil, err
 		}
 	} else {
@@ -201,6 +201,13 @@ func (this *Browser) InputTxt(text, clickNode string) error {
 		chromedp.Sleep(time.Second*1),
 		chromedp.SendKeys(clickNode, text, chromedp.NodeVisible),
 	)
+}
+
+// 点击浏览器某个位置
+func (this *Browser) Click(x, y float64) error {
+	err := this.Run(chromedp.MouseClickXY(x, y))
+	fmt.Println("点击结果:", err)
+	return err
 }
 
 // 当前浏览器是否存活

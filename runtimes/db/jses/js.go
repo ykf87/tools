@@ -3,6 +3,7 @@ package jses
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"tools/runtimes/aess"
 	"tools/runtimes/db"
@@ -102,7 +103,15 @@ func (this *Js) GetContent(taskParams map[string]any) string {
 	for _, v := range params {
 		val, ok := taskParams[v.CodeName]
 		if !ok {
-			val = v.DefaultValue
+			def := v.DefaultValue
+			if def == "" {
+				def = "''"
+			} else {
+				if _, err := strconv.Atoi(def); err != nil {
+					def = fmt.Sprintf("'%s'", def)
+				}
+			}
+			val = def
 		}
 		str = funcs.ReplaceContent(str, prev, end, v.CodeName, val)
 	}
