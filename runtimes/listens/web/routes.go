@@ -126,6 +126,7 @@ func router() {
 			spiderUserGroup.POST("edit", users.Editer)
 			spiderUserGroup.GET("getinfo", users.GetInfo)
 			spiderUserGroup.GET("usermeidas", users.UserMeidas)
+			spiderUserGroup.POST("batchadd", users.BatchAdd)
 		}
 	}
 

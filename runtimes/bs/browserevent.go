@@ -99,6 +99,9 @@ func (b *Browser) Close() {
 			b.Opts.Msg = nil
 		}
 	}
+	if b.Opts.Pc != nil {
+		b.Opts.Pc.Close(false)
+	}
 
 	b.closed.Store(true)
 	eventbus.Bus.Publish("browser-close", b)

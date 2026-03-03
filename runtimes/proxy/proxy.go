@@ -164,7 +164,6 @@ func (this *ProxyConfig) IsRuning() bool {
 
 // 关闭代理
 func (this *ProxyConfig) Close(enforce bool) error {
-	fmt.Println("代理发起关闭-----")
 	if this.Guard == true && enforce == false {
 		return errors.New(i18n.T("The daemon agent cannot be shut down"))
 	}
@@ -172,6 +171,7 @@ func (this *ProxyConfig) Close(enforce bool) error {
 		if err := this.server.Close(); err != nil {
 			return err
 		}
+		fmt.Println("代理已关闭:", this.Name)
 	}
 	this.server = nil
 	proxysMap.Delete(this.ConfMd5)

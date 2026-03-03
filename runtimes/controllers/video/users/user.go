@@ -143,86 +143,6 @@ func Editer(c *gin.Context) {
 		return
 	}
 	go mmu.AutoStart()
-
-	// if err := mmu.EmptyClient(tx); err != nil {
-	// 	tx.Rollback()
-	// 	response.Error(c, http.StatusBadRequest, err.Error(), nil)
-	// 	return
-	// }
-	// if err := mmu.EmptyProxy(tx); err != nil {
-	// 	tx.Rollback()
-	// 	response.Error(c, http.StatusBadRequest, err.Error(), nil)
-	// 	return
-	// }
-	// if err := mmu.EmptyTag(tx); err != nil {
-	// 	tx.Rollback()
-	// 	response.Error(c, http.StatusBadRequest, err.Error(), nil)
-	// 	return
-	// }
-
-	// for tp, vls := range mu.Clients {
-	// 	var mutc []*medias.MediaUserToClient
-	// 	for _, v := range vls {
-	// 		mutc = append(mutc, &medias.MediaUserToClient{
-	// 			MUID:       mu.Id,
-	// 			ClientType: tp,
-	// 			ClientID:   v,
-	// 		})
-	// 	}
-	// 	if len(mutc) > 0 {
-	// 		if err := tx.Create(mutc).Error; err != nil {
-	// 			tx.Rollback()
-	// 			response.Error(c, http.StatusBadRequest, err.Error(), nil)
-	// 			return
-	// 		}
-	// 	}
-	// }
-
-	// if len(mu.Proxys) > 0 {
-	// 	var mutp []*medias.MediaUserProxy
-	// 	for _, v := range mu.Proxys {
-	// 		mutp = append(mutp, &medias.MediaUserProxy{
-	// 			MUID:    mu.Id,
-	// 			ProxyID: v,
-	// 		})
-	// 	}
-	// 	if len(mutp) > 0 {
-	// 		if err := tx.Create(mutp).Error; err != nil {
-	// 			tx.Rollback()
-	// 			response.Error(c, http.StatusBadRequest, err.Error(), nil)
-	// 			return
-	// 		}
-	// 	}
-	// }
-
-	// if len(mu.Tags) > 0 {
-	// 	tgs := medias.AddMUTagsBySlice(mu.Tags)
-	// 	var mutt []*medias.MediaUserToTag
-	// 	for _, v := range tgs {
-	// 		mutt = append(mutt, &medias.MediaUserToTag{
-	// 			UserID: mu.Id,
-	// 			TagID:  v.ID,
-	// 		})
-	// 	}
-	// 	if len(mutt) > 0 {
-	// 		if err := tx.Create(mutt).Error; err != nil {
-	// 			tx.Rollback()
-	// 			response.Error(c, http.StatusBadRequest, err.Error(), nil)
-	// 			return
-	// 		}
-	// 	}
-	// }
-
-	// mmu.Autoinfo = mu.Autoinfo
-	// mmu.AutoDownload = mu.AutoDownload
-	// mmu.AutoTimer = mu.AutoTimer
-	// mmu.DownFreq = mu.DownFreq
-	// if err := mmu.Save(tx); err != nil {
-	// 	tx.Rollback()
-	// 	response.Error(c, http.StatusBadRequest, err.Error(), nil)
-	// 	return
-	// }
-	// tx.Commit()
 	mu.Commpare()
 
 	response.Success(c, mu, "")
@@ -230,4 +150,19 @@ func Editer(c *gin.Context) {
 
 func Delete(c *gin.Context) {
 
+}
+
+func BatchAdd(c *gin.Context) {
+	type BatchAddReq struct {
+		Urls []string `json:"urls"`
+	}
+	var req BatchAddReq
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	// var vids []string
+
+	response.Success(c, nil, "success")
 }

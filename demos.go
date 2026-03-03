@@ -88,7 +88,7 @@ func testBrowser() {
 	var jsstr string
 	je := jses.GetJsByCode("ddd")
 	if je != nil {
-		jsstr = je.GetContent(nil)
+		jsstr = je.GetContent(map[string]any{"min_num": 4, "max_num": 30, "zan_hit": 58})
 	}
 
 	pro := proxys.GetById(136)
@@ -106,11 +106,11 @@ func testBrowser() {
 		panic("代理启动失败")
 	}
 
-	b, err := bs.BsManager.New(-1, &bs.Options{
-		ID:    -1,
+	b, err := bs.BsManager.New(1, &bs.Options{
+		ID:    1,
 		Url:   "https://www.tiktok.com/",
 		JsStr: jsstr,
-		Show:  false,
+		Show:  true,
 		Pc:    pc,
 	}, true)
 	if err != nil {
