@@ -64,17 +64,19 @@ type TaskRun struct {
 
 // 任务执行的详细消息
 type TaskRunMsg struct {
-	TaskID      int64  `json:"task_id" gorm:"index;"`
-	TaskRunID   int64  `json:"task_run_id" gorm:"index"`
-	Msg         string `json:"msg" gorm:"not null"`           // 具体的消息
-	Status      int    `json:"status" gorm:"default:0"`       // 状态, -1失败,0正在执行,1成功
-	Addtime     int64  `json:"addtime" gorm:"not null"`       // 添加时间
-	Tried       int    `json:"tried" gorm:"default:0"`        // 已重试次数
-	NextRuntime int64  `json:"next_runtime" gorm:"default:0"` // 下一次重试时间
-	Doned       int64  `json:"doned" gorm:"-"`                // 已执行次数
-	TaskName    string `json:"task_name"`                     // 大任务名称
-	RunID       string `json:"run_id"`                        // 子任务id
-	TaskTid     string `json:"task_tid" gorm:"index"`         // 大任务唯一标识
+	TaskID      int64   `json:"task_id" gorm:"index;"`
+	TaskRunID   int64   `json:"task_run_id" gorm:"index"`
+	Msg         string  `json:"msg" gorm:"not null"`           // 具体的消息
+	Status      int     `json:"status" gorm:"default:0"`       // 状态, -1失败,0正在执行,1成功
+	Addtime     int64   `json:"addtime" gorm:"not null"`       // 添加时间
+	Tried       int     `json:"tried" gorm:"default:0"`        // 已重试次数
+	NextRuntime int64   `json:"next_runtime" gorm:"default:0"` // 下一次重试时间
+	Doned       int64   `json:"doned" gorm:"-"`                // 已执行次数
+	TaskName    string  `json:"task_name"`                     // 大任务名称
+	RunID       string  `json:"run_id"`                        // 子任务id
+	TaskTid     string  `json:"task_tid" gorm:"index"`         // 大任务唯一标识
+	Total       float64 `json:"total" gorm:"-"`                // 总数
+	Doneds      float64 `json:"doneds" gorm:"-"`               // 执行数
 	db.BaseModel
 }
 
@@ -364,6 +366,32 @@ func (t *Task) AddCron(
 	return tr, nil
 }
 
+// func (t *Task) Add() (*TaskRun, error) {
+// 	t._mu.Lock()
+// 	defer t._mu.Unlock()
+// 	if tr, ok := t._runners[id]; ok {
+// 		return tr, nil
+// 	}
+
+// 	tr := new(TaskRun)
+// 	tr.TaskID = t.ID
+// 	tr.RunID = id
+// 	tr.Title = title
+// 	tr.StartAt = time.Now().Unix()
+// 	tr._timeout = timeout
+// 	tr._sch = t._sch
+// 	tr.TaskName = t.Name
+// 	tr.TaskTid = t.Tid
+
+// 	if err := taskdb.Write(func(tx *gorm.DB) error {
+// 		return tr.Save(tr, tx)
+// 	}); err != nil {
+// 		return nil, err
+// 	}
+
+// 	return tr, nil
+// }
+
 func (tr *TaskRun) onComplate(id string, err error) {
 	var status int
 	var msg string
@@ -480,6 +508,7 @@ func (tr *TaskRun) GetCtx() context.Context {
 // 马上执行
 func (tr *TaskRun) RunNow() {
 	tr._sch.RunNow(tr.RunID)
+	tr.fullMsg()
 }
 
 // 发送消息给前端
@@ -495,6 +524,8 @@ func (tr *TaskRun) SentMsg(msg string, status int, todb bool) {
 		RunID:       tr.RunID,
 		Tried:       int(tr._runner.LastRetryCount()),
 		NextRuntime: tr._runner.NextRunTime().Unix(),
+		Total:       tr.Total,
+		Doneds:      tr.Doned,
 	}
 	trm.sent(tr)
 	if todb == true {

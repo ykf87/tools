@@ -80,6 +80,7 @@ func MkerMediaUser(platform, uid, cover, name, proxy, searchID string, adminID i
 		}
 		mu.Name = name
 		mu.Platform = platform
+		mu.Addtime = time.Now().Unix()
 		mu.Uuid = uid
 		mu.AdminID = adminID
 		mu.Account = searchID

@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"time"
 	"tools/runtimes/bs"
+	"tools/runtimes/config"
 	"tools/runtimes/db"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/eventbus"
+	"tools/runtimes/mainsignal"
 	"tools/runtimes/proxy"
 
 	"gorm.io/gorm"
@@ -209,4 +211,59 @@ func (this *Browser) GenProxyConfig() (*proxy.ProxyConfig, error) {
 		return proxy.Client(this.ProxyConfig, "", 0)
 	}
 	return nil, errors.New("No Proxy")
+}
+
+// 通过id构建浏览器的opt
+// 无论如何都会创建
+func GenBrowserOpt(id int64, isshow bool) *bs.Options {
+	var width int
+	var height int
+	if w, ok := config.AdminWidthAndHeight.Load("width"); ok {
+		width, _ = w.(int)
+	}
+	if h, ok := config.AdminWidthAndHeight.Load("height"); ok {
+		height, _ = h.(int)
+	}
+	opt := &bs.Options{
+		Width:    width,
+		Height:   height,
+		Show:     isshow,
+		ID:       0,
+		Url:      "",
+		JsStr:    "",
+		Timezone: "",
+		Language: "",
+		Ctx:      mainsignal.MainCtx,
+		Timeout:  time.Second * 60,
+		Pc:       nil,
+		Temp:     true,
+	}
+
+	row, err := GetBrowserById(id)
+	if err != nil {
+		return opt
+	}
+
+	opt.Width = row.Width
+	opt.Height = row.Height
+	opt.Language = row.Lang
+	opt.Timezone = row.Timezone
+	opt.ID = row.Id
+	opt.Temp = false
+	if row.Proxy > 0 {
+		pp := proxys.GetById(row.Proxy)
+		if pp != nil {
+			go func() {
+				if ppp, err := pp.Start(false); err == nil {
+					opt.Pc = ppp
+				}
+			}()
+		}
+	} else if row.ProxyConfig != "" {
+		if ppp, err := proxy.Client(row.ProxyConfig, "", 0); err != nil {
+			opt.Pc = ppp
+		}
+	}
+
+	return opt
 }

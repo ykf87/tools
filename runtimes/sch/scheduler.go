@@ -3,7 +3,6 @@ package sch
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -126,7 +125,7 @@ func (r *Runner) RunCount() int64 {
 func (r *Runner) NextRunTime() time.Time {
 	v := r.nextRun.Load()
 	if v == nil {
-		fmt.Println("找不到下次执行时间...")
+		// fmt.Println("找不到下次执行时间...")
 		return time.Time{}
 	}
 	return v.(time.Time)
@@ -291,9 +290,9 @@ func (s *Scheduler) AddInterval(
 		return nil, errors.New("scheduler stopped")
 	}
 
-	if interval <= 0 {
-		return nil, errors.New("invalid interval")
-	}
+	// if interval <= 0 {
+	// 	return nil, errors.New("invalid interval")
+	// }
 
 	if _, exists := s.tasks.Load(id); exists {
 		return nil, errors.New("task id already exists")
@@ -319,6 +318,28 @@ func (s *Scheduler) AddInterval(
 		ctx:        ctx,
 		cancel:     cancel,
 		s:          s,
+	}
+
+	if interval == 0 {
+		s.tasks.Store(id, r)
+
+		go func() {
+			if atomic.LoadInt32(&r.closed) == 1 {
+				return
+			}
+
+			if !r.expireAt.IsZero() && time.Now().After(r.expireAt) {
+				s.Remove(r.id)
+				return
+			}
+
+			r.execute()
+
+			// ⭐ 执行完自动删除
+			s.Remove(r.id)
+		}()
+
+		return r, nil
 	}
 
 	firstNext := time.Now().Add(interval)

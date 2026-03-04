@@ -1,15 +1,43 @@
 package users
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+	"tools/runtimes/config"
 	"tools/runtimes/db"
 	"tools/runtimes/db/admins"
+	"tools/runtimes/db/clients/browserdb"
+	"tools/runtimes/db/jses"
 	"tools/runtimes/db/medias"
+	"tools/runtimes/db/messages"
+	"tools/runtimes/db/proxys"
+	"tools/runtimes/db/task"
+	"tools/runtimes/downloader"
+	"tools/runtimes/funcs"
+	"tools/runtimes/mainsignal"
 	"tools/runtimes/response"
+	"tools/runtimes/runner"
+	"tools/runtimes/videos/downloader/parser"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 	"gorm.io/gorm"
 )
+
+var BathTask *task.Task
+
+func init() {
+	if t, err := task.NewTask("batchuseradd", 0, "批量添加用户", 3, true); err == nil {
+		BathTask = t
+	}
+}
 
 func List(c *gin.Context) {
 	admin, err := admins.GetAdminUser(c)
@@ -152,17 +180,260 @@ func Delete(c *gin.Context) {
 
 }
 
+type BatchAddReq struct {
+	Urls   []string `json:"urls"`
+	Proxy  int64    `json:"proxy"`
+	Client int64    `json:"client"`
+}
+
+var runidx int64
+
 func BatchAdd(c *gin.Context) {
-	type BatchAddReq struct {
-		Urls []string `json:"urls"`
-	}
-	var req BatchAddReq
-	if err := c.ShouldBindJSON(&req); err != nil {
+	u, err := admins.GetAdminUser(c)
+	if err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
+	req := new(BatchAddReq)
+	if err := c.ShouldBindJSON(req); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+	total := len(req.Urls)
 
-	// var vids []string
+	if BathTask != nil {
+		runidx++
+		tr, err := BathTask.AddInterval(
+			fmt.Sprintf("%d", runidx),
+			time.Now().Format("2006-01-02 15:04:05"),
+			0,
+			time.Hour*6,
+			3,
+			time.Second*5,
+			time.Time{},
+			func(tr *task.TaskRun) error {
+				mkssr(req, u.Id, tr)
+				return nil
+			},
+		)
+		if err == nil {
+			tr.Total = float64(total)
+			tr.RunNow()
+		} else {
+			fmt.Println(err, "---tr error")
+		}
+	}
+	// go mkssr(req, u.Id)
+	response.Success(c, nil, fmt.Sprintf("%d 条数据已添加后台自动获取", total))
+}
 
-	response.Success(c, nil, "success")
+func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
+	tr.Total = float64(len(req.Urls))
+	// 构造客户端和代理
+	opt := browserdb.GenBrowserOpt(req.Client, false)
+	if opt.Pc == nil && req.Proxy > 0 {
+		pp := proxys.GetById(req.Proxy)
+		if pp != nil {
+			go func() {
+				if ppp, err := pp.Start(false); err == nil {
+					opt.Pc = ppp
+				}
+			}()
+		}
+	}
+
+	var proxy string
+	if opt != nil && opt.Pc != nil {
+		defer opt.Pc.Close(false)
+		proxy = opt.Pc.Listened()
+	}
+	doned := 0
+	errored := 0
+	jscode := "douyin-info"
+	js := jses.GetJsByCode(jscode)
+	if js != nil && js.ID > 0 {
+		opt.JsStr = js.GetContent(nil)
+		var vids []string
+		var uids []string
+		videoEndmap := make(map[string]string)
+		userEndmap := make(map[string]string)
+		for _, v := range req.Urls { //8.76 o@D.Hi mQx:/ 11/05 爱的桥段让我怎么写# 阳光是最好的滤镜 # 营业  https://v.douyin.com/ZPZ6xisL_pk/ 复制此链接，打开Dou音搜索，直接观看视频！
+			if !strings.Contains(v, ".douyin.com") {
+				errored++
+
+				tr.Doned = tr.Doned + 1
+				tr.SentMsg(fmt.Sprintf("%s 不被支持", v), 1, false)
+			} else {
+				v = strings.Trim(v, "/")
+				vs := strings.Split(v, "?")
+				v = vs[0]
+
+				vvs := strings.Split(v, "/")
+				endstr := vvs[len(vvs)-1]
+
+				if strings.Contains(v, "/user/") {
+					uids = append(uids, endstr)
+					userEndmap[endstr] = v
+				} else {
+					if strings.Contains(v, "/video/") {
+						vids = append(vids, endstr)
+					}
+					videoEndmap[endstr] = v
+				}
+			}
+		}
+
+		wg := new(sync.WaitGroup)
+		if len(uids) > 0 {
+			var mus []*medias.MediaUser
+			medias.GetDb().DB().Model(&medias.MediaUser{}).Where("uuid in ?", uids).Find(&mus)
+			for _, v := range mus {
+				if urlstr, ok := userEndmap[v.Uuid]; ok {
+					errored++
+					delete(userEndmap, v.Uuid)
+					tr.Doned = tr.Doned + 1
+					tr.SentMsg(fmt.Sprintf("%s 已添加", urlstr), 1, false)
+				}
+			}
+			wg.Go(func() {
+				select {
+				case <-mainsignal.MainCtx.Done():
+					return
+				default:
+					for uuid, v := range userEndmap {
+						opt.Url = v
+						r, err := runner.GetRunner(0, opt)
+						if err == nil {
+							r.Start(time.Second*60, func(s string) error {
+								gs := gjson.Parse(s)
+
+								mu := new(medias.MediaUser)
+								mu.Addtime = time.Now().Unix()
+								mu.AdminID = adminid
+								mu.Uuid = uuid
+								mu.Name = gs.Get("name").String()
+								mu.Cover = gs.Get("cover").String()
+								mu.Works = gs.Get("works").Int()
+								mu.Fans = gs.Get("fans").Int()
+								mu.Local = gs.Get("local").String()
+								mu.Account = gs.Get("account").String()
+								mu.Sex = gs.Get("sex").String()
+								mu.Platform = "douyin"
+
+								if mu.Cover != "" {
+									exts := "png"
+									dl := downloader.NewDownloader(proxy, nil, nil)
+									if ext, err := dl.GetUrlFileExt(mu.Cover); err == nil {
+										exts = ext
+									}
+									dest := fmt.Sprintf("avatar/%s.%s", funcs.Md5String(mu.Cover), exts)
+									fullPath := filepath.Join(config.MEDIAROOT, dest)
+									dirRoot := filepath.Dir(fullPath)
+									if _, err := os.Stat(dirRoot); err != nil {
+										os.MkdirAll(dirRoot, os.ModePerm)
+									}
+
+									if err := dl.Download(mu.Cover, fullPath); err == nil {
+										mu.Cover = dest
+									}
+
+									if err := mu.Save(mu, medias.GetDb().DB()); err != nil {
+										return err
+									}
+									doned++
+
+									return nil
+								}
+								fmt.Println("返回的数据: ", s)
+								errored++
+								return errors.New("找不到数据!")
+							})
+						} else {
+							errored++
+						}
+						tr.Doned = tr.Doned + 1
+						tr.SentMsg(fmt.Sprintf("总数: %d, 成功: %d, 失败: %d %s", len(req.Urls), doned, errored, err.Error()), 1, false)
+						time.Sleep(time.Second * time.Duration(funcs.RandomNumber(1, 5)))
+					}
+				}
+
+			})
+		}
+
+		if len(vids) > 0 {
+			var vmedias []*medias.Media
+			medias.GetDb().DB().Model(&medias.Media{}).Where("video_id in ?", vids).Find(&vmedias)
+			for _, v := range vmedias {
+				if urlstr, ok := videoEndmap[v.VideoID]; ok {
+					errored++
+					delete(videoEndmap, v.VideoID)
+
+					tr.Doned = tr.Doned + 1
+					tr.SentMsg(fmt.Sprintf("%s 已添加", urlstr), 1, false)
+				}
+			}
+
+			wg.Go(func() {
+				var transport *http.Transport
+				if proxy != "" {
+					if proxyURL, err := url.Parse(proxy); err == nil {
+						transport = &http.Transport{
+							Proxy: http.ProxyURL(proxyURL),
+						}
+					}
+				}
+
+				select {
+				case <-mainsignal.MainCtx.Done():
+					return
+				default:
+					for _, v := range videoEndmap {
+						parseRes, err := parser.ParseVideoShareUrl(v, transport)
+						if err != nil {
+							errored++
+						} else {
+							if parseRes.Author.Uid != "" {
+								mu := medias.MkerMediaUser(parseRes.Platform, parseRes.Author.Uid, parseRes.Author.Avatar, parseRes.Author.Name, proxy, parseRes.Author.SearchID, adminid)
+								savePath := filepath.Join(".auto", funcs.Md5String(parseRes.Author.Uid))
+
+								if parseRes.VideoUrl != "" {
+									md, err := medias.DownLoadVideo(v, parseRes.VideoUrl, savePath, "", proxy, func(percent float64, downloaded, total int64) {
+										fmt.Printf("\r下载进度: %.2f%%", percent)
+									})
+
+									if err != nil {
+										errored++
+									} else {
+										md.VideoID = parseRes.VideoID
+										md.Platform = parseRes.Platform
+										md.Title = parseRes.Title
+										md.UserId = mu.Id
+										if err := md.Save(md, medias.GetDb().DB()); err != nil {
+											errored++
+										} else {
+											doned++
+										}
+									}
+								}
+							}
+						}
+
+						tr.Doned = tr.Doned + 1
+						tr.SentMsg(fmt.Sprintf("总数: %d, 成功: %d, 失败: %d %s", len(req.Urls), doned, errored, err.Error()), 1, false)
+						time.Sleep(time.Second * time.Duration(funcs.RandomNumber(1, 3)))
+					}
+				}
+			})
+		}
+
+		wg.Wait()
+
+		messages.SuccessMsg(fmt.Sprintf("总数: %d, 成功: %d, 失败: %d", len(req.Urls), doned, errored))
+	} else {
+		messages.ErrorMsg("找不到执行js")
+	}
+	tr.RemoveMsg()
+	if BathTask != nil {
+		BathTask.Stop(tr.RunID)
+	}
 }

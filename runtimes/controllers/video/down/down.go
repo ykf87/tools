@@ -296,29 +296,6 @@ func Download(c *gin.Context) {
 	var errs []string
 	// var downs []*parser.VideoParseInfo
 	var wg sync.WaitGroup
-	// var proxyUrlStr string
-
-	// 设置代理
-	// if len(dt.Proxys) > 0 {
-	// 	rand.Seed(time.Now().UnixNano())
-	// 	proxyid := dt.Proxys[rand.Intn(len(dt.Proxys))]
-	// 	px := proxys.GetById(proxyid)
-	// 	if px != nil && px.Id > 0 {
-	// 		if pc, err := proxy.Client(px.GetConfig(), "", px.Port, px.GetTransfer()); err == nil {
-	// 			if _, err := pc.Run(false); err == nil {
-	// 				proxyUrlStr = pc.Listened()
-	// 				defer pc.Close(false)
-	// 			}
-	// 		}
-	// 	}
-	// }
-	// if proxyUrlStr != "" {
-	// 	if proxyURL, err := url.Parse(proxyUrlStr); err == nil {
-	// 		transport = &http.Transport{
-	// 			Proxy: http.ProxyURL(proxyURL),
-	// 		}
-	// 	} // 你的代理地址
-	// }
 
 	// 开启选择的代理
 	// rand.Seed(time.Now().UnixNano())

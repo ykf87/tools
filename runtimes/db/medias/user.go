@@ -39,6 +39,7 @@ type MediaUser struct {
 	DownFreq     int             `json:"down_freq" gorm:"default:30"`                          // 自动下载视频执行频率,单位是分钟
 	LastDownTime int64           `json:"last_down_time" gorm:"default:0"`                      // 上一次下载的时间
 	ShowWin      int             `json:"show_win" gorm:"default:0"`                            // 是否显示窗口,0不显示, 1显示
+	Sex          string          `json:"sex" gorm:"index"`                                     // 性别
 	Tags         []string        `json:"tags" gorm:"-"`                                        // 标签
 	Clients      map[int][]int64 `json:"clients" gorm:"-"`                                     // 使用的客户端
 	Proxys       []int64         `json:"proxys" gorm:"-"`                                      // 使用的代理列表
@@ -392,6 +393,9 @@ func (mu *MediaUser) ParseUserInfoData(data string) error {
 	}
 	if account := gs.Get("account").String(); account != "" {
 		mu.Account = account
+	}
+	if sex := gs.Get("sex").String(); sex != "" {
+		mu.Sex = sex
 	}
 
 	dbs.Write(func(tx *gorm.DB) error {
