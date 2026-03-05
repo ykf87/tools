@@ -127,6 +127,8 @@ func router() {
 			spiderUserGroup.GET("getinfo", users.GetInfo)
 			spiderUserGroup.GET("usermeidas", users.UserMeidas)
 			spiderUserGroup.POST("batchadd", users.BatchAdd)
+			spiderUserGroup.GET("localvideo", users.LocalVideo)
+			spiderUserGroup.GET("onlinevideo", users.OnlinVideo)
 		}
 	}
 
@@ -150,6 +152,7 @@ func router() {
 		taskGroup.POST("ae", task.AddOrEdit)
 		taskGroup.GET("devices", task.TaskDevices)
 		taskGroup.POST("delete", task.Delete)
+		taskGroup.GET("stop", task.Stop)
 	}
 
 	// js脚本

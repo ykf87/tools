@@ -9,6 +9,7 @@ import (
 	"tools/runtimes/db"
 	"tools/runtimes/downloader"
 	"tools/runtimes/funcs"
+	"tools/runtimes/ratelimit"
 
 	"gorm.io/gorm"
 )
@@ -25,13 +26,14 @@ type Media struct {
 	VideoID  string    `json:"video_id" gorm:"index"`                              // 自动下载才有的短视频的唯一id
 	Url      string    `json:"url" gorm:"default:null" form:"url"`                 // 下载地址
 	Mime     string    `json:"mime" gorm:"index" form:"mime"`                      // mime
-	Size     int64     `json:"size" gorm:"index;default:0" form:"size"`            //大小
+	Size     int64     `json:"size" gorm:"index;default:0" form:"size"`            // 大小
 	Filetime int64     `json:"filetime" gorm:"index;default:0" form:"filetime"`    // 文件最后修改日期
 	Addtime  time.Time // 本数据添加日期
 	db.BaseModel
 }
 
 var dbs *db.SQLiteWriter
+var getInfoLimit *ratelimit.Limiter
 
 func init() {
 	dbs = db.MEDIADB
@@ -43,6 +45,12 @@ func init() {
 	dbs.DB().AutoMigrate(&MediaUserProxy{})
 	dbs.DB().AutoMigrate(&MediaUserDay{})
 	runstart()
+
+	getInfoLimit = ratelimit.New(
+		ratelimit.WithLimit(5, 10*time.Second), // 10秒5次
+		ratelimit.WithConcurrency(2),           // 最大2并发
+		ratelimit.WithQueue(100),               // 队列长度
+	)
 
 	// var mus []*MediaUser
 	// dbs.Model(&MediaUser{}).Where("autoinfo = 1 or auto_download = 1").Find(&mus)

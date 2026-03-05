@@ -1,6 +1,7 @@
 package medias
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/tidwall/gjson"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type MediaUser struct {
@@ -40,6 +42,7 @@ type MediaUser struct {
 	LastDownTime int64           `json:"last_down_time" gorm:"default:0"`                      // 上一次下载的时间
 	ShowWin      int             `json:"show_win" gorm:"default:0"`                            // 是否显示窗口,0不显示, 1显示
 	Sex          string          `json:"sex" gorm:"index"`                                     // 性别
+	Videos       int64           `json:"videos" gorm:"index;default:0"`                        // 已下载的视频数量
 	Tags         []string        `json:"tags" gorm:"-"`                                        // 标签
 	Clients      map[int][]int64 `json:"clients" gorm:"-"`                                     // 使用的客户端
 	Proxys       []int64         `json:"proxys" gorm:"-"`                                      // 使用的代理列表
@@ -74,44 +77,6 @@ type MediaUserDay struct {
 	Fans  int64  `json:"fans" gorm:"index;default:-1"`      // 粉丝数
 	Zan   int64  `json:"zan" gorm:"index;default:-1"`       // 获赞数
 }
-
-// func (this *MediaUser) Save(tx *db.SQLiteWriter) error {
-// 	if tx == nil {
-// 		tx = dbs
-// 	}
-
-// 	if strings.HasPrefix(this.Cover, config.MediaUrl) {
-// 		if af, ok := strings.CutPrefix(this.Cover, config.MediaUrl); ok {
-// 			this.Cover = af
-// 		}
-// 	}
-// 	if this.Id > 0 {
-// 		err := tx.Model(&MediaUser{}).Where("id = ?", this.Id).
-// 			Updates(map[string]any{
-// 				"platform":       this.Platform,
-// 				"name":           this.Name,
-// 				"cover":          this.Cover,
-// 				"uuid":           this.Uuid,
-// 				"fans":           this.Fans,
-// 				"works":          this.Works,
-// 				"local":          this.Local,
-// 				"account":        this.Account,
-// 				"autoinfo":       this.Autoinfo,
-// 				"auto_download":  this.AutoDownload,
-// 				"auto_timer":     this.AutoTimer,
-// 				"down_freq":      this.DownFreq,
-// 				"last_down_time": this.LastDownTime,
-// 			}).Error
-// 		if err != nil {
-// 			return err
-// 		}
-// 		// eventbus.Bus.Publish("media_save", this)
-// 		return nil
-// 	} else {
-// 		this.Addtime = time.Now().Unix()
-// 		return tx.Create(this).Error
-// 	}
-// }
 
 func GetUserMedias(id any) []*Media {
 	var mus []*Media
@@ -372,21 +337,24 @@ func (mu *MediaUser) GetInfoFromPlatform(ch chan byte) error {
 	if err != nil {
 		return err
 	}
-	go func() {
+	getInfoLimit.Submit(func(ctx context.Context) {
 		r.Start(time.Second*30, mu.ParseUserInfoData)
 		eventbus.Bus.Publish("media_user_info", mu)
-	}()
+	})
 	return nil
 }
 
 // 解析返回的用户信息数据
 func (mu *MediaUser) ParseUserInfoData(data string) error {
 	gs := gjson.Parse(data)
+	mud := new(MediaUserDay)
 	if fans := gs.Get("fans").Int(); fans > 0 {
+		mud.Fans = fans
 		mu.Fans = fans
 	}
 	if works := gs.Get("works").Int(); works > 0 {
 		mu.Works = works
+		mud.Works = works
 	}
 	if local := gs.Get("local").String(); local != "" {
 		mu.Local = local
@@ -394,8 +362,30 @@ func (mu *MediaUser) ParseUserInfoData(data string) error {
 	if account := gs.Get("account").String(); account != "" {
 		mu.Account = account
 	}
-	if sex := gs.Get("sex").String(); sex != "" {
-		mu.Sex = sex
+
+	if zan := gs.Get("zan").Int(); zan > 0 {
+		mud.Zan = zan
+	}
+
+	if mud.Works > 0 {
+		ymd := time.Now().Format("20060102")
+		mud.MUID = mu.Id
+		mud.Ymd = ymd
+		if err := dbs.Write(func(tx *gorm.DB) error {
+			return tx.Clauses(clause.OnConflict{
+				Columns: []clause.Column{
+					{Name: "m_uid"},
+					{Name: "ymd"},
+				},
+				DoUpdates: clause.AssignmentColumns([]string{
+					"works",
+					"fans",
+					"zan",
+				}),
+			}).Create(&mud).Error
+		}); err != nil {
+			return err
+		}
 	}
 
 	dbs.Write(func(tx *gorm.DB) error {
@@ -404,18 +394,28 @@ func (mu *MediaUser) ParseUserInfoData(data string) error {
 	mu.Commpare()
 	eventbus.Bus.Publish("media_user_info", mu)
 	return nil
+
+	// gs := gjson.Parse(data)
+	// if fans := gs.Get("fans").Int(); fans > 0 {
+	// 	mu.Fans = fans
+	// }
+	// if works := gs.Get("works").Int(); works > 0 {
+	// 	mu.Works = works
+	// }
+	// if local := gs.Get("local").String(); local != "" {
+	// 	mu.Local = local
+	// }
+	// if account := gs.Get("account").String(); account != "" {
+	// 	mu.Account = account
+	// }
+	// if sex := gs.Get("sex").String(); sex != "" {
+	// 	mu.Sex = sex
+	// }
+
+	// dbs.Write(func(tx *gorm.DB) error {
+	// 	return mu.Save(mu, tx)
+	// })
+	// mu.Commpare()
+	// eventbus.Bus.Publish("media_user_info", mu)
+	// return nil
 }
-
-// 下载用户视频
-// func (mu *MediaUser) DownMedia(srcs []string) error {
-// 	opt, err := GetOptions(mu, context.Background(), nil)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	tl := tasklog.NewTaskLog(fmt.Sprintf("handledmudown%d", mu.Id), fmt.Sprintf("用户: %s 视频下载", mu.Name), 1, 0, true)
-// 	opt.runner = tl.Append(mainsignal.MainCtx, fmt.Sprintf("%d", mu.Id), fmt.Sprintf("用户: %s 视频下载", mu.Name), opt.FmtDownload)
-// 	opt.runner.Runner.SetMaxTry(3).RunNow()
-// 	return nil
-// }
-//

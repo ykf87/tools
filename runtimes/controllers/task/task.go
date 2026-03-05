@@ -10,6 +10,7 @@ import (
 	"tools/runtimes/db/clients"
 	"tools/runtimes/db/clients/browserdb"
 	"tools/runtimes/db/jses"
+	"tools/runtimes/db/task"
 	"tools/runtimes/db/tasks"
 	"tools/runtimes/parses"
 	"tools/runtimes/response"
@@ -183,4 +184,15 @@ func RuningTasks(c *gin.Context) {
 	// 	return
 	// }
 	response.Error(c, http.StatusBadRequest, "", nil)
+}
+
+func Stop(c *gin.Context) {
+	tid := c.Query("tid")
+	rid := c.Query("rid")
+
+	if err := task.StopRunner(tid, rid); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+	response.Success(c, nil, "success")
 }

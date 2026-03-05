@@ -7,6 +7,7 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -552,6 +553,7 @@ func (t *Task) Stop(runid string) {
 		t._mu.Lock()
 		delete(t._runners, runid)
 		t._mu.Unlock()
+		tr.SentMsg("任务停止", 1, true)
 		tr.RemoveMsg()
 	}
 }
@@ -573,4 +575,18 @@ func (t *Task) StopAll() {
 	t._mu.Unlock()
 	t.RemoveMsg()
 	TaskActived.Delete(t.Tid)
+}
+
+// 停止任务
+func StopRunner(taskID, runnerID string) error {
+	if tobj, ok := TaskActived.Load(taskID); ok {
+		if t, ok := tobj.(*Task); ok {
+			t.Stop(runnerID)
+		} else {
+			return errors.New("任务不正确")
+		}
+	} else {
+		return errors.New("找不到任务")
+	}
+	return nil
 }

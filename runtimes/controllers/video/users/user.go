@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"tools/runtimes/db/task"
 	"tools/runtimes/downloader"
 	"tools/runtimes/funcs"
+	"tools/runtimes/listens/ws"
 	"tools/runtimes/mainsignal"
 	"tools/runtimes/response"
 	"tools/runtimes/runner"
@@ -212,7 +214,7 @@ func BatchAdd(c *gin.Context) {
 			time.Second*5,
 			time.Time{},
 			func(tr *task.TaskRun) error {
-				mkssr(req, u.Id, tr)
+				go mkssr(req, u.Id, tr)
 				return nil
 			},
 		)
@@ -262,7 +264,7 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 				errored++
 
 				tr.Doned = tr.Doned + 1
-				tr.SentMsg(fmt.Sprintf("%s 不被支持", v), 1, false)
+				tr.SentMsg(fmt.Sprintf("%s 不被支持", v), 0, false)
 			} else {
 				v = strings.Trim(v, "/")
 				vs := strings.Split(v, "?")
@@ -292,7 +294,7 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 					errored++
 					delete(userEndmap, v.Uuid)
 					tr.Doned = tr.Doned + 1
-					tr.SentMsg(fmt.Sprintf("%s 已添加", urlstr), 1, false)
+					tr.SentMsg(fmt.Sprintf("%s 已添加", urlstr), 0, false)
 				}
 			}
 			wg.Go(func() {
@@ -352,8 +354,8 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 							errored++
 						}
 						tr.Doned = tr.Doned + 1
-						tr.SentMsg(fmt.Sprintf("总数: %d, 成功: %d, 失败: %d %s", len(req.Urls), doned, errored, err.Error()), 1, false)
-						time.Sleep(time.Second * time.Duration(funcs.RandomNumber(1, 5)))
+						tr.SentMsg(fmt.Sprintf("总数: %d, 成功: %d, 失败: %d %s", len(req.Urls), doned, errored, err.Error()), 0, false)
+						time.Sleep(time.Second * time.Duration(funcs.RandomNumber(3, 8)))
 					}
 				}
 
@@ -369,7 +371,7 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 					delete(videoEndmap, v.VideoID)
 
 					tr.Doned = tr.Doned + 1
-					tr.SentMsg(fmt.Sprintf("%s 已添加", urlstr), 1, false)
+					tr.SentMsg(fmt.Sprintf("%s 已添加", urlstr), 0, false)
 				}
 			}
 
@@ -394,7 +396,7 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 						} else {
 							if parseRes.Author.Uid != "" {
 								mu := medias.MkerMediaUser(parseRes.Platform, parseRes.Author.Uid, parseRes.Author.Avatar, parseRes.Author.Name, proxy, parseRes.Author.SearchID, adminid)
-								savePath := filepath.Join(".auto", funcs.Md5String(parseRes.Author.Uid))
+								savePath := fmt.Sprintf(".auto/%s", funcs.Md5String(parseRes.Author.Uid))
 
 								if parseRes.VideoUrl != "" {
 									md, err := medias.DownLoadVideo(v, parseRes.VideoUrl, savePath, "", proxy, func(percent float64, downloaded, total int64) {
@@ -414,13 +416,20 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 											doned++
 										}
 									}
+								} else {
+									errored++
+									err = errors.New("不是视频")
 								}
 							}
 						}
 
 						tr.Doned = tr.Doned + 1
-						tr.SentMsg(fmt.Sprintf("总数: %d, 成功: %d, 失败: %d %s", len(req.Urls), doned, errored, err.Error()), 1, false)
-						time.Sleep(time.Second * time.Duration(funcs.RandomNumber(1, 3)))
+						var errmsg string
+						if err != nil {
+							errmsg = err.Error()
+						}
+						tr.SentMsg(fmt.Sprintf("总数: %d, 成功: %d, 失败: %d %s", len(req.Urls), doned, errored, errmsg), 0, false)
+						time.Sleep(time.Second * time.Duration(funcs.RandomNumber(4, 9)))
 					}
 				}
 			})
@@ -429,6 +438,12 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 		wg.Wait()
 
 		messages.SuccessMsg(fmt.Sprintf("总数: %d, 成功: %d, 失败: %d", len(req.Urls), doned, errored))
+		if bt, err := config.Json.Marshal(map[string]any{
+			"type": "batchadddone",
+			"data": "",
+		}); err == nil {
+			ws.Broadcost(bt)
+		}
 	} else {
 		messages.ErrorMsg("找不到执行js")
 	}
@@ -436,4 +451,43 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 	if BathTask != nil {
 		BathTask.Stop(tr.RunID)
 	}
+}
+
+// 查看本地视频
+func LocalVideo(c *gin.Context) {
+	id := c.Query("id")
+	page, _ := strconv.Atoi(c.Query("page"))
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 20
+	}
+
+	var lists []*medias.Media
+	var total int64
+	md := medias.GetDb().DB().Model(&medias.Media{}).Where("user_id = ?", id)
+	md.Count(&total)
+	md.Offset((page - 1) * limit).Limit(limit).Order("id DESC").Find(&lists)
+
+	var listmap []map[string]any
+	for _, v := range lists {
+		listmap = append(listmap, map[string]any{
+			"size":     funcs.FormatFileSize(v.Size),
+			"url":      fmt.Sprintf("%s/%s/%s", config.MediaUrl, v.Path, v.Name),
+			"title":    v.Title,
+			"id":       v.Id,
+			"origin":   v.Url,
+			"platform": v.Platform,
+			"filetime": v.Filetime,
+			"mime":     v.Mime,
+			"path":     v.Path,
+		})
+	}
+	response.Success(c, gin.H{
+		"total": total,
+		"lists": listmap,
+		"pages": (total + int64(limit) - 1) / int64(limit),
+	}, "")
 }
