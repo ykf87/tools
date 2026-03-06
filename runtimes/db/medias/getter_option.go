@@ -56,7 +56,7 @@ func GetOptions(mu *MediaUser, ctx context.Context, tr *task.TaskRun) (*Options,
 		Timeout: time.Second * 300,
 		ctx:     ctx,
 		tr:      tr,
-		IsShow:  true,
+		IsShow:  false,
 	}
 	if err := opt.getJsAndUrl(); err != nil {
 		return nil, err
@@ -113,7 +113,6 @@ func (opt *Options) ParseInfos(str string, downloads bool) error {
 	gs := gjson.Parse(str)
 	if downloads == true {
 		if !gs.Get("lists").Exists() || len(gs.Get("lists").Array()) < 1 {
-			// return errors.New("找不到下载列表")
 			opt.tr.SentMsg("找不到下载列表", 1, true)
 			return nil
 		}
@@ -149,32 +148,31 @@ func (opt *Options) ParseInfos(str string, downloads bool) error {
 			var idx float64
 			urlstotal := float64(len(vids))
 			opt.tr.ReportSchedule(urlstotal, 0)
+			opt.tr.SentMsg("开始下载视频...", 0, false)
 
 			for vid, url := range mmp {
+				idx = idx + 1
 				if slices.Contains(inMedia, vid) {
+					opt.tr.ReportSchedule(urlstotal, idx)
 					continue
 				}
 				select {
 				case <-opt.ctx.Done():
-					// fmt.Println("ctx 结束....")
 					return nil
 				default:
+					if !strings.HasPrefix(url, "http") {
+						url = fmt.Sprintf("https:%s", url)
+					}
 					parseRes, err := parser.ParseVideoShareUrlByRegexp(url, transport)
 					if err != nil {
 						// fmt.Println("解析地址错误:", err)
 						opt.tr.SentMsg("解析地址错误:"+err.Error(), 1, true)
-						idx = idx + 1
 						opt.tr.ReportSchedule(urlstotal, idx)
 					} else {
 						if parseRes.VideoUrl != "" {
-							// fn := funcs.Md5String(parseRes.VideoUrl)
-							path := fmt.Sprintf(".auto/%s%d", opt.mu.Uuid, opt.mu.Id)
-							if md, err := DownLoadVideo(url, parseRes.VideoUrl, path, "", opt.Proxy, func(percent float64, downloaded, total int64) {
-								if percent >= 100 {
-									idx = idx + 1
-									opt.tr.ReportSchedule(urlstotal, idx)
-								}
-							}); err == nil {
+							path := opt.mu.DefDirName("") //fmt.Sprintf(".auto/%s%d", opt.mu.Uuid, opt.mu.Id)
+							md, err := DownLoadVideo(url, parseRes.VideoUrl, path, "", opt.Proxy, func(percent float64, downloaded, total int64) {})
+							if err == nil {
 								md.UserId = opt.MUID
 								vtem := strings.Split(url, "/")
 								md.VideoID = vtem[len(vtem)-1]
@@ -183,8 +181,15 @@ func (opt *Options) ParseInfos(str string, downloads bool) error {
 								dbs.Write(func(tx *gorm.DB) error {
 									return md.Save(md, tx)
 								})
-								// fmt.Println(err, "===== 保存media", md.Md5, ":", md.Url)
+								opt.tr.ReportSchedule(urlstotal, idx)
+								opt.tr.SentMsg("成功下载一个视频", 0, false)
+							} else {
+								opt.tr.ReportSchedule(urlstotal, idx)
+								opt.tr.SentMsg("下载视频失败:"+err.Error(), 0, false)
 							}
+						} else {
+							opt.tr.ReportSchedule(urlstotal, idx)
+							opt.tr.SentMsg("找不到视频地址:", 0, false)
 						}
 					}
 					time.Sleep(time.Duration(funcs.RandomNumber(3, 10)) * time.Second)

@@ -26,10 +26,11 @@ type ListFinder struct {
 	Page  int     `json:"page" form:"page"`
 	Limit int     `json:"limit" form:"limit"`
 	Q     string  `json:"q" form:"q"`
-	By    string  `json:"by" form:"by"`
 	Scol  string  `json:"scol" form:"scol"`
+	By    string  `json:"by" form:"by"`
 	Tags  []int64 `json:"tags" form:"tags"`
 	Types []int64 `json:"types" form:"types"`
+	IDs   []int64 `json:"ids" form:"ids"`
 }
 
 var DBINIT = map[string]**SQLiteWriter{

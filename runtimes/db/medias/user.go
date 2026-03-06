@@ -14,6 +14,7 @@ import (
 	"tools/runtimes/db/jses"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/eventbus"
+	"tools/runtimes/funcs"
 	"tools/runtimes/logs"
 	"tools/runtimes/proxy"
 	"tools/runtimes/runner"
@@ -43,6 +44,7 @@ type MediaUser struct {
 	ShowWin      int             `json:"show_win" gorm:"default:0"`                            // 是否显示窗口,0不显示, 1显示
 	Sex          string          `json:"sex" gorm:"index"`                                     // 性别
 	Videos       int64           `json:"videos" gorm:"index;default:0"`                        // 已下载的视频数量
+	Trashed      int             `json:"trashed" gorm:"type:tinyint(1);default:0;index"`       // 是否删除,1为删除，0为正常
 	Tags         []string        `json:"tags" gorm:"-"`                                        // 标签
 	Clients      map[int][]int64 `json:"clients" gorm:"-"`                                     // 使用的客户端
 	Proxys       []int64         `json:"proxys" gorm:"-"`                                      // 使用的代理列表
@@ -151,15 +153,19 @@ func GetMediaUsers(adminID int64, dt *db.ListFinder) ([]*MediaUser, int64) {
 	md := dbs.DB().Model(&MediaUser{}).Where("admin_id = ?", adminID)
 	if dt.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", dt.Q)
-		md.Where("name like ?", qs)
+		md = md.Where("name like ?", qs)
 	}
 
 	if len(dt.Tags) > 0 {
 		var muids []int64
 		dbs.DB().Model(&MediaUserToTag{}).Select("user_id").Where("tag_id in ?", dt.Tags).Find(&muids)
 		if len(muids) > 0 {
-			md.Where("id in ?", muids)
+			md = md.Where("id in ?", muids)
 		}
+	}
+
+	if len(dt.IDs) > 0 {
+		md = md.Where("id in ?", dt.IDs)
 	}
 
 	var total int64
@@ -344,6 +350,14 @@ func (mu *MediaUser) GetInfoFromPlatform(ch chan byte) error {
 	return nil
 }
 
+// 用户自动默认目录
+func (mu *MediaUser) DefDirName(uuid string) string {
+	if uuid == "" {
+		uuid = mu.Uuid
+	}
+	return fmt.Sprintf(".auto/%s", funcs.Md5String(uuid))
+}
+
 // 解析返回的用户信息数据
 func (mu *MediaUser) ParseUserInfoData(data string) error {
 	gs := gjson.Parse(data)
@@ -388,6 +402,7 @@ func (mu *MediaUser) ParseUserInfoData(data string) error {
 		}
 	}
 
+	dbs.DB().Model(&Media{}).Where("user_id = ?", mu.Id).Count(&mu.Videos)
 	dbs.Write(func(tx *gorm.DB) error {
 		return mu.Save(mu, tx)
 	})

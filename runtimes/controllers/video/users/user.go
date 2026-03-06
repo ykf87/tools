@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -41,6 +40,7 @@ func init() {
 	}
 }
 
+// 获取用户
 func List(c *gin.Context) {
 	admin, err := admins.GetAdminUser(c)
 	if err != nil {
@@ -396,7 +396,7 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 						} else {
 							if parseRes.Author.Uid != "" {
 								mu := medias.MkerMediaUser(parseRes.Platform, parseRes.Author.Uid, parseRes.Author.Avatar, parseRes.Author.Name, proxy, parseRes.Author.SearchID, adminid)
-								savePath := fmt.Sprintf(".auto/%s", funcs.Md5String(parseRes.Author.Uid))
+								savePath := mu.DefDirName(parseRes.Author.Uid) //fmt.Sprintf(".auto/%s", funcs.Md5String(parseRes.Author.Uid))
 
 								if parseRes.VideoUrl != "" {
 									md, err := medias.DownLoadVideo(v, parseRes.VideoUrl, savePath, "", proxy, func(percent float64, downloaded, total int64) {
@@ -454,40 +454,110 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 }
 
 // 查看本地视频
+type localVideoObj struct {
+	Page  int     `json:"page"`
+	Limit int     `json:"limit"`
+	Q     string  `json:"q"`
+	UIDs  []int64 `json:"uids"`
+}
+
 func LocalVideo(c *gin.Context) {
-	id := c.Query("id")
-	page, _ := strconv.Atoi(c.Query("page"))
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = 20
+	lob := new(localVideoObj)
+	if err := c.ShouldBindJSON(lob); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
 	}
 
-	var lists []*medias.Media
+	if lob.Page < 1 {
+		lob.Page = 1
+	}
+	if lob.Limit < 1 {
+		lob.Limit = 20
+	}
+
+	type aaab struct {
+		Mid        int64  `json:"mid"`
+		Muid       int64  `json:"muid"`
+		Size       int64  `json:"size"`
+		Filename   string `json:"filename"`
+		Platform   string `json:"platform"`
+		Filetime   int64  `json:"filetime"`
+		Path       string `json:"path"`
+		Mime       string `json:"mime"`
+		MediaTitle string `json:"media_titme"`
+		UserTitle  string `json:"user_title"`
+		UserCover  string `json:"user_cover"`
+		VideoID    string `json:"video_id"`
+		Uuid       string `json:"uuid"`
+		Origin     string `json:"origin"`
+		Local      string `json:"local"`
+		Fans       int64  `json:"fans"`
+		Works      int64  `json:"works"`
+		Downloaded int64  `json:"downloaded"`
+	}
+
+	var lists []*aaab
 	var total int64
-	md := medias.GetDb().DB().Model(&medias.Media{}).Where("user_id = ?", id)
+	md := medias.GetDb().DB().
+		Model(&medias.Media{}).
+		Select(
+			"media.id as mid",
+			"media.user_id as muid",
+			"media.size",
+			"media.name as filename",
+			"media.platform",
+			"media.filetime",
+			"media.path",
+			"media.mime",
+			"media.title as media_title",
+			"mu.name as user_title",
+			"mu.cover as user_cover",
+			"media.video_id",
+			"mu.uuid",
+			"media.url as origin",
+			"mu.works",
+			"mu.fans",
+			"mu.local",
+			"mu.videos as downloaded",
+		).
+		Joins("left join media_users as mu on mu.id = media.user_id").
+		Where("media.trashed = 0")
+	if len(lob.UIDs) > 0 {
+		md = md.Where("user_id in ?", lob.UIDs)
+	}
+	if lob.Q != "" {
+		md = md.Where("media.title like ? ESCAPE '\\'", "%"+lob.Q+"%")
+	}
 	md.Count(&total)
-	md.Offset((page - 1) * limit).Limit(limit).Order("id DESC").Find(&lists)
+	md.Offset((lob.Page - 1) * lob.Limit).Limit(lob.Limit).Order("media.id DESC").Scan(&lists)
 
 	var listmap []map[string]any
 	for _, v := range lists {
 		listmap = append(listmap, map[string]any{
 			"size":     funcs.FormatFileSize(v.Size),
-			"url":      fmt.Sprintf("%s/%s/%s", config.MediaUrl, v.Path, v.Name),
-			"title":    v.Title,
-			"id":       v.Id,
-			"origin":   v.Url,
+			"url":      fmt.Sprintf("%s/%s/%s", config.MediaUrl, v.Path, v.Filename),
+			"title":    v.MediaTitle,
+			"id":       v.Mid,
+			"origin":   v.Origin,
 			"platform": v.Platform,
 			"filetime": v.Filetime,
 			"mime":     v.Mime,
 			"path":     v.Path,
+			"user": map[string]any{
+				"id":         v.Muid,
+				"cover":      fmt.Sprintf("%s/%s", config.MediaUrl, v.UserCover),
+				"title":      v.UserTitle,
+				"uuid":       v.Uuid,
+				"works":      v.Works,
+				"fans":       v.Fans,
+				"local":      v.Local,
+				"downloaded": v.Downloaded,
+			},
 		})
 	}
 	response.Success(c, gin.H{
 		"total": total,
 		"lists": listmap,
-		"pages": (total + int64(limit) - 1) / int64(limit),
+		"pages": (total + int64(lob.Limit) - 1) / int64(lob.Limit),
 	}, "")
 }

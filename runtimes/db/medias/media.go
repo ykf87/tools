@@ -44,7 +44,7 @@ func init() {
 	dbs.DB().AutoMigrate(&MediaUserToClient{})
 	dbs.DB().AutoMigrate(&MediaUserProxy{})
 	dbs.DB().AutoMigrate(&MediaUserDay{})
-	runstart()
+	go runstart()
 
 	getInfoLimit = ratelimit.New(
 		ratelimit.WithLimit(5, 10*time.Second), // 10秒5次
