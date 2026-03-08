@@ -66,13 +66,11 @@ func main() {
 	fmt.Println("欢迎使用小卡卡辅助工具.有任何问题可以随时在系统内联系开发者或者前往官网留言.祝您使用愉快!")
 	fmt.Println("系统UUID:", syncuuid.MachineUUID())
 	go web.Start(port)
-	// quit := make(chan os.Signal, 1)
-	// signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	// <-quit
 	<-mainsignal.MainCtx.Done()
 	mainsignal.MainStop()
 	fmt.Println("\n系统准备关闭,释放内存中,请稍后...")
 	flush()
+	mainsignal.MainWait.Wait()
 
 	fmt.Println("系统已退出,感谢您的使用!")
 }
@@ -92,5 +90,5 @@ func flush() {
 	tasks.Flush()
 	bs.Flush()
 	web.WebCloseCh()
-	time.Sleep(time.Second)
+	// time.Sleep(time.Second)
 }

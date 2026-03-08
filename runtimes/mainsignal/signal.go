@@ -4,12 +4,14 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 )
 
 // var Quit chan os.Signal
 var MainCtx context.Context
 var MainStop context.CancelFunc
+var MainWait sync.WaitGroup
 
 func init() {
 	MainCtx, MainStop = signal.NotifyContext(
@@ -17,7 +19,4 @@ func init() {
 		os.Interrupt,
 		syscall.SIGTERM,
 	)
-
-	// Quit = make(chan os.Signal, 1)
-	// signal.Notify(Quit, syscall.SIGINT, syscall.SIGTERM)
 }

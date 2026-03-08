@@ -9,14 +9,22 @@ import (
 )
 
 var MINIPORT int
+var MINIAPIPORT int
 
 func init() {
 	MINIPORT, _ = funcs.FreePort()
-	funcs.RunCommandWithENV(false, config.FullPath(config.SYSROOT, "minio.exe"), func(cmd *exec.Cmd) {
-		cmd.Env = append(os.Environ(),
-			"MINIO_ROOT_USER=admin",
-			"MINIO_ROOT_PASSWORD=StrongPassword123!",
-		)
-	}, "server", config.FullPath(".mini"), "--console-address", fmt.Sprintf("0.0.0.0:%d", MINIPORT))
+	MINIAPIPORT, _ = funcs.FreePort()
+	funcs.RunCommandWithENV(false,
+		config.FullPath(config.SYSROOT, "minio.exe"),
+		func(cmd *exec.Cmd) {
+			cmd.Env = append(os.Environ(),
+				"MINIO_ROOT_USER=admin",
+				"MINIO_ROOT_PASSWORD=StrongPassword123!",
+			)
+		}, "server",
+		config.FullPath(".mini"),
+		"--console-address", fmt.Sprintf("0.0.0.0:%d", MINIPORT),
+		"--address", fmt.Sprintf("0.0.0.0:%d", MINIAPIPORT),
+	)
 	fmt.Println("io文件存储启动端口:", MINIPORT)
 }

@@ -13,3 +13,5 @@
 /.zed*
 .sys/.db
 /.mini
+*.mp4
+.trashed/

@@ -356,6 +356,9 @@ func Download(c *gin.Context) {
 				errs = append(errs, err.Error()) //i18n.T("%s download failed", u)
 				return
 			}
+
+			bt, _ := config.Json.Marshal(parseRes)
+			fmt.Println(string(bt), "=====")
 			rsrow.Cover = parseRes.CoverUrl
 			rsrow.Platform = parseRes.Platform
 
@@ -372,72 +375,152 @@ func Download(c *gin.Context) {
 }
 
 func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vurl string, uid int64, cover string) {
+	var downurls []string
 	if parseRes.VideoUrl != "" {
-		md, err := medias.DownLoadVideo(vurl, parseRes.VideoUrl, path, "", proxy, func(percent float64, downloaded, total int64) {
-			fmt.Printf("\r下载进度: %.2f%%", percent)
-			dbk := new(Pms)
-			dbk.DownFile = urlmd5
-			dbk.Fmt = fmt.Sprintf("%.2f%%", percent)
-			dbk.Num = percent
-			dbk.Dir = false
-			dbk.Cover = cover
-			dbk.Name = urlmd5
-			dbk.Platform = parseRes.Platform
+		downurls = append(downurls, parseRes.VideoUrl)
+		// md, err := medias.DownLoadVideo(vurl, parseRes.VideoUrl, path, "", proxy, func(percent float64, downloaded, total int64) {
+		// 	fmt.Printf("\r下载进度: %.2f%%", percent)
+		// 	dbk := new(Pms)
+		// 	dbk.DownFile = urlmd5
+		// 	dbk.Fmt = fmt.Sprintf("%.2f%%", percent)
+		// 	dbk.Num = percent
+		// 	dbk.Dir = false
+		// 	dbk.Cover = cover
+		// 	dbk.Name = urlmd5
+		// 	dbk.Platform = parseRes.Platform
 
-			ws.SentBus(uid, "video-download", dbk, "")
-		})
-		if err != nil {
-			dbk := new(Pms)
-			dbk.DownFile = urlmd5
-			dbk.Fmt = ""
-			dbk.Num = 0
-			dbk.Dir = false
-			dbk.Status = -1
-			dbk.DownErrMsg = err.Error()
+		// 	ws.SentBus(uid, "video-download", dbk, "")
+		// })
+		// if err != nil {
+		// 	dbk := new(Pms)
+		// 	dbk.DownFile = urlmd5
+		// 	dbk.Fmt = ""
+		// 	dbk.Num = 0
+		// 	dbk.Dir = false
+		// 	dbk.Status = -1
+		// 	dbk.DownErrMsg = err.Error()
 
-			ws.SentBus(uid, "video-download", dbk, "")
-			return
+		// 	ws.SentBus(uid, "video-download", dbk, "")
+		// 	return
+		// }
+		// md.VideoID = parseRes.VideoID
+		// md.Platform = parseRes.Platform
+		// md.Title = parseRes.Title
+
+		// if parseRes.Author.Uid != "" {
+		// 	mu := medias.MkerMediaUser(parseRes.Platform, parseRes.Author.Uid, parseRes.Author.Avatar, parseRes.Author.Name, proxy, parseRes.Author.SearchID, uid)
+		// 	md.UserId = mu.Id
+		// }
+		// // md.Save(nil)
+		// md.Save(md, medias.GetDb().DB())
+
+		// dbk := new(Pms)
+		// dbk.DownFile = urlmd5
+		// dbk.Fmt = "100%"
+		// dbk.Num = 100
+		// dbk.Dir = false
+		// dbk.Status = 1
+		// dbk.Mime = md.Mime
+		// dbk.Size = funcs.FormatFileSize(md.Size)
+		// dbk.Name = md.Name
+		// dbk.Platform = md.Platform
+		// dbk.Url = fmt.Sprintf("%s/%s", config.MediaUrl, filepath.Join(path, md.Name))
+
+		// rrs := medias.GetMediasUserFromName([]string{md.Mime})
+		// if vvs, ok := rrs[md.Mime]; ok {
+		// 	dbk.User = vvs
+		// }
+
+		// tms := strings.Split(md.Mime, ".")
+		// if len(tms) > 1 {
+		// 	dbk.Ext = strings.ToLower(tms[len(tms)-1])
+		// }
+
+		// dbk.FullName = fmt.Sprintf("%s/%s", md.Path, md.Name)
+		// dbk.Timer = md.Filetime
+
+		// ws.SentBus(uid, "video-download", dbk, "")
+	} else if len(parseRes.Images) > 0 { // 下载图片
+		for _, v := range parseRes.Images {
+			downurls = append(downurls, v.Url)
+			// _, err := medias.DownLoadVideo(vurl, v.Url, path, "", proxy, func(percent float64, downloaded, total int64) {
+			// 	fmt.Printf("\r下载进度: %.2f%%", percent)
+			// 	dbk := new(Pms)
+			// 	dbk.DownFile = urlmd5
+			// 	dbk.Fmt = fmt.Sprintf("%.2f%%", percent)
+			// 	dbk.Num = percent
+			// 	dbk.Dir = false
+			// 	dbk.Cover = cover
+			// 	dbk.Name = urlmd5
+			// 	dbk.Platform = parseRes.Platform
+
+			// 	ws.SentBus(uid, "video-download", dbk, "")
+			// })
 		}
-		md.VideoID = parseRes.VideoID
-		md.Platform = parseRes.Platform
-		md.Title = parseRes.Title
+	}
 
-		if parseRes.Author.Uid != "" {
-			mu := medias.MkerMediaUser(parseRes.Platform, parseRes.Author.Uid, parseRes.Author.Avatar, parseRes.Author.Name, proxy, parseRes.Author.SearchID, uid)
-			md.UserId = mu.Id
-		}
-		// md.Save(nil)
-		md.Save(md, medias.GetDb().DB())
-
+	md, err := medias.DownLoadVideo(vurl, downurls, path, "", proxy, func(percent float64, downloaded, total int64) {
+		fmt.Printf("\r下载进度: %.2f%%", percent)
 		dbk := new(Pms)
 		dbk.DownFile = urlmd5
-		dbk.Fmt = "100%"
-		dbk.Num = 100
+		dbk.Fmt = fmt.Sprintf("%.2f%%", percent)
+		dbk.Num = percent
 		dbk.Dir = false
-		dbk.Status = 1
-		dbk.Mime = md.Mime
-		dbk.Size = funcs.FormatFileSize(md.Size)
-		dbk.Name = md.Name
-		dbk.Platform = md.Platform
-		dbk.Url = fmt.Sprintf("%s/%s", config.MediaUrl, filepath.Join(path, md.Name))
-
-		rrs := medias.GetMediasUserFromName([]string{md.Mime})
-		if vvs, ok := rrs[md.Mime]; ok {
-			dbk.User = vvs
-		}
-
-		tms := strings.Split(md.Mime, ".")
-		if len(tms) > 1 {
-			dbk.Ext = strings.ToLower(tms[len(tms)-1])
-		}
-
-		dbk.FullName = fmt.Sprintf("%s/%s", md.Path, md.Name)
-		dbk.Timer = md.Filetime
+		dbk.Cover = cover
+		dbk.Name = urlmd5
+		dbk.Platform = parseRes.Platform
 
 		ws.SentBus(uid, "video-download", dbk, "")
-	} else if len(parseRes.Images) > 0 { // 下载图片
+	})
+	if err != nil {
+		dbk := new(Pms)
+		dbk.DownFile = urlmd5
+		dbk.Fmt = ""
+		dbk.Num = 0
+		dbk.Dir = false
+		dbk.Status = -1
+		dbk.DownErrMsg = err.Error()
 
+		ws.SentBus(uid, "video-download", dbk, "")
+		return
 	}
+	md.VideoID = parseRes.VideoID
+	md.Platform = parseRes.Platform
+	md.Title = parseRes.Title
+
+	if parseRes.Author.Uid != "" {
+		mu := medias.MkerMediaUser(parseRes.Platform, parseRes.Author.Uid, parseRes.Author.Avatar, parseRes.Author.Name, proxy, parseRes.Author.SearchID, uid)
+		md.UserId = mu.Id
+	}
+	// md.Save(nil)
+	md.Save(md, medias.GetDb().DB())
+
+	dbk := new(Pms)
+	dbk.DownFile = urlmd5
+	dbk.Fmt = "100%"
+	dbk.Num = 100
+	dbk.Dir = false
+	dbk.Status = 1
+	dbk.Mime = md.Mime
+	dbk.Size = funcs.FormatFileSize(md.Size)
+	dbk.Name = md.Name
+	dbk.Platform = md.Platform
+	dbk.Url = fmt.Sprintf("%s/%s", config.MediaUrl, filepath.Join(path, md.Name))
+
+	rrs := medias.GetMediasUserFromName([]string{md.Mime})
+	if vvs, ok := rrs[md.Mime]; ok {
+		dbk.User = vvs
+	}
+
+	tms := strings.Split(md.Mime, ".")
+	if len(tms) > 1 {
+		dbk.Ext = strings.ToLower(tms[len(tms)-1])
+	}
+
+	dbk.FullName = fmt.Sprintf("%s/%s", md.Path, md.Name)
+	dbk.Timer = md.Filetime
+
+	ws.SentBus(uid, "video-download", dbk, "")
 }
 
 type mkdirStruct struct {

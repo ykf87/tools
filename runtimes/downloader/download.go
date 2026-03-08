@@ -188,10 +188,12 @@ func Down(url, dest, proxy string) {
 func (d *Downloader) GetUrlFileExt(url string) (string, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
+		fmt.Println("aaaaaa", url)
 		return "", err
 	}
 	resp, err := d.Client.Do(req)
 	if err != nil {
+		fmt.Println("bbbbbb", url)
 		return "", err
 	}
 	defer resp.Body.Close()
@@ -199,6 +201,7 @@ func (d *Downloader) GetUrlFileExt(url string) (string, error) {
 	headerBuf := make([]byte, 261)
 	n, err := resp.Body.Read(headerBuf)
 	if err != nil && err != io.EOF {
+		fmt.Println("ccccccc", url)
 		return "", err
 	}
 

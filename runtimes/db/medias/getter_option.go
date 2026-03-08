@@ -171,7 +171,7 @@ func (opt *Options) ParseInfos(str string, downloads bool) error {
 					} else {
 						if parseRes.VideoUrl != "" {
 							path := opt.mu.DefDirName("") //fmt.Sprintf(".auto/%s%d", opt.mu.Uuid, opt.mu.Id)
-							md, err := DownLoadVideo(url, parseRes.VideoUrl, path, "", opt.Proxy, func(percent float64, downloaded, total int64) {})
+							md, err := DownLoadVideo(url, []string{parseRes.VideoUrl}, path, "", opt.Proxy, func(percent float64, downloaded, total int64) {})
 							if err == nil {
 								md.UserId = opt.MUID
 								vtem := strings.Split(url, "/")

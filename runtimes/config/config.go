@@ -15,6 +15,7 @@ var Json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 const (
 	LOGROOT      = "logs"                           // 日志目录
+	TRASHED      = ".trashed"                       // 垃圾桶
 	CACHEROOT    = "cache"                          // 缓存目录
 	DATAROOT     = "data"                           // 媒体文件路径
 	WEBROOT      = ".web"                           // 网页端文件路径,开头是.的默认隐藏
@@ -68,6 +69,11 @@ var Mkdirs = map[string]*mkdirStruct{
 		Mode:    os.ModePerm,
 		IsHide:  false,
 	},
+	"trashed": &mkdirStruct{
+		DirName: TRASHED,
+		Mode:    os.ModePerm,
+		IsHide:  true,
+	},
 	"node": &mkdirStruct{
 		DirName: WEBROOT,
 		Mode:    os.ModePerm,
@@ -91,7 +97,7 @@ var Mkdirs = map[string]*mkdirStruct{
 	"media": &mkdirStruct{
 		DirName: MEDIAROOT,
 		Mode:    os.ModePerm,
-		IsHide:  false,
+		IsHide:  true,
 	},
 	"mini": &mkdirStruct{
 		DirName: ".mini",

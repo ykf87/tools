@@ -179,7 +179,40 @@ func Editer(c *gin.Context) {
 }
 
 func Delete(c *gin.Context) {
+	type reqIdsS struct {
+		Ids []int64 `json:"ids"`
+	}
+	ids := new(reqIdsS)
+	if err := c.ShouldBindJSON(ids); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+	if len(ids.Ids) < 1 {
+		response.Error(c, http.StatusBadRequest, "未找到用户", nil)
+		return
+	}
 
+	medias.GetDb().DB().Model(&medias.MediaUser{}).Where("id in ?", ids.Ids)
+	if err := medias.GetDb().Write(func(tx *gorm.DB) error {
+		if err := tx.Model(&medias.MediaUser{}).Where("id in ?", ids.Ids).Updates(map[string]any{
+			"trashed":  1,
+			"trash_at": time.Now().Unix(),
+		}).Error; err != nil {
+			return err
+		}
+
+		var muids []int64
+		tx.Model(&medias.Media{}).Select("id").Where("user_id in ?", ids.Ids).Find(&muids)
+		if len(muids) > 0 {
+			go medias.DeleteMediaFiles(muids)
+		}
+		return nil
+	}); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	response.Success(c, nil, "")
 }
 
 type BatchAddReq struct {
@@ -353,8 +386,12 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 						} else {
 							errored++
 						}
+						msg := ""
+						if err != nil {
+							msg = err.Error()
+						}
 						tr.Doned = tr.Doned + 1
-						tr.SentMsg(fmt.Sprintf("总数: %d, 成功: %d, 失败: %d %s", len(req.Urls), doned, errored, err.Error()), 0, false)
+						tr.SentMsg(fmt.Sprintf("总数: %d, 成功: %d, 失败: %d %s", len(req.Urls), doned, errored, msg), 0, false)
 						time.Sleep(time.Second * time.Duration(funcs.RandomNumber(3, 8)))
 					}
 				}
@@ -399,7 +436,7 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 								savePath := mu.DefDirName(parseRes.Author.Uid) //fmt.Sprintf(".auto/%s", funcs.Md5String(parseRes.Author.Uid))
 
 								if parseRes.VideoUrl != "" {
-									md, err := medias.DownLoadVideo(v, parseRes.VideoUrl, savePath, "", proxy, func(percent float64, downloaded, total int64) {
+									md, err := medias.DownLoadVideo(v, []string{parseRes.VideoUrl}, savePath, "", proxy, func(percent float64, downloaded, total int64) {
 										fmt.Printf("\r下载进度: %.2f%%", percent)
 									})
 
@@ -413,6 +450,8 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 										if err := md.Save(md, medias.GetDb().DB()); err != nil {
 											errored++
 										} else {
+											medias.GetDb().DB().Model(&medias.Media{}).Where("user_id = ?", mu.Id).Count(&mu.Videos)
+											mu.Save(mu, medias.GetDb().DB())
 											doned++
 										}
 									}
@@ -520,8 +559,8 @@ func LocalVideo(c *gin.Context) {
 			"mu.local",
 			"mu.videos as downloaded",
 		).
-		Joins("left join media_users as mu on mu.id = media.user_id").
-		Where("media.trashed = 0")
+		Joins("right join media_users as mu on mu.id = media.user_id").
+		Where("media.removed = 0 and mu.trashed = 0")
 	if len(lob.UIDs) > 0 {
 		md = md.Where("user_id in ?", lob.UIDs)
 	}

@@ -7,6 +7,9 @@ import (
 	"tools/runtimes/bs"
 	"tools/runtimes/db/jses"
 	"tools/runtimes/db/proxys"
+	"tools/runtimes/downloader"
+	"tools/runtimes/funcs"
+	"tools/runtimes/mainsignal"
 	"tools/runtimes/proxy"
 	"tools/runtimes/sch"
 
@@ -56,6 +59,27 @@ import (
 // }
 func init() {
 	// testBrowser()
+	mainsignal.MainWait.Go(func() {
+		name, err := downloader.Download(mainsignal.MainCtx, &downloader.DownloadOption{
+			URL:      "https://v11-cold1.douyinvod.com/a5dc9977fb9517b2c8d80b9f4c54b83c/69adb365/video/tos/cn/tos-cn-ve-15c000-ce/oUueNvvItU7vhIBQGCLTATEGgQ8haJHjePKBeZ/?a=1128&ch=0&cr=0&dr=0&cd=0%7C0%7C0%7C0&cv=1&br=1772&bt=1772&cs=0&ds=4&ft=BaXAWVVywfyRF38Pmo~pK7pswAp-bH-_vrKnZwocdo0g3cI&mime_type=video_mp4&qs=0&rc=ZzM6aGc8PGc7OGZlOWc5O0BpM3Fpd3A5cnM6OTMzbGkzNEAxXjAtLi00XjExL18vXzA1YSMxcjZhMmRrb15hLS1kLWJzcw%3D%3D&btag=c0010e000ad000&cquery=100y&dy_q=1772987524&feature_id=0ea98fd3bdc3c6c14a3d0804cc272721&l=202603090032048422CC1B1067BB5B8E91",
+			Dir:      "./",
+			Threads:  8,
+			FileName: "",
+			Headers: map[string]string{
+				"User-Agent": "Mozilla/5.0",
+			},
+			Callback: func(total, cur, speed, workers int64) {
+				fmt.Printf(
+					"\r%.2f%% %s/s workers:%d %s",
+					float64(cur)/float64(total)*100,
+					funcs.FormatFileSize(speed, "1", ""),
+					workers,
+					funcs.FormatFileSize(total, "1", ""),
+				)
+			},
+		})
+		fmt.Println("\n下载完成：", name, err)
+	})
 }
 
 func scheduler() {

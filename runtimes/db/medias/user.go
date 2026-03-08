@@ -45,6 +45,7 @@ type MediaUser struct {
 	Sex          string          `json:"sex" gorm:"index"`                                     // 性别
 	Videos       int64           `json:"videos" gorm:"index;default:0"`                        // 已下载的视频数量
 	Trashed      int             `json:"trashed" gorm:"type:tinyint(1);default:0;index"`       // 是否删除,1为删除，0为正常
+	TrashAt      int64           `json:"trash_at" gorm:"default:0;index"`                      // 删除时间
 	Tags         []string        `json:"tags" gorm:"-"`                                        // 标签
 	Clients      map[int][]int64 `json:"clients" gorm:"-"`                                     // 使用的客户端
 	Proxys       []int64         `json:"proxys" gorm:"-"`                                      // 使用的代理列表
@@ -150,7 +151,7 @@ func GetMediaUsers(adminID int64, dt *db.ListFinder) ([]*MediaUser, int64) {
 	if dt.Limit < 1 {
 		dt.Limit = 20
 	}
-	md := dbs.DB().Model(&MediaUser{}).Where("admin_id = ?", adminID)
+	md := dbs.DB().Model(&MediaUser{}).Where("admin_id = ? and trashed = 0", adminID)
 	if dt.Q != "" {
 		qs := fmt.Sprintf("%%%s%%", dt.Q)
 		md = md.Where("name like ?", qs)
@@ -404,6 +405,7 @@ func (mu *MediaUser) ParseUserInfoData(data string) error {
 
 	dbs.DB().Model(&Media{}).Where("user_id = ?", mu.Id).Count(&mu.Videos)
 	dbs.Write(func(tx *gorm.DB) error {
+		mu.Trashed = 0
 		return mu.Save(mu, tx)
 	})
 	mu.Commpare()

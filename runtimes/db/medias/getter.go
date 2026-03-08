@@ -466,7 +466,7 @@ func (t *MediaUser) autodownload(videos []string) {
 			if parseRes.VideoUrl != "" {
 				fn := funcs.Md5String(parseRes.VideoUrl)
 				path := fmt.Sprintf(".auto/%s%d", t.Uuid, t.Id)
-				md, err := DownLoadVideo(v, parseRes.VideoUrl, path, "", t.trans, func(percent float64, downloaded, total int64) {
+				md, err := DownLoadVideo(v, []string{parseRes.VideoUrl}, path, "", t.trans, func(percent float64, downloaded, total int64) {
 					fmt.Printf("\r下载进度: %.2f%%", percent)
 					dbk := new(pms)
 					dbk.DownFile = fn

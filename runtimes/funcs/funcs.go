@@ -410,21 +410,32 @@ const (
 	TB
 )
 
-func FormatFileSize(size int64) string {
+func FormatFileSize(size int64, args ...string) string {
+	step := " "
+	if len(args) > 1 {
+		step = args[1]
+	}
+
+	point := 2
+	if len(args) > 0 {
+		if pt, err := strconv.Atoi(args[0]); err == nil {
+			point = pt
+		}
+	}
 
 	floatSize := float64(size)
 
 	switch {
 	case floatSize >= TB:
-		return fmt.Sprintf("%.2f T", floatSize/TB)
+		return fmt.Sprintf("%.*f%sTB", point, floatSize/TB, step)
 	case floatSize >= GB:
-		return fmt.Sprintf("%.2f G", floatSize/GB)
+		return fmt.Sprintf("%.*f%sGB", point, floatSize/GB, step)
 	case floatSize >= MB:
-		return fmt.Sprintf("%.2f M", floatSize/MB)
+		return fmt.Sprintf("%.*f%sMB", point, floatSize/MB, step)
 	case floatSize >= KB:
-		return fmt.Sprintf("%.2f K", floatSize/KB)
+		return fmt.Sprintf("%.*f%sKB", point, floatSize/KB, step)
 	default:
-		return fmt.Sprintf("%d B", size)
+		return fmt.Sprintf("%d%sByte", size, step)
 	}
 }
 
