@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"path"
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/downloader"
 	"tools/runtimes/funcs"
+	"tools/runtimes/mainsignal"
 	"tools/runtimes/requests"
 
 	"github.com/tidwall/gjson"
@@ -115,6 +117,23 @@ func ServerDownload(url, saveto string, hdds map[string]string, fun func(p float
 		hds.Add(k, v)
 	}
 
-	dl := downloader.NewDownloader("", fun, hds)
-	return dl.Download(url, saveto)
+	if _, err := downloader.Download(mainsignal.MainCtx, &downloader.DownloadOption{
+		URL:      url,
+		Dir:      path.Dir(saveto),
+		FileName: path.Base(saveto),
+		Callback: func(total, downloaded, speed, workers int64) {
+			fmt.Printf(
+				"\r%.2f%% %s/s workers:%d %s",
+				float64(downloaded)/float64(total)*100,
+				funcs.FormatFileSize(speed, "1", ""),
+				workers,
+				funcs.FormatFileSize(total, "1", ""),
+			)
+		},
+	}); err != nil {
+		return err
+	}
+	return nil
+	// dl := downloader.NewDownloader("", fun, hds)
+	// return dl.Download(url, saveto)
 }

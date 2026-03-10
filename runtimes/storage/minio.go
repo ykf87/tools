@@ -2,10 +2,16 @@ package storage
 
 import (
 	"context"
+	"encoding/hex"
 	"io"
-	"net/http"
+	"os"
+	"strings"
+	"time"
+	"tools/runtimes/config"
+	"tools/runtimes/downloader"
+	"tools/runtimes/funcs"
+	"tools/runtimes/mainsignal"
 
-	"github.com/google/uuid"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
@@ -39,18 +45,65 @@ func newMinio(cfg Config) (Storage, error) {
 	}, nil
 }
 
-func (m *minioStorage) Put(path string, r io.Reader) error {
+func (m *minioStorage) Put(r io.Reader) (string, error) {
 
-	_, err := m.client.PutObject(
+	fm, err := PrepareFile(r)
+	if err != nil {
+		return "s", err
+	}
+
+	_, err = m.client.PutObject(
 		m.ctx,
 		m.bucket,
-		path,
-		r,
+		fm.ObjectKey,
+		fm.Reader,
 		-1,
-		minio.PutObjectOptions{},
+		minio.PutObjectOptions{
+			ContentType: "application/octet-stream",
+		},
 	)
 
-	return err
+	if err != nil {
+		return "", err
+	}
+
+	hash := hex.EncodeToString(fm.H.Sum(nil))
+	objectKey := buildObjectKey(hash, fm.Ext)
+
+	if _, err = m.client.CopyObject(m.ctx, minio.CopyDestOptions{
+		Bucket: m.bucket,
+		Object: objectKey,
+	}, minio.CopySrcOptions{
+		Bucket: m.bucket,
+		Object: fm.ObjectKey,
+	}); err != nil {
+		return "", err
+	}
+
+	_ = m.client.RemoveObject(m.ctx, m.bucket, fm.ObjectKey, minio.RemoveObjectOptions{})
+
+	return objectKey, err
+}
+
+func (m *minioStorage) PutStr(str string) (string, error) {
+
+	str = strings.ReplaceAll(str, "\\", "/")
+	if _, err := os.Stat(str); err != nil {
+		return "", err
+	}
+
+	f, err := os.Open(str)
+	if err != nil {
+		return "", err
+	}
+
+	name, err := m.Put(f)
+	if err != nil {
+		f.Close()
+		return "", err
+	}
+	f.Close()
+	return name, os.Remove(str)
 }
 
 func (m *minioStorage) Get(path string) (io.ReadCloser, error) {
@@ -130,47 +183,34 @@ func (m *minioStorage) URL(path string) string {
 	return m.url + "/" + path
 }
 
-func (m *minioStorage) Download(ctx context.Context, url string, opt DownloadOption) (string, error) {
+func (m *minioStorage) Download(ctx context.Context, url string, opt *downloader.DownloadOption) (string, int64, int64, string, error) {
+	dirname := config.FullPath(config.MEDIAROOT, ".tmp")
+	if opt == nil {
+		opt = &downloader.DownloadOption{
+			URL:      url,
+			Timeout:  time.Second * 120,
+			Dir:      dirname,
+			MainWait: &mainsignal.MainWait,
+		}
+	}
+	if opt.Dir == "" {
+		opt.Dir = dirname
+	}
+	opt.URL = url
 
-	name := opt.FileName
-
-	if name == "" {
-		name = uuid.New().String()
+	rsp, err := downloader.Download(ctx, opt)
+	if err != nil {
+		return "", 0, 0, "", err
 	}
 
-	pr, pw := io.Pipe()
+	fullname := config.FullPath(rsp.FullName)
 
-	var resp *http.Response
-	var err error
+	mime, err := funcs.FileMimeType(fullname)
 
-	go func() {
-
-		resp, err = StreamDownload(url, opt, pw)
-
-		pw.CloseWithError(err)
-
-	}()
-
-	ext := ExtFromURL(url)
-
-	if ext == "" && resp != nil {
-		ext = ExtFromHeader(resp)
+	rname, err := m.PutStr(fullname)
+	if err != nil {
+		return "", 0, 0, "", err
 	}
 
-	if ext == "" {
-		ext = ".bin"
-	}
-
-	object := opt.Dir + "/s" + name + ext
-
-	_, err = m.client.PutObject(
-		ctx,
-		m.bucket,
-		object,
-		pr,
-		-1,
-		minio.PutObjectOptions{},
-	)
-
-	return object, err
+	return rname, rsp.Size, rsp.End.Unix() - rsp.Start.Unix(), mime, nil
 }

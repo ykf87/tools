@@ -170,6 +170,25 @@ func (opt *Options) ParseInfos(str string, downloads bool) error {
 						opt.tr.ReportSchedule(urlstotal, idx)
 					} else {
 						if parseRes.VideoUrl != "" {
+							vtem := strings.Split(url, "/")
+							mp, err := MKDBNameID( // 构建文件存储目录
+								"autodownload/" + opt.mu.Name,
+							)
+							if err != nil {
+								return err
+							}
+							m := &Media{
+								Platform: opt.mu.Platform,
+								UserId:   opt.MUID,
+								VideoID:  vtem[len(vtem)-1],
+								Title:    parseRes.Title,
+								Url:      opt.Url,
+								UrlMd5:   funcs.Md5String(opt.Url),
+								Path:     "autodownload/" + opt.mu.Name,
+								PathID:   mp.ID,
+							}
+							m.DownMediaFiles([]string{parseRes.VideoUrl}, opt.Proxy, nil)
+
 							path := opt.mu.DefDirName("") //fmt.Sprintf(".auto/%s%d", opt.mu.Uuid, opt.mu.Id)
 							md, err := DownLoadVideo(url, []string{parseRes.VideoUrl}, path, "", opt.Proxy, func(percent float64, downloaded, total int64) {})
 							if err == nil {
@@ -179,7 +198,8 @@ func (opt *Options) ParseInfos(str string, downloads bool) error {
 								md.Platform = opt.mu.Platform
 								md.Title = parseRes.Title
 								dbs.Write(func(tx *gorm.DB) error {
-									return md.Save(md, tx)
+									// return md.Save(md, tx)
+									return nil
 								})
 								opt.tr.ReportSchedule(urlstotal, idx)
 								opt.tr.SentMsg("成功下载一个视频", 0, false)

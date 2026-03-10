@@ -2,11 +2,15 @@ package storage
 
 import (
 	"context"
+	"encoding/hex"
 	"io"
 	"os"
 	"path/filepath"
-
-	"github.com/google/uuid"
+	"time"
+	"tools/runtimes/config"
+	"tools/runtimes/downloader"
+	"tools/runtimes/funcs"
+	"tools/runtimes/mainsignal"
 )
 
 type localStorage struct {
@@ -26,23 +30,61 @@ func (l *localStorage) full(p string) string {
 	return filepath.Join(l.basePath, p)
 }
 
-func (l *localStorage) Put(path string, r io.Reader) error {
+func (l *localStorage) Put(r io.Reader) (string, error) {
 
-	full := l.full(path)
-
-	err := os.MkdirAll(filepath.Dir(full), 0755)
+	meta, err := PrepareFile(r)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	f, err := os.Create(full)
-	if err != nil {
-		return err
+	tmpPath := filepath.Join(l.basePath, meta.ObjectKey)
+	if err := os.MkdirAll(filepath.Dir(tmpPath), os.ModePerm); err != nil {
+		return "", err
 	}
-	defer f.Close()
 
-	_, err = io.Copy(f, r)
-	return err
+	// 5️⃣ 本地写入临时文件
+	f, err := os.Create(tmpPath)
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(f, meta.Reader); err != nil {
+		f.Close()
+		return "", err
+	}
+	f.Close()
+
+	// 6️⃣ 计算 hash 并生成最终路径
+	hash := hex.EncodeToString(meta.H.Sum(nil))
+	objectKey := buildObjectKey(hash, meta.Ext)
+	finalPath := filepath.Join(l.basePath, objectKey)
+	if err := os.MkdirAll(filepath.Dir(finalPath), os.ModePerm); err != nil {
+		return "", err
+	}
+
+	// 7️⃣ 移动临时文件到最终路径
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		return "", err
+	}
+	return objectKey, nil
+}
+
+func (l *localStorage) PutStr(str string) (string, error) {
+	if _, err := os.Stat(str); err != nil {
+		return "", nil
+	}
+
+	f, err := os.Open(str)
+	if err != nil {
+		return "", err
+	}
+
+	name, err := l.Put(f)
+	if err != nil {
+		f.Close()
+		return "", err
+	}
+	f.Close()
+	return name, os.Remove(str)
 }
 
 func (l *localStorage) Get(path string) (io.ReadCloser, error) {
@@ -103,49 +145,33 @@ func (l *localStorage) URL(path string) string {
 	return l.baseURL + "/" + path
 }
 
-func (l *localStorage) Download(ctx context.Context, url string, opt DownloadOption) (string, error) {
+func (l *localStorage) Download(ctx context.Context, url string, opt *downloader.DownloadOption) (string, int64, int64, string, error) {
 
-	name := opt.FileName
-
-	if name == "" {
-		name = uuid.New().String()
+	dirname := config.FullPath(config.MEDIAROOT, ".tmp")
+	if opt == nil {
+		opt = &downloader.DownloadOption{
+			URL:      url,
+			Timeout:  time.Second * 120,
+			Dir:      dirname,
+			MainWait: &mainsignal.MainWait,
+		}
 	}
-
-	tmp := filepath.Join(os.TempDir(), name+".downloading")
-
-	f, err := os.Create(tmp)
-
+	if opt.Dir == "" {
+		opt.Dir = dirname
+	}
+	opt.URL = url
+	name, err := downloader.Download(ctx, opt)
 	if err != nil {
-		return "", err
+		return "", 0, 0, "", err
 	}
 
-	resp, err := StreamDownload(url, opt, f)
+	fullname := config.FullPath(dirname, name.FullName)
 
-	f.Close()
+	mime, _ := funcs.FileMimeType(fullname)
 
+	rname, err := l.PutStr(fullname)
 	if err != nil {
-		return "", err
+		return "", 0, 0, "", err
 	}
-
-	ext := ExtFromURL(url)
-
-	if ext == "" {
-		ext = ExtFromHeader(resp)
-	}
-
-	if ext == "" {
-		ext = ".bin"
-	}
-
-	final := name + ext
-
-	path := filepath.Join(opt.Dir, final)
-
-	full := l.full(path)
-
-	os.MkdirAll(filepath.Dir(full), 0755)
-
-	err = os.Rename(tmp, full)
-
-	return path, err
+	return rname, name.Size, name.End.Unix() - name.Start.Unix(), mime, nil
 }

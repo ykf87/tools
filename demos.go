@@ -6,6 +6,7 @@ import (
 	"time"
 	"tools/runtimes/bs"
 	"tools/runtimes/db/jses"
+	"tools/runtimes/db/medias"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/downloader"
 	"tools/runtimes/funcs"
@@ -59,27 +60,36 @@ import (
 // }
 func init() {
 	// testBrowser()
-	mainsignal.MainWait.Go(func() {
-		name, err := downloader.Download(mainsignal.MainCtx, &downloader.DownloadOption{
-			URL:      "https://v11-cold1.douyinvod.com/a5dc9977fb9517b2c8d80b9f4c54b83c/69adb365/video/tos/cn/tos-cn-ve-15c000-ce/oUueNvvItU7vhIBQGCLTATEGgQ8haJHjePKBeZ/?a=1128&ch=0&cr=0&dr=0&cd=0%7C0%7C0%7C0&cv=1&br=1772&bt=1772&cs=0&ds=4&ft=BaXAWVVywfyRF38Pmo~pK7pswAp-bH-_vrKnZwocdo0g3cI&mime_type=video_mp4&qs=0&rc=ZzM6aGc8PGc7OGZlOWc5O0BpM3Fpd3A5cnM6OTMzbGkzNEAxXjAtLi00XjExL18vXzA1YSMxcjZhMmRrb15hLS1kLWJzcw%3D%3D&btag=c0010e000ad000&cquery=100y&dy_q=1772987524&feature_id=0ea98fd3bdc3c6c14a3d0804cc272721&l=202603090032048422CC1B1067BB5B8E91",
-			Dir:      "./",
-			Threads:  8,
-			FileName: "",
-			Headers: map[string]string{
-				"User-Agent": "Mozilla/5.0",
-			},
-			Callback: func(total, cur, speed, workers int64) {
-				fmt.Printf(
-					"\r%.2f%% %s/s workers:%d %s",
-					float64(cur)/float64(total)*100,
-					funcs.FormatFileSize(speed, "1", ""),
-					workers,
-					funcs.FormatFileSize(total, "1", ""),
-				)
-			},
-		})
-		fmt.Println("\n下载完成：", name, err)
-	})
+	// download()
+	// fmt.Println(config.Storages.Load("").PutStr(config.FullPath("44.mp4")))
+	// u := "https://v9-cold1.douyinvod.com/cbef1952f7728d765445ce59d9ed49e8/69af9393/video/tos/cn/tos-cn-ve-15/o8xNppKJEmBRAFgZbgDQfgAzAZ6TBEDoAI8f9F/?a=1128&br=1829&bt=1829&btag=c0010e000a8000&cd=0%7C0%7C0%7C0&ch=0&cquery=100y&cr=0&cs=0&cv=1&dr=0&ds=4&dy_q=1773110527&dy_va_biz_cert=&feature_id=0ea98fd3bdc3c6c14a3d0804cc272721&ft=BaXAWVVywfyRF38Pmo~pK7pswApzZh-_vrKnZwocdo0g3cI&l=202603101042078FEA6334B58181FCF44E&mime_type=video_mp4&qs=0&rc=OjVmZTkzZWk7ZGY8N2hlZ0BpMzU1PG45cnBrODMzNGkzM0BfMy8yLmIvX2MxMjA0MzA0YSNlb18vMmRjaDNhLS1kLTBzcw%3D%3D"
+	// n, e := storage.Load("minio").Download(mainsignal.MainCtx, u, &downloader.DownloadOption{
+	// 	Callback: func(total, downloaded, speed, workers int64) {
+	// 		fmt.Printf(
+	// 			"\r%.2f%% %s/s workers:%d %s",
+	// 			float64(downloaded)/float64(total)*100,
+	// 			funcs.FormatFileSize(speed, "1", ""),
+	// 			workers,
+	// 			funcs.FormatFileSize(total, "1", ""),
+	// 		)
+	// 	},
+	// })
+	// fmt.Println(n, e)
+	getdouytest()
+
+}
+
+func getdouytest() {
+	urlstr := `7.17 pDH:/ 06/28 A@T.lC 刘备遇到水镜，经意外得到神级军师 # 水镜先生 # 刘备 # 徐庶走马荐诸葛 # # 徐庶 # 新三国解说  https://v.douyin.com/4f_EMBbDKdk/ 复制此链接，打开Dou音搜索，直接观看视频！
+	6.12 gbn:/ Q@k.pd 08/10 🐇好可爱吖🐰  https://v.douyin.com/ffn9ejtGAUE/ 复制此链接，打开Dou音搜索，直接观看视频！
+	9.41 GvF:/ 08/21 v@F.UY 热浪岛🏝️ carefree vibe# 精神稳定的成年人  https://v.douyin.com/ECaiQV2JWZg/ 复制此链接，打开Dou音搜索，直接观看视频！
+	0.00 P@X.Zm Xzg:/ 09/12 # 不就反差吗这题我熟 # 巨蟹座  https://v.douyin.com/CR7foC7SU8s/ 复制此链接，打开Dou音搜索，直接观看视频！
+	https://www.douyin.com/video/7615528126583892809`
+	go func() {
+		err := medias.GetPlatformVideos(urlstr, nil, "autodownload", 1, "", true, false)
+		fmt.Println(err)
+	}()
+
 }
 
 func scheduler() {
@@ -178,4 +188,26 @@ func testBrowser() {
 	})
 	fmt.Println(b.OpenBrowser())
 	// b.GoToUrl("https://www.tiktok.com/")
+}
+
+func download() {
+	name, err := downloader.Download(mainsignal.MainCtx, &downloader.DownloadOption{
+		URL:      "https://v5-small.douyinvod.com/df5b4735d2b9bc2dc1449e1b89c3329c/69ae3b32/video/tos/cn/tos-cn-ve-15c000-ce/o0AEw01IdXykEK00Kir1AuiBtB1Zf3AleQChWe/?a=1128&ch=0&cr=0&dr=0&er=0&cd=0%7C0%7C0%7C0&cv=1&br=1682&bt=1682&cs=0&ds=4&ft=LjhJkw998xI7uEPmD0P5NdvaUFiXHU4nkVJEdfQAVbPD-Ipz&mime_type=video_mp4&qs=0&rc=aTk4OWhmO2Q2PGRoZTRmOEBpMzh2bG85cnRxOTMzbGkzNEAwYTA2MTIvXl4xXy02L2BfYSNuLmZiMmRzLmphLS1kLWJzcw%3D%3D",
+		Dir:      "./",
+		FileName: "",
+		Threads:  8,
+		// Headers: map[string]string{
+		// 	"User-Agent": "Mozilla/5.0",
+		// },
+		Callback: func(total, cur, speed, workers int64) {
+			fmt.Printf(
+				"\r%.2f%% %s/s workers:%d %s",
+				float64(cur)/float64(total)*100,
+				funcs.FormatFileSize(speed, "1", ""),
+				workers,
+				funcs.FormatFileSize(total, "1", ""),
+			)
+		},
+	})
+	fmt.Println("\n下载完成：", name, err)
 }

@@ -28,6 +28,14 @@ const (
 	MEDIAROOT    = DATAROOT + "/media"              // 媒体文件路径
 	SERVERDOMAIN = "http://127.0.0.1:20250/server/" // 服务端的地址
 	SERVERWS     = "ws://127.0.0.1:20250/server/ws" // 服务端ws连接地址
+
+	// s3相关配置, 如果使用云端,需要增加endpoint配置,本地minio自动生成
+	ACCESSKEY = "admin"
+	SECRETKEY = "StrongPassword123!"
+	BUCKET    = "default"
+	USESSL    = false
+
+	DEFSTORAGE = "minio" // 默认文件系统
 )
 
 var RuningRoot string
@@ -57,6 +65,9 @@ var ApiUrl = ""
 var WebUrl = ""
 var BrowserReportJs = ""
 var AdminWidthAndHeight sync.Map
+var MINIPORT int
+var MINIAPIPORT int
+var DefStorage string
 
 var Mkdirs = map[string]*mkdirStruct{
 	"log": &mkdirStruct{
@@ -118,6 +129,11 @@ func init() {
 			}
 		}
 	}
+
+	MINIPORT, _ = funcs.FreePort()
+	MINIAPIPORT, _ = funcs.FreePort()
+
+	DefStorage = DEFSTORAGE
 
 	// 这个是浏览器的,还要autojs的上报封装,最好能从服务端获取最新的
 	BrowserReportJs = `class Callback{constructor(options={}){this.app=options.app||'unknown';this.env=options.env||'dev';this.enable=options.enable!==false;this.version="1.3.26"}report(payload){if(!this.enable)return;const body={app:this.app,env:this.env,version:this.version,time:Date.now(),...payload};console.log(JSON.stringify(body))}success(msg,data=null){this.report({type:'success',msg,data})}fail(msg,error=null){this.report({type:'fail',msg,data:error})}notify(msg,data=null){this.report({type:'notify',msg,data})}upload(clickNode,fileNode,files){this.report({type:'upload',msg:'',data:{node:clickNode,upnode:fileNode,files:files}})}input(node,text){this.report({type:'input',msg:'',data:{node:clickNode,text:text}})}click(x,y){this.report({type:'click',msg:'',data:{x:x,y:y}})}invoke(name,params=null){this.report({type:'invoke',msg:name,data:params})}state(name,value){this.report({type:'state',msg:name,data:value})}event(name,data=null){this.report({type:'event',msg:name,data})}metric(name,value,unit=''){this.report({type:'metric',msg:name,data:{value,unit}})}}`

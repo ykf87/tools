@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
@@ -599,4 +601,59 @@ func MsToHMS(ms int64) (hour, min, sec int) {
 	sec = int((ms % minMs) / 1000)
 
 	return
+}
+
+// 获取文件哈希值hash
+func FileSHA256(path string) (string, error) {
+
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hash := sha256.New()
+
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+// 获取文件的mime
+func FileMimeType(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	buf := make([]byte, 512)
+
+	n, err := io.ReadFull(f, buf)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return "", err
+	}
+
+	mimeType := http.DetectContentType(buf[:n])
+
+	return mimeType, nil
+}
+
+// 从字符串中获取连接地址
+func ExtractURLs(text string) []string {
+
+	reg := regexp.MustCompile(`(?i)\b((?:https?|ftp)://[^\s"'<>]+)`)
+	matches := reg.FindAllString(text, -1)
+	set := map[string]struct{}{}
+	result := []string{}
+	for _, u := range matches {
+		if _, ok := set[u]; ok {
+			continue
+		}
+		set[u] = struct{}{}
+		result = append(result, u)
+	}
+	return result
 }

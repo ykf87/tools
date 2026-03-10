@@ -3,21 +3,13 @@ package medias
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"net/url"
-	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 	"tools/runtimes/bs"
-	"tools/runtimes/config"
 	"tools/runtimes/db/jses"
 	"tools/runtimes/db/task"
-	"tools/runtimes/funcs"
-	"tools/runtimes/listens/ws"
 	"tools/runtimes/logs"
 	"tools/runtimes/scheduler"
-	"tools/runtimes/videos/downloader/parser"
 
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/tidwall/gjson"
@@ -106,7 +98,7 @@ func (mu *MediaUser) AutoStart() error {
 				lastmedia := new(Media)
 				dbs.DB().Model(&Media{}).Where("user_id = ?", mu.Id).Order("addtime DESC").First(lastmedia)
 				if lastmedia.Id > 0 {
-					if time.Since(lastmedia.Addtime) < time.Duration(mu.DownFreq*60) {
+					if time.Now().Unix()-lastmedia.Addtime <= 300 {
 						fmt.Println("执行时间未到...")
 						return nil
 					}
@@ -447,88 +439,88 @@ func (t *MediaUser) autodownload(videos []string) {
 	}
 
 	// 如果有
-	wg := new(sync.WaitGroup)
-	for _, v := range waitdown {
-		wg.Go(func() {
-			var transport *http.Transport
-			if t.trans != "" {
-				if proxyURL, err := url.Parse(t.trans); err == nil {
-					transport = &http.Transport{
-						Proxy: http.ProxyURL(proxyURL),
-					}
-				}
-			}
+	// wg := new(sync.WaitGroup)
+	// for _, v := range waitdown {
+	// 	wg.Go(func() {
+	// 		var transport *http.Transport
+	// 		if t.trans != "" {
+	// 			if proxyURL, err := url.Parse(t.trans); err == nil {
+	// 				transport = &http.Transport{
+	// 					Proxy: http.ProxyURL(proxyURL),
+	// 				}
+	// 			}
+	// 		}
 
-			parseRes, err := parser.ParseVideoShareUrlByRegexp(v, transport)
-			if err != nil {
-				return
-			}
-			if parseRes.VideoUrl != "" {
-				fn := funcs.Md5String(parseRes.VideoUrl)
-				path := fmt.Sprintf(".auto/%s%d", t.Uuid, t.Id)
-				md, err := DownLoadVideo(v, []string{parseRes.VideoUrl}, path, "", t.trans, func(percent float64, downloaded, total int64) {
-					fmt.Printf("\r下载进度: %.2f%%", percent)
-					dbk := new(pms)
-					dbk.DownFile = fn
-					dbk.Fmt = fmt.Sprintf("%.2f%%", percent)
-					dbk.Num = percent
-					dbk.Dir = false
-					dbk.Cover = parseRes.CoverUrl
-					dbk.Name = fn
-					dbk.Platform = parseRes.Platform
+	// 		parseRes, err := parser.ParseVideoShareUrlByRegexp(v, transport)
+	// 		if err != nil {
+	// 			return
+	// 		}
+	// 		if parseRes.VideoUrl != "" {
+	// 			fn := funcs.Md5String(parseRes.VideoUrl)
+	// 			path := fmt.Sprintf(".auto/%s%d", t.Uuid, t.Id)
+	// 			md, err := DownLoadVideo(v, []string{parseRes.VideoUrl}, path, "", t.trans, func(percent float64, downloaded, total int64) {
+	// 				fmt.Printf("\r下载进度: %.2f%%", percent)
+	// 				dbk := new(pms)
+	// 				dbk.DownFile = fn
+	// 				dbk.Fmt = fmt.Sprintf("%.2f%%", percent)
+	// 				dbk.Num = percent
+	// 				dbk.Dir = false
+	// 				dbk.Cover = parseRes.CoverUrl
+	// 				dbk.Name = fn
+	// 				dbk.Platform = parseRes.Platform
 
-					ws.SentBus(t.AdminID, "video-download", dbk, "")
-				})
+	// 				ws.SentBus(t.AdminID, "video-download", dbk, "")
+	// 			})
 
-				dbk := new(pms)
-				if err != nil {
-					dbk.DownFile = fn
-					dbk.Fmt = ""
-					dbk.Num = 0
-					dbk.Dir = false
-					dbk.Status = -1
-					dbk.DownErrMsg = err.Error()
+	// 			dbk := new(pms)
+	// 			if err != nil {
+	// 				dbk.DownFile = fn
+	// 				dbk.Fmt = ""
+	// 				dbk.Num = 0
+	// 				dbk.Dir = false
+	// 				dbk.Status = -1
+	// 				dbk.DownErrMsg = err.Error()
 
-					ws.SentBus(t.Id, "video-download", dbk, "")
-					return
-				}
-				md.Title = parseRes.Title
-				md.Platform = parseRes.Platform
-				md.VideoID = parseRes.VideoID
-				md.UserId = t.Id
-				if err := md.Save(md, dbs.DB()); err != nil {
-					return
-				}
+	// 				ws.SentBus(t.Id, "video-download", dbk, "")
+	// 				return
+	// 			}
+	// 			md.Title = parseRes.Title
+	// 			md.Platform = parseRes.Platform
+	// 			md.VideoID = parseRes.VideoID
+	// 			md.UserId = t.Id
+	// 			if err := md.Save(md, dbs.DB()); err != nil {
+	// 				return
+	// 			}
 
-				dbk.DownFile = fn
-				dbk.Fmt = "100%"
-				dbk.Num = 100
-				dbk.Dir = false
-				dbk.Status = 1
-				dbk.Mime = md.Mime
-				dbk.Size = funcs.FormatFileSize(md.Size)
-				dbk.Name = md.Name
-				dbk.Platform = md.Platform
-				dbk.Url = fmt.Sprintf("%s/%s", config.MediaUrl, filepath.Join(path, md.Name))
+	// 			dbk.DownFile = fn
+	// 			dbk.Fmt = "100%"
+	// 			dbk.Num = 100
+	// 			dbk.Dir = false
+	// 			dbk.Status = 1
+	// 			dbk.Mime = md.Mime
+	// 			dbk.Size = funcs.FormatFileSize(md.Size)
+	// 			dbk.Name = md.Name
+	// 			dbk.Platform = md.Platform
+	// 			dbk.Url = fmt.Sprintf("%s/%s", config.MediaUrl, filepath.Join(path, md.Name))
 
-				rrs := GetMediasUserFromName([]string{md.Mime})
-				if vvs, ok := rrs[md.Mime]; ok {
-					dbk.User = vvs
-				}
+	// 			rrs := GetMediasUserFromName([]string{md.Mime})
+	// 			if vvs, ok := rrs[md.Mime]; ok {
+	// 				dbk.User = vvs
+	// 			}
 
-				tms := strings.Split(md.Mime, ".")
-				if len(tms) > 1 {
-					dbk.Ext = strings.ToLower(tms[len(tms)-1])
-				}
+	// 			tms := strings.Split(md.Mime, ".")
+	// 			if len(tms) > 1 {
+	// 				dbk.Ext = strings.ToLower(tms[len(tms)-1])
+	// 			}
 
-				dbk.FullName = fmt.Sprintf("%s/%s", md.Path, md.Name)
-				dbk.Timer = md.Filetime
+	// 			dbk.FullName = fmt.Sprintf("%s/%s", md.Path, md.Name)
+	// 			dbk.Timer = md.Filetime
 
-				ws.SentBus(t.AdminID, "video-download", dbk, "")
-			}
-		})
-	}
-	wg.Wait()
+	// 			ws.SentBus(t.AdminID, "video-download", dbk, "")
+	// 		}
+	// 	})
+	// }
+	// wg.Wait()
 }
 
 // 使用终端打开用户主页并执行脚本

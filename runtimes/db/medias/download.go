@@ -28,6 +28,10 @@ func MediaUrlName(name string) string {
 }
 
 func DownLoadVideo(ourl string, urlstr []string, dir, saveName, proxy string, execing func(percent float64, downloaded, total int64)) (*Media, error) {
+	// for _, v := range urlstr {
+	// 	storage.Load("").Download(mainsignal.MainCtx, v, nil)
+	// }
+
 	return nil, nil
 	// d := downloader.NewDownloader(proxy, execing, nil)
 

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -19,12 +17,12 @@ import (
 	"tools/runtimes/db/messages"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/db/task"
-	"tools/runtimes/downloader"
 	"tools/runtimes/funcs"
 	"tools/runtimes/listens/ws"
 	"tools/runtimes/mainsignal"
 	"tools/runtimes/response"
 	"tools/runtimes/runner"
+	"tools/runtimes/storage"
 	"tools/runtimes/videos/downloader/parser"
 
 	"github.com/gin-gonic/gin"
@@ -356,21 +354,24 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 								mu.Platform = "douyin"
 
 								if mu.Cover != "" {
-									exts := "png"
-									dl := downloader.NewDownloader(proxy, nil, nil)
-									if ext, err := dl.GetUrlFileExt(mu.Cover); err == nil {
-										exts = ext
+									if name, _, _, _, err := storage.Load("").Download(mainsignal.MainCtx, mu.Cover, nil); err == nil {
+										mu.Cover = name
 									}
-									dest := fmt.Sprintf("avatar/%s.%s", funcs.Md5String(mu.Cover), exts)
-									fullPath := filepath.Join(config.MEDIAROOT, dest)
-									dirRoot := filepath.Dir(fullPath)
-									if _, err := os.Stat(dirRoot); err != nil {
-										os.MkdirAll(dirRoot, os.ModePerm)
-									}
+									// exts := "png"
+									// dl := downloader.NewDownloader(proxy, nil, nil)
+									// if ext, err := dl.GetUrlFileExt(mu.Cover); err == nil {
+									// 	exts = ext
+									// }
+									// dest := fmt.Sprintf("avatar/%s.%s", funcs.Md5String(mu.Cover), exts)
+									// fullPath := filepath.Join(config.MEDIAROOT, dest)
+									// dirRoot := filepath.Dir(fullPath)
+									// if _, err := os.Stat(dirRoot); err != nil {
+									// 	os.MkdirAll(dirRoot, os.ModePerm)
+									// }
 
-									if err := dl.Download(mu.Cover, fullPath); err == nil {
-										mu.Cover = dest
-									}
+									// if err := dl.Download(mu.Cover, fullPath); err == nil {
+									// 	mu.Cover = dest
+									// }
 
 									if err := mu.Save(mu, medias.GetDb().DB()); err != nil {
 										return err
@@ -447,13 +448,13 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 										md.Platform = parseRes.Platform
 										md.Title = parseRes.Title
 										md.UserId = mu.Id
-										if err := md.Save(md, medias.GetDb().DB()); err != nil {
-											errored++
-										} else {
-											medias.GetDb().DB().Model(&medias.Media{}).Where("user_id = ?", mu.Id).Count(&mu.Videos)
-											mu.Save(mu, medias.GetDb().DB())
-											doned++
-										}
+										// if err := md.Save(md, medias.GetDb().DB()); err != nil {
+										// 	errored++
+										// } else {
+										// 	medias.GetDb().DB().Model(&medias.Media{}).Where("user_id = ?", mu.Id).Count(&mu.Videos)
+										// 	mu.Save(mu, medias.GetDb().DB())
+										// 	doned++
+										// }
 									}
 								} else {
 									errored++
