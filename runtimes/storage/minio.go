@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/hex"
 	"io"
+	"net/url"
 	"os"
+	"path"
 	"strings"
 	"time"
 	"tools/runtimes/config"
@@ -17,10 +19,11 @@ import (
 )
 
 type minioStorage struct {
-	client *minio.Client
-	bucket string
-	url    string
-	ctx    context.Context
+	client   *minio.Client
+	bucket   string
+	url      string
+	ctx      context.Context
+	endpoint string
 }
 
 func newMinio(cfg Config) (Storage, error) {
@@ -38,10 +41,11 @@ func newMinio(cfg Config) (Storage, error) {
 		ctx = context.Background()
 	}
 	return &minioStorage{
-		client: client,
-		bucket: cfg.Bucket,
-		url:    cfg.URL,
-		ctx:    ctx,
+		client:   client,
+		bucket:   cfg.Bucket,
+		url:      cfg.URL,
+		ctx:      ctx,
+		endpoint: cfg.Endpoint,
 	}, nil
 }
 
@@ -179,8 +183,23 @@ func (m *minioStorage) Copy(src, dst string) error {
 	return err
 }
 
-func (m *minioStorage) URL(path string) string {
-	return m.url + "/" + path
+func (m *minioStorage) URL(object string) string {
+	// return m.url + "/" + path
+	object = strings.TrimPrefix(object, "/")
+	if object == "" {
+		return ""
+	}
+	if strings.HasPrefix(object, "http") {
+		return object
+	}
+
+	u := url.URL{
+		Scheme: "http",
+		Host:   m.endpoint,
+		Path:   path.Join(m.bucket, object),
+	}
+
+	return u.String()
 }
 
 func (m *minioStorage) Download(ctx context.Context, url string, opt *downloader.DownloadOption) (string, int64, int64, string, error) {

@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/downloader"
@@ -142,6 +143,13 @@ func (l *localStorage) Copy(src, dst string) error {
 }
 
 func (l *localStorage) URL(path string) string {
+	path = strings.TrimPrefix(path, "/")
+	if path == "" {
+		return ""
+	}
+	if strings.HasPrefix(path, "http") {
+		return path
+	}
 	return l.baseURL + "/" + path
 }
 

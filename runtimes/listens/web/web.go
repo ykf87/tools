@@ -20,6 +20,7 @@ import (
 	"tools/runtimes/logs"
 	"tools/runtimes/response"
 	"tools/runtimes/services"
+	"tools/runtimes/storage"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/gzip"
@@ -94,6 +95,14 @@ func Start(port int) {
 	// config.MediaUrl = fmt.Sprintf("http://%s:%d/%s", NetIp, RunPort, config.DATAROOT)
 	config.ApiUrl = fmt.Sprintf("http://%s:%d", NetIp, RunPort)
 	config.MediaUrl = fmt.Sprintf("http://%s:%d/media", NetIp, RunPort)
+
+	if s, err := storage.New(storage.Config{
+		Type:      "local",
+		LocalPath: config.FullPath(config.MEDIAROOT),
+		LocalURL:  config.MediaUrl,
+	}); err == nil {
+		storage.Storages["local"] = s
+	}
 
 	<-ctx.Done()
 	// fmt.Println("web服务退出中...")

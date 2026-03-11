@@ -18,6 +18,7 @@ import (
 	"tools/runtimes/logs"
 	"tools/runtimes/proxy"
 	"tools/runtimes/runner"
+	"tools/runtimes/storage"
 
 	"github.com/tidwall/gjson"
 	"gorm.io/gorm"
@@ -28,6 +29,7 @@ type MediaUser struct {
 	Id           int64           `json:"id" gorm:"primaryKey;autoIncrement"`
 	Name         string          `json:"name" gorm:"index;default:null"`                       // 用户名
 	Cover        string          `json:"cover" gorm:"default:null"`                            // 头像
+	CoverStorage string          `json:"-"`                                                    // 封面适用的存储器
 	Platform     string          `json:"platform" gorm:"index:plu;not null"`                   // 怕太
 	Uuid         string          `json:"uuid" gorm:"index:plu;not null"`                       // 访问主页等
 	Account      string          `json:"account" gorm:"index;"`                                // 例如抖音号,用于用户搜索的
@@ -79,6 +81,20 @@ type MediaUserDay struct {
 	Works int64  `json:"works" gorm:"index;default:-1"`     // 发布作品数量
 	Fans  int64  `json:"fans" gorm:"index;default:-1"`      // 粉丝数
 	Zan   int64  `json:"zan" gorm:"index;default:-1"`       // 获赞数
+}
+
+func (mu MediaUser) MarshalJSON() ([]byte, error) {
+	type Alias MediaUser
+
+	a := Alias(mu)
+	if a.Cover != "" {
+		if a.CoverStorage == "" {
+			a.CoverStorage = "local"
+		}
+		a.Cover = storage.Load(a.CoverStorage).URL(a.Cover)
+	}
+
+	return config.Json.Marshal(a)
 }
 
 func GetUserMedias(id any) []*Media {

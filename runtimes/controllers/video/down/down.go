@@ -2,12 +2,10 @@ package down
 
 import (
 	"fmt"
-	"io/ioutil"
 	"math"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -21,7 +19,6 @@ import (
 	// "tools/runtimes/eventbus"
 
 	"tools/runtimes/funcs"
-	"tools/runtimes/i18n"
 	"tools/runtimes/proxy"
 	"tools/runtimes/response"
 
@@ -52,6 +49,7 @@ type ListDataStruct struct {
 	Tp     string `json:"tp"`
 	Ext    string `json:"ext"`
 	Mime   string `json:"mime"`
+	Search string `json:"search"`
 }
 
 type Pms struct {
@@ -86,167 +84,253 @@ func List(c *gin.Context) {
 		return
 	}
 
-	findPath := filepath.Join(config.MEDIAROOT, ddt.Path)
-	fn, err := os.Stat(findPath)
-	if err != nil {
-		response.Error(c, http.StatusNotFound, err.Error(), nil)
-		return
+	page := ddt.Page
+	limit := ddt.Limit
+	if page < 1 {
+		page = 1
 	}
-	if fn.IsDir() == false {
-		response.Error(c, http.StatusNotFound, i18n.T("%s 不是有效目录", ddt.Path), nil)
-		return
+	if limit < 1 {
+		limit = 20
 	}
 
-	fls, err := ioutil.ReadDir(findPath)
-	if err != nil {
-		response.Error(c, http.StatusNotFound, err.Error(), nil)
-		return
-	}
+	var lists []*medias.MediaResponseMessage
 
-	if ddt.Page < 1 {
-		ddt.Page = 1
-	}
-	if ddt.Limit < 1 {
-		ddt.Limit = 10
-	}
-	limits := ddt.Limit
+	mps, total := medias.GetChilds(ddt.PathID, page, limit, ddt.Search)
+	dirlen := len(mps)
+	var flen int64
 
-	var dirs []*Pms
-	var files []*Pms
-	var dbFinderNames []string
-	for _, v := range fls {
-		nm := v.Name()
-		if nm == "." || nm == ".." {
-			continue
-		}
-		if nm[0:1] == "." {
-			continue
-		}
-
-		t := new(Pms)
-		t.Dir = v.IsDir()
-		if t.Dir {
-			t.Path = filepath.Join(ddt.Path, nm)
-		} else {
-			t.Path = ddt.Path
-		}
-		t.Name = nm
-
-		t.Timer = v.ModTime().Unix()
-		t.FullName = fmt.Sprintf("%s/%s", ddt.Path, nm)
-
-		tms := strings.Split(nm, ".")
-		if len(tms) > 1 {
-			t.Ext = strings.ToLower(tms[len(tms)-1])
-		}
-		t.Mime = getMime(filepath.Join(config.MEDIAROOT, t.FullName))
-		// fmt.Println(config.MediaUrl, "------------")
-		t.Url = fmt.Sprintf("%s%s", config.MediaUrl, t.FullName)
-
-		if ddt.Ext != "" && ddt.Ext != t.Ext {
-			continue
-		}
-		if t.Ext == "yaml" {
-			continue
-		}
-		if v.IsDir() {
-			if ddt.Tp != "file" {
-				dirs = append(dirs, t)
+	if dirlen > 0 {
+		for _, v := range mps {
+			mmmmp := &medias.MediaResponseMessage{
+				Type:    1,
+				Title:   v.Name,
+				ID:      v.ID,
+				Addtime: v.Addtime,
+				Sizes:   0,
 			}
-		} else {
-			if ddt.Mime != "" {
-				if !checkMime(ddt.Mime, filepath.Join(findPath, nm)) {
-					continue
-				}
-			}
-			if ddt.Tp != "dir" {
-				t.Size = funcs.FormatFileSize(v.Size())
-				// t.Size = fmt.Sprintf("%.2f M", float64(v.Size())/1048576.0)
-				files = append(files, t)
-				dbFinderNames = append(dbFinderNames, t.Name)
-			}
+
+			var mpids []int64
+			medias.GetDb().DB().Model(&medias.MediaPath{}).Select("id").
+				Where("chain like ? AND chain <> ?", fmt.Sprintf("%s%%", v.Chain), v.Chain).
+				Scan(&mpids)
+			mpids = append(mpids, v.ID)
+
+			medias.GetDb().DB().Model(&medias.Media{}).Select("SUM(sizes)").Where("removed = ? and path_id in ?", 0, mpids).Scan(&mmmmp.Sizes)
+
+			lists = append(lists, mmmmp)
 		}
 	}
 
-	start := (ddt.Page - 1) * ddt.Limit
+	if dirlen < limit {
+		var mds []medias.Media
+		mlimit := limit - dirlen
+		model := medias.GetDb().DB().Model(&medias.Media{}).
+			Where("removed = 0 and path_id = ?", ddt.PathID)
+		if ddt.Search != "" {
+			model = model.Where("media.title like ?", fmt.Sprintf("%%%s%%", ddt.Search))
+		}
 
-	var lists []*Pms
-	sort.Sort(ByTimerDesc(dirs))
-	for k, v := range dirs {
-		if k >= start {
-			lists = append(lists, v)
-			ddt.Limit--
-			if ddt.Limit <= 0 {
-				break
-			}
+		model.Count(&flen)
+		total = total + flen
+		model.Order("media.id DESC").
+			Preload("User").Preload("Files").
+			Offset((page - 1) * mlimit).Limit(mlimit).
+			Find(&mds)
+
+		for _, v := range mds {
+			lists = append(lists, &medias.MediaResponseMessage{
+				Type:         0,
+				Title:        v.Title,
+				ID:           v.Id,
+				Addtime:      v.Addtime,
+				Cover:        v.Cover,
+				CoverStorage: v.CoverStorage,
+				Sizes:        v.Sizes,
+				Numbers:      int64(v.Numbers),
+				Files:        v.Files,
+				User:         v.User,
+				Platform:     v.Platform,
+			})
 		}
 	}
 
-	dirlen := len(dirs)
-	sort.Sort(ByTimerDesc(files))
-
-	flen := len(files)
-	total := flen + dirlen
 	tf, _ := strconv.ParseFloat(fmt.Sprintf("%d", total), 64)
-	lf, _ := strconv.ParseFloat(fmt.Sprintf("%d", limits), 64)
-	pages := int(math.Ceil(tf / lf))
+	lf, _ := strconv.ParseFloat(fmt.Sprintf("%d", limit), 64)
+	rs := map[string]any{
+		"pages":    int(math.Ceil(tf / lf)),
+		"limit":    limit,
+		"list":     lists,
+		"total":    total,
+		"dirs":     dirlen,
+		"fils":     flen,
+		"baseurl":  config.FullPath(config.MEDIAROOT),
+		"prevpath": ddt.Path,
+		"prevurl":  config.MediaUrl,
+	}
+	response.Success(c, rs, "")
 
-	rp := map[string]any{"pages": pages, "limit": limits, "list": lists, "total": total, "dirs": dirlen, "fils": flen, "baseurl": config.FullPath(config.MEDIAROOT), "prevpath": ddt.Path, "prevurl": config.MediaUrl}
-	response.Success(c, rp, "Success")
+	// 以下代码废弃
+	// findPath := filepath.Join(config.MEDIAROOT, ddt.Path)
+	// fn, err := os.Stat(findPath)
+	// if err != nil {
+	// 	response.Error(c, http.StatusNotFound, err.Error(), nil)
+	// 	return
+	// }
+	// if fn.IsDir() == false {
+	// 	response.Error(c, http.StatusNotFound, i18n.T("%s 不是有效目录", ddt.Path), nil)
+	// 	return
+	// }
+
+	// fls, err := ioutil.ReadDir(findPath)
+	// if err != nil {
+	// 	response.Error(c, http.StatusNotFound, err.Error(), nil)
+	// 	return
+	// }
+
+	// if ddt.Page < 1 {
+	// 	ddt.Page = 1
+	// }
+	// if ddt.Limit < 1 {
+	// 	ddt.Limit = 10
+	// }
+	// limits := ddt.Limit
+
+	// var dirs []*Pms
+	// var files []*Pms
+	// var dbFinderNames []string
+	// for _, v := range fls {
+	// 	nm := v.Name()
+	// 	if nm == "." || nm == ".." {
+	// 		continue
+	// 	}
+	// 	if nm[0:1] == "." {
+	// 		continue
+	// 	}
+
+	// 	t := new(Pms)
+	// 	t.Dir = v.IsDir()
+	// 	if t.Dir {
+	// 		t.Path = filepath.Join(ddt.Path, nm)
+	// 	} else {
+	// 		t.Path = ddt.Path
+	// 	}
+	// 	t.Name = nm
+
+	// 	t.Timer = v.ModTime().Unix()
+	// 	t.FullName = fmt.Sprintf("%s/%s", ddt.Path, nm)
+
+	// 	tms := strings.Split(nm, ".")
+	// 	if len(tms) > 1 {
+	// 		t.Ext = strings.ToLower(tms[len(tms)-1])
+	// 	}
+	// 	t.Mime = getMime(filepath.Join(config.MEDIAROOT, t.FullName))
+	// 	// fmt.Println(config.MediaUrl, "------------")
+	// 	t.Url = fmt.Sprintf("%s%s", config.MediaUrl, t.FullName)
+
+	// 	if ddt.Ext != "" && ddt.Ext != t.Ext {
+	// 		continue
+	// 	}
+	// 	if t.Ext == "yaml" {
+	// 		continue
+	// 	}
+	// 	if v.IsDir() {
+	// 		if ddt.Tp != "file" {
+	// 			dirs = append(dirs, t)
+	// 		}
+	// 	} else {
+	// 		if ddt.Mime != "" {
+	// 			if !checkMime(ddt.Mime, filepath.Join(findPath, nm)) {
+	// 				continue
+	// 			}
+	// 		}
+	// 		if ddt.Tp != "dir" {
+	// 			t.Size = funcs.FormatFileSize(v.Size())
+	// 			// t.Size = fmt.Sprintf("%.2f M", float64(v.Size())/1048576.0)
+	// 			files = append(files, t)
+	// 			dbFinderNames = append(dbFinderNames, t.Name)
+	// 		}
+	// 	}
+	// }
+
+	// start := (ddt.Page - 1) * ddt.Limit
+
+	// var lists []*Pms
+	// sort.Sort(ByTimerDesc(dirs))
+	// for k, v := range dirs {
+	// 	if k >= start {
+	// 		lists = append(lists, v)
+	// 		ddt.Limit--
+	// 		if ddt.Limit <= 0 {
+	// 			break
+	// 		}
+	// 	}
+	// }
+
+	// dirlen := len(dirs)
+	// sort.Sort(ByTimerDesc(files))
+
+	// flen := len(files)
+	// total := flen + dirlen
+	// tf, _ := strconv.ParseFloat(fmt.Sprintf("%d", total), 64)
+	// lf, _ := strconv.ParseFloat(fmt.Sprintf("%d", limits), 64)
+	// pages := int(math.Ceil(tf / lf))
+
+	// rp := map[string]any{"pages": pages, "limit": limits, "list": lists, "total": total, "dirs": dirlen, "fils": flen, "baseurl": config.FullPath(config.MEDIAROOT), "prevpath": ddt.Path, "prevurl": config.MediaUrl}
+	// response.Success(c, rp, "Success")
 }
 
-func getMime(fn string) string {
-	f, _ := os.Open(fn)
-	defer f.Close()
+// func getMime(fn string) string {
+// 	f, _ := os.Open(fn)
+// 	defer f.Close()
 
-	// 读取文件前几字节用于 MIME 类型检测
-	buf := make([]byte, 512)
-	_, err := f.Read(buf)
-	if err != nil {
-		return ""
-	}
+// 	// 读取文件前几字节用于 MIME 类型检测
+// 	buf := make([]byte, 512)
+// 	_, err := f.Read(buf)
+// 	if err != nil {
+// 		return ""
+// 	}
 
-	return strings.ToLower(http.DetectContentType(buf))
-}
-
-// 检查mime
-func checkMime(mime, fn string) bool {
-	if mime == "" {
-		return true
-	}
-	fileinfo, err := os.Stat(fn)
-	if err != nil {
-		return true
-	}
-	if fileinfo.IsDir() == true {
-		return true
-	}
-	mime = strings.ToLower(strings.ReplaceAll(mime, "*", ""))
-
-	f, _ := os.Open(fn)
-	defer f.Close()
-
-	// 读取文件前几字节用于 MIME 类型检测
-	buf := make([]byte, 512)
-	_, err = f.Read(buf)
-	if err != nil {
-		return true
-	}
-
-	// 检测 MIME 类型
-	mimeType := strings.ToLower(http.DetectContentType(buf))
-	if strings.HasPrefix(mimeType, mime) {
-		return true
-	}
-	return false
-}
-
-// type downWsBack struct {
-// 	Fmt    string  `json:"fmt"`
-// 	Num    float64 `json:"num"`
-// 	File   string  `json:"file"`
-// 	Status int     `json:"status"`
+// 	return strings.ToLower(http.DetectContentType(buf))
 // }
+
+// // 检查mime
+// func checkMime(mime, fn string) bool {
+// 	if mime == "" {
+// 		return true
+// 	}
+// 	fileinfo, err := os.Stat(fn)
+// 	if err != nil {
+// 		return true
+// 	}
+// 	if fileinfo.IsDir() == true {
+// 		return true
+// 	}
+// 	mime = strings.ToLower(strings.ReplaceAll(mime, "*", ""))
+
+// 	f, _ := os.Open(fn)
+// 	defer f.Close()
+
+// 	// 读取文件前几字节用于 MIME 类型检测
+// 	buf := make([]byte, 512)
+// 	_, err = f.Read(buf)
+// 	if err != nil {
+// 		return true
+// 	}
+
+// 	// 检测 MIME 类型
+// 	mimeType := strings.ToLower(http.DetectContentType(buf))
+// 	if strings.HasPrefix(mimeType, mime) {
+// 		return true
+// 	}
+// 	return false
+// }
+
+// // type downWsBack struct {
+// // 	Fmt    string  `json:"fmt"`
+// // 	Num    float64 `json:"num"`
+// // 	File   string  `json:"file"`
+// // 	Status int     `json:"status"`
+// // }
 
 func Download(c *gin.Context) {
 	user, err := admins.GetAdminUser(c)

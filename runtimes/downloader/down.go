@@ -327,67 +327,6 @@ func getFileSize(ctx context.Context, client *http.Client, url string, headers m
 	return 0, fmt.Errorf("cannot determine file size, HEAD status: %v, GET status: %v", respStatus(resp), respStatus(resp2))
 }
 
-// func resolveFileNameFromResp(resp *http.Response, u string) (string, string) {
-// 	name, ext := "", ""
-
-// 	// 1. 尝试 Content-Disposition
-// 	if cd := resp.Header.Get("Content-Disposition"); cd != "" {
-// 		if _, params, err := mime.ParseMediaType(cd); err == nil {
-// 			if v, ok := params["filename"]; ok && v != "" {
-// 				name = v
-// 			}
-// 		}
-// 	}
-
-// 	// 2. URL 路径
-// 	if name == "" {
-// 		pu, _ := url.Parse(u)
-// 		name = path.Base(pu.Path)
-// 	}
-
-// 	// 3. 默认名字
-// 	if name == "" || name == "/" {
-// 		name = fmt.Sprintf("%d", time.Now().Unix())
-// 	}
-
-// 	// 4. 根据 Content-Type 推断扩展名
-// 	if !strings.Contains(name, ".") {
-// 		ct := resp.Header.Get("Content-Type")
-// 		if ct != "" {
-// 			if exts, err := mime.ExtensionsByType(ct); err == nil && len(exts) > 0 {
-// 				ext = exts[0]
-// 			}
-// 		}
-// 	}
-
-// 	if ext != "" && filepath.Ext(name) == "" {
-// 		name += ext
-// 	}
-
-// 	return name, ext
-// }
-
-// 外部调用接口
-// 使用方式:
-//
-//	name, err := downloader.Download(mainsignal.MainCtx, &downloader.DownloadOption{
-//		URL:      "download url",
-//		Dir:      "./",
-//		FileName: "",
-//		Threads:  8,
-//		// Headers: map[string]string{
-//		// 	"User-Agent": "Mozilla/5.0",
-//		// },
-//		Callback: func(total, cur, speed, workers int64) {
-//			fmt.Printf(
-//				"\r%.2f%% %s/s workers:%d %s",
-//				float64(cur)/float64(total)*100,
-//				funcs.FormatFileSize(speed, "1", ""),
-//				workers,
-//				funcs.FormatFileSize(total, "1", ""),
-//			)
-//		},
-//	})
 func Download(ctx context.Context, opt *DownloadOption) (*DownLoadFileInfo, error) {
 	if opt.MainWait == nil {
 		opt.MainWait = &mainsignal.MainWait

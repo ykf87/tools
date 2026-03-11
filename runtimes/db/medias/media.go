@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -24,33 +23,25 @@ import (
 	"gorm.io/gorm"
 )
 
-type MediaPath struct {
-	ID           int64  `json:"id" gorm:"primaryKey;autoIncrement"`
-	Parent       int64  `json:"parent" gorm:"default:0;index;default:0;uniqueIndex:idx_parent_name"`
-	Chain        string `json:"chain" gorm:"default:null"`                        // 关系链,逗号间隔
-	Name         string `json:"name" gorm:"not null;uniqueIndex:idx_parent_name"` // 目录名称
-	Addtime      int64  `json:"addtime" gorm:"default:0;index"`
-	AdminID      int64  `json:"admin_id" gorm:"default:0;index"` // 管理员id
-	db.BaseModel `json:"-"`
-}
-
 type Media struct {
-	Id       int64        `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
-	PathID   int64        `json:"path_id" gorm:"index;default:0"`                     // 路径的id
-	Path     string       `json:"path" gorm:"index;" form:"path"`                     // 概念上的path,只是在显示端使用,并不会有真实的路径创建
-	Title    string       `json:"title" gorm:"default:null" form:"title"`             // 显示的标题
-	Platform string       `json:"platform" gorm:"index;default:null" form:"platform"` // 平台
-	UserId   int64        `json:"user_id" gorm:"index;default:0"`                     // MediaUser id
-	VideoID  string       `json:"video_id" gorm:"index"`                              // 自动下载才有的短视频的唯一id
-	Url      string       `json:"url" gorm:"default:null" form:"url"`                 // 下载地址
-	UrlMd5   string       `json:"url_md5" gorm:"uniqueIndex; not null"`               // 下载地址的md5
-	AdminID  int64        `json:"admin_id" gorm:"default:0;index"`                    // 管理员id
-	Cover    string       `json:"cover" gorm:"default:null"`                          // 封面
-	Sizes    int64        `json:"sizes" gorm:"index;default:0" form:"size"`           // 大小
-	Numbers  int          `json:"numbers" gorm:"index;default:0"`                     // 文件数量
-	Removed  int          `json:"removed" gorm:"default:0;index"`                     // 是否删除
-	Addtime  int64        `json:"addtime" gorm:"index"`                               // 本数据添加日期
-	Files    []*MediaFile `json:"files" gorm:"foreignKey:MID;constraint:OnDelete:CASCADE"`
+	Id           int64        `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
+	PathID       int64        `json:"path_id" gorm:"index;default:0"`                          // 路径的id
+	Path         string       `json:"path" gorm:"index;" form:"path"`                          // 概念上的path,只是在显示端使用,并不会有真实的路径创建
+	Title        string       `json:"title" gorm:"default:null" form:"title"`                  // 显示的标题
+	Platform     string       `json:"platform" gorm:"index;default:null" form:"platform"`      // 平台
+	UserId       int64        `json:"user_id" gorm:"index;default:0"`                          // MediaUser id
+	VideoID      string       `json:"video_id" gorm:"index"`                                   // 自动下载才有的短视频的唯一id
+	Url          string       `json:"url" gorm:"default:null" form:"url"`                      // 下载地址
+	UrlMd5       string       `json:"url_md5" gorm:"uniqueIndex; not null"`                    // 下载地址的md5
+	AdminID      int64        `json:"admin_id" gorm:"default:0;index"`                         // 管理员id
+	Cover        string       `json:"cover" gorm:"default:null"`                               // 封面
+	CoverStorage string       `json:"-"`                                                       // 封面适用的存储器
+	Sizes        int64        `json:"sizes" gorm:"index;default:0" form:"size"`                // 大小
+	Numbers      int          `json:"numbers" gorm:"index;default:0"`                          // 文件数量
+	Removed      int          `json:"removed" gorm:"default:0;index"`                          // 是否删除
+	Addtime      time.Time    `json:"addtime" gorm:"index"`                                    // 本数据添加日期
+	Files        []*MediaFile `json:"files" gorm:"foreignKey:MID;constraint:OnDelete:CASCADE"` // 文件列表
+	User         *MediaUser   `json:"user" gorm:"foreignKey:UserId;references:Id"`             // 用户
 	// TempFile   string      `json:"temp_file"`                                          // 删除后的文件路径
 	// RemoveTime int64       `json:"remove_time" gorm:"default:0;index"`                 // 删除时间
 	// Filetime   int64       `json:"filetime" gorm:"index;default:0" form:"filetime"`    // 文件最后修改日期
@@ -61,20 +52,20 @@ type Media struct {
 }
 
 type MediaFile struct {
-	ID  int64 `gorm:"primaryKey"`
-	MID int64 `gorm:"index;not null;comment:所属文件组"`
+	ID  int64 `json:"id" gorm:"primaryKey"`
+	MID int64 `json:"m_id" gorm:"index;not null;comment:所属文件组"`
 
-	FileName   string `gorm:"not null"`
-	Ext        string `gorm:"size:20;comment:扩展名"`
-	FileSystem string `gorm:"size:50;comment:文件系统 local s3 oss"`
+	FileName   string `json:"file_name" gorm:"not null"`
+	Ext        string `json:"ext" gorm:"size:20;comment:扩展名"`
+	FileSystem string `json:"file_system" gorm:"size:50;comment:文件系统 local s3 oss"`
 
-	Hash string `gorm:"size:64;uniqueIndex;not null;comment:文件哈希名"`
+	Hash string `json:"hash" gorm:"size:64;uniqueIndex;not null;comment:文件哈希名"`
 
-	Size     int64  `gorm:"comment:文件大小"`
-	MimeType string `gorm:"size:100"`
-	DownSec  int64  `gorm:"default:0;comment:下载耗费的秒数 "`
+	Size     int64  `json:"size" gorm:"comment:文件大小"`
+	MimeType string `json:"mime_type" gorm:"size:100"`
+	DownSec  int64  `json:"down_sec" gorm:"default:0;comment:下载耗费的秒数 "`
 
-	CreatedAt time.Time
+	CreatedAt time.Time `json:"create_at" gorm:"index;default:0"`
 }
 
 var dbs *db.SQLiteWriter
@@ -118,65 +109,30 @@ func init() {
 	// fmt.Println(err)
 }
 
-func GetDb() *db.SQLiteWriter {
-	return dbs
+func (m Media) MarshalJSON() ([]byte, error) {
+	type Alias Media
+	a := Alias(m)
+	if a.Cover != "" {
+		a.Cover = storage.Load(a.CoverStorage).URL(a.Cover)
+	}
+
+	return config.Json.Marshal(a)
+}
+func (m MediaFile) MarshalJSON() ([]byte, error) {
+	type Alias MediaFile
+	a := Alias(m)
+	if a.FileName != "" {
+		if a.FileSystem == "" {
+			a.FileSystem = "local"
+		}
+		a.FileName = storage.Load(a.FileSystem).URL(a.FileName)
+	}
+
+	return config.Json.Marshal(a)
 }
 
-// 使用路径创建MediaPath表,并返回ID和path
-// key 为自己定义的,目录名称对应的唯一值,一般有用户和平台的唯一信息拼接的md5值
-func MKDBNameID(fullPath string) (*MediaPath, error) {
-	if fullPath == "" {
-		return nil, errors.New("path is empty")
-	}
-	re := regexp.MustCompile(`/+`)
-	fullPath = re.ReplaceAllString(fullPath, "/")
-	fullPath = strings.ReplaceAll(fullPath, "\\", "/")
-	fps := strings.Split(fullPath, "/")
-
-	var dbsv []*MediaPath
-	dbs.DB().Model(&MediaPath{}).Where("name in ?", fps).Find(&dbsv)
-	dbmp := make(map[string]*MediaPath)
-	for _, v := range dbsv {
-		dbmp[v.Name] = v
-	}
-
-	for _, v := range dbmp {
-		fmt.Println(v.ID, v.Name, v.Parent, "---")
-	}
-
-	var pid int64
-	var pids []string
-	var node *MediaPath
-
-	var names []string
-	for _, v := range fps {
-		if oc, ok := dbmp[v]; ok {
-			pid = oc.ID
-			pids = append(pids, fmt.Sprintf("%d", oc.ID))
-			names = append(names, oc.Name)
-			node = oc
-		} else {
-			obj := &MediaPath{
-				Parent:  pid,
-				Name:    v,
-				Chain:   strings.Join(pids, ","),
-				Addtime: time.Now().Unix(),
-			}
-			if err := dbs.Write(func(tx *gorm.DB) error {
-				return tx.Create(obj).Error
-			}); err != nil {
-				return nil, err
-			} else {
-				pid = obj.ID
-				pids = append(pids, fmt.Sprintf("%d", obj.ID))
-				names = append(names, obj.Name)
-			}
-			node = obj
-		}
-	}
-	return node, nil
-	// panic("-----")
-	// return pid, strings.Join(names, "/"), nil
+func GetDb() *db.SQLiteWriter {
+	return dbs
 }
 
 func GetPlatformVideos(urls string, pxys []*proxy.ProxyConfig, path string, adminID int64, systype string, userDir, redown bool) []error {
@@ -229,6 +185,7 @@ func GetPlatformVideos(urls string, pxys []*proxy.ProxyConfig, path string, admi
 						Proxy: proxy,
 					}); err == nil {
 						md.Cover = coverStr
+						md.CoverStorage = systype
 					}
 				}
 
@@ -239,7 +196,10 @@ func GetPlatformVideos(urls string, pxys []*proxy.ProxyConfig, path string, admi
 				md.AdminID = adminID
 				md.Sizes = 0
 				md.Numbers = 0
-				md.PathID = mp.ID
+				md.User = &mediaUser
+				if mp != nil {
+					md.PathID = mp.ID
+				}
 				md.Path = path
 
 				var downUrls []string
@@ -251,7 +211,7 @@ func GetPlatformVideos(urls string, pxys []*proxy.ProxyConfig, path string, admi
 						downUrls = append(downUrls, v.Url)
 					}
 				} else {
-					fmt.Println("找不到任何可下载内容...")
+					// fmt.Println("找不到任何可下载内容...")
 					errs = append(errs, errors.New(md.Url+" 找不到可下载内容!"))
 					return
 				}
@@ -273,21 +233,42 @@ func GetPlatformVideos(urls string, pxys []*proxy.ProxyConfig, path string, admi
 					}
 					msg := md.Message(fls, ccv)
 					msg.Sent("开始下载...", 0)
-					mdfs, err := md.DownMediaFiles(downUrls, proxy, msg)
-					if err == nil {
-						for _, mdf := range mdfs {
-							md.Sizes += mdf.Size
-							md.Numbers++
+					go func() {
+						_, err := md.DownMediaFiles(downUrls, proxy, msg)
+						if err != nil {
+							errs = append(errs, errors.New(md.Url+" 文件下载失败:"+err.Error()))
 						}
-						md.Save()
-					} else {
-						errs = append(errs, errors.New(md.Url+" 文件下载失败:"+err.Error()))
-					}
-					msg.Done()
+
+						var estrs []string
+						for _, v := range errs {
+							estrs = append(estrs, v.Error())
+						}
+
+						err = dbs.Write(func(tx *gorm.DB) error {
+							return tx.Debug().Exec(`
+UPDATE media
+SET
+    sizes = (
+        SELECT GROUP_CONCAT(size)
+        FROM media_files
+        WHERE media_files.m_id = media.id
+    ),
+    numbers = (
+        SELECT COUNT(*)
+        FROM media_files
+        WHERE media_files.m_id = media.id
+    )
+WHERE media.id = ?
+`, md.Id).Error
+						})
+						fmt.Println(err, "------ size", md.Id)
+						msg.Done(strings.Join(estrs, "\n"))
+					}()
 				}
 			})
+			wg.Wait()
+
 		}
-		wg.Wait()
 	} else {
 		errs = append(errs, errors.New("找不到下载连接"))
 	}
@@ -312,11 +293,12 @@ func mediaUserGetter(uuid, name, avatar, nameid, platform, proxy string, adminID
 			avatar = fmt.Sprintf("https://%s", avatar)
 		}
 		if strings.HasPrefix(avatar, "http") {
-			if rsp, _, _, _, err := storage.Load("").Download(mainsignal.MainCtx, avatar, &downloader.DownloadOption{
+			if rsp, _, _, _, err := storage.Load(config.DefStorage).Download(mainsignal.MainCtx, avatar, &downloader.DownloadOption{
 				Callback: func(total, downloaded, speed, workers int64) {},
 				Proxy:    proxy,
 			}); err == nil {
 				mu.Cover = rsp
+				mu.CoverStorage = config.DefStorage
 			}
 		}
 
@@ -366,7 +348,7 @@ func getNeedDownUrls(urls []string, reget bool) map[string]*Media {
 	}
 
 	var exists []*Media
-	dbs.DB().Model(&Media{}).Preload("Files").Where("url_md5 in ?", md5s).Find(&exists)
+	dbs.DB().Model(&Media{}).Preload("Files").Preload("User").Where("url_md5 in ?", md5s).Find(&exists)
 
 	for _, v := range exists {
 		if reget != true && len(v.Files) > 0 {
@@ -379,7 +361,7 @@ func getNeedDownUrls(urls []string, reget bool) map[string]*Media {
 	return md5map
 }
 
-func (m *Media) DownMediaFiles(fls []string, proxy string, msg *MediaDownMessage) ([]*MediaFile, error) {
+func (m *Media) DownMediaFiles(fls []string, proxy string, msg *MediaResponseMessage) ([]*MediaFile, error) {
 	var dbfls []*MediaFile
 	var fdbfls []*MediaFile
 	var doned int
@@ -461,10 +443,11 @@ func (m *Media) Save() error {
 				"admin_id": m.AdminID,
 				"cover":    m.Cover,
 			}).Error; err != nil {
+				fmt.Println("media 更新失败:", err)
 				return err
 			}
 		} else {
-			m.Addtime = time.Now().Unix()
+			m.Addtime = time.Now()
 			return tx.Create(m).Error
 		}
 		return nil

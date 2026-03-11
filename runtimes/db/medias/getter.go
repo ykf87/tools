@@ -98,7 +98,7 @@ func (mu *MediaUser) AutoStart() error {
 				lastmedia := new(Media)
 				dbs.DB().Model(&Media{}).Where("user_id = ?", mu.Id).Order("addtime DESC").First(lastmedia)
 				if lastmedia.Id > 0 {
-					if time.Now().Unix()-lastmedia.Addtime <= 300 {
+					if time.Since(lastmedia.Addtime) <= 5*time.Minute {
 						fmt.Println("执行时间未到...")
 						return nil
 					}

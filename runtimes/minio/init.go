@@ -31,6 +31,7 @@ func init() {
 
 	if err := CreateBucket(config.BUCKET); err == nil {
 		fmt.Println("io文件存储启动端口:", config.MINIPORT)
+		config.DefStorage = "minio"
 	} else {
 		config.DefStorage = "local"
 	}
@@ -78,6 +79,23 @@ func CreateBucket(bucketName string) error {
 		err = client.MakeBucket(mainsignal.MainCtx, bucketName, minio.MakeBucketOptions{
 			Region: location,
 		})
+		if err != nil {
+			return err
+		}
+
+		// 设置为公共
+		policy := `{
+ "Version":"2012-10-17",
+ "Statement":[
+  {
+   "Effect":"Allow",
+   "Principal":"*",
+   "Action":["s3:GetObject"],
+   "Resource":["arn:aws:s3:::` + bucketName + `/*"]
+  }
+ ]
+}`
+		err = client.SetBucketPolicy(mainsignal.MainCtx, bucketName, policy)
 		if err != nil {
 			return err
 		}

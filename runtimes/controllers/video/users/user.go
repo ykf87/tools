@@ -515,89 +515,149 @@ func LocalVideo(c *gin.Context) {
 		lob.Limit = 20
 	}
 
-	type aaab struct {
-		Mid        int64  `json:"mid"`
-		Muid       int64  `json:"muid"`
-		Size       int64  `json:"size"`
-		Filename   string `json:"filename"`
-		Platform   string `json:"platform"`
-		Filetime   int64  `json:"filetime"`
-		Path       string `json:"path"`
-		Mime       string `json:"mime"`
-		MediaTitle string `json:"media_titme"`
-		UserTitle  string `json:"user_title"`
-		UserCover  string `json:"user_cover"`
-		VideoID    string `json:"video_id"`
-		Uuid       string `json:"uuid"`
-		Origin     string `json:"origin"`
-		Local      string `json:"local"`
-		Fans       int64  `json:"fans"`
-		Works      int64  `json:"works"`
-		Downloaded int64  `json:"downloaded"`
-	}
+	// type aaab struct {
+	// 	Mid        int64  `json:"mid"`
+	// 	Muid       int64  `json:"muid"`
+	// 	Size       int64  `json:"size"`
+	// 	Filename   string `json:"filename"`
+	// 	Platform   string `json:"platform"`
+	// 	Filetime   int64  `json:"filetime"`
+	// 	Path       string `json:"path"`
+	// 	Mime       string `json:"mime"`
+	// 	MediaTitle string `json:"media_titme"`
+	// 	UserTitle  string `json:"user_title"`
+	// 	UserCover  string `json:"user_cover"`
+	// 	VideoID    string `json:"video_id"`
+	// 	Uuid       string `json:"uuid"`
+	// 	Origin     string `json:"origin"`
+	// 	Local      string `json:"local"`
+	// 	Fans       int64  `json:"fans"`
+	// 	Works      int64  `json:"works"`
+	// 	Downloaded int64  `json:"downloaded"`
+	// }
 
-	var lists []*aaab
+	var lists []*medias.Media
 	var total int64
+
 	md := medias.GetDb().DB().
 		Model(&medias.Media{}).
-		Select(
-			"media.id as mid",
-			"media.user_id as muid",
-			"media.size",
-			"media.name as filename",
-			"media.platform",
-			"media.filetime",
-			"media.path",
-			"media.mime",
-			"media.title as media_title",
-			"mu.name as user_title",
-			"mu.cover as user_cover",
-			"media.video_id",
-			"mu.uuid",
-			"media.url as origin",
-			"mu.works",
-			"mu.fans",
-			"mu.local",
-			"mu.videos as downloaded",
-		).
-		Joins("right join media_users as mu on mu.id = media.user_id").
-		Where("media.removed = 0 and mu.trashed = 0")
+		Joins("INNER JOIN media_users ON media_users.id = media.user_id AND media_users.trashed = 0").
+		Where("media.removed = ?", 0)
 	if len(lob.UIDs) > 0 {
-		md = md.Where("user_id in ?", lob.UIDs)
+		md = md.Where("media.user_id in ?", lob.UIDs)
 	}
+
+	// md := medias.GetDb().DB().
+	// 	Model(&medias.Media{}).
+	// 	Joins("JOIN media_users ON media_users.id = media.user_id AND media_users.trashed = 0").
+	// 	Preload("Files").
+	// 	Preload("User").
+	// 	Where("media.removed = ?", 0)
+	// if len(lob.UIDs) > 0 {
+	// 	md = md.Where("media.user_id in ?", lob.UIDs)
+	// }
+	// md := medias.GetDb().DB().Model(&medias.Media{}).Preload("Files").Preload("User", func(db *gorm.DB) *gorm.DB {
+	// 	mmd := db.Where("removed = ?", 0).Order("id desc")
+	// 	if len(lob.UIDs) > 0 {
+	// 		mmd = mmd.Where("user_id in ?", lob.UIDs)
+	// 	}
+	// 	return mmd
+	// }).Where("removed = ?", 0)
+
+	// md := medias.GetDb().DB().
+	// 	Model(&medias.Media{}).
+	// 	Select(
+	// 		"media.id as mid",
+	// 		"media.user_id as muid",
+	// 		"media.size",
+	// 		"media.name as filename",
+	// 		"media.platform",
+	// 		"media.filetime",
+	// 		"media.path",
+	// 		"media.mime",
+	// 		"media.title as media_title",
+	// 		"mu.name as user_title",
+	// 		"mu.cover as user_cover",
+	// 		"media.video_id",
+	// 		"mu.uuid",
+	// 		"media.url as origin",
+	// 		"mu.works",
+	// 		"mu.fans",
+	// 		"mu.local",
+	// 		"mu.videos as downloaded",
+	// 	).
+	// 	Joins("right join media_users as mu on mu.id = media.user_id").
+	// 	Where("media.removed = 0 and mu.trashed = 0")
+	// if len(lob.UIDs) > 0 {
+	// 	md = md.Where("user_id in ?", lob.UIDs)
+	// }
 	if lob.Q != "" {
 		md = md.Where("media.title like ? ESCAPE '\\'", "%"+lob.Q+"%")
 	}
 	md.Count(&total)
 	md.Offset((lob.Page - 1) * lob.Limit).Limit(lob.Limit).Order("media.id DESC").Scan(&lists)
 
-	var listmap []map[string]any
+	var uids []int64
+	var mids []int64
 	for _, v := range lists {
-		listmap = append(listmap, map[string]any{
-			"size":     funcs.FormatFileSize(v.Size),
-			"url":      fmt.Sprintf("%s/%s/%s", config.MediaUrl, v.Path, v.Filename),
-			"title":    v.MediaTitle,
-			"id":       v.Mid,
-			"origin":   v.Origin,
-			"platform": v.Platform,
-			"filetime": v.Filetime,
-			"mime":     v.Mime,
-			"path":     v.Path,
-			"user": map[string]any{
-				"id":         v.Muid,
-				"cover":      fmt.Sprintf("%s/%s", config.MediaUrl, v.UserCover),
-				"title":      v.UserTitle,
-				"uuid":       v.Uuid,
-				"works":      v.Works,
-				"fans":       v.Fans,
-				"local":      v.Local,
-				"downloaded": v.Downloaded,
-			},
-		})
+		mids = append(mids, v.Id)
+		// medias.GetDb().DB().Model(&medias.MediaFile{}).Where("m_id = ?", v.Id).Find(&v.Files)
+		uids = append(uids, v.UserId)
 	}
+
+	var mus []*medias.MediaUser
+	mump := make(map[int64]*medias.MediaUser)
+	medias.GetDb().DB().Model(&medias.MediaUser{}).Where("id in ?", uids).Find(&mus)
+	for _, v := range mus {
+		mump[v.Id] = v
+	}
+
+	var mfs []*medias.MediaFile
+	mfmp := make(map[int64][]*medias.MediaFile)
+	medias.GetDb().DB().Model(&medias.MediaFile{}).Where("m_id in ?", mids).Find(&mfs)
+	for _, v := range mfs {
+		mfmp[v.MID] = append(mfmp[v.MID], v)
+	}
+
+	for _, v := range lists {
+		if u, ok := mump[v.UserId]; ok {
+			v.User = u
+		}
+		if mf, ok := mfmp[v.Id]; ok {
+			v.Files = mf
+		}
+	}
+
+	// var listmap []map[string]any
+	// for _, v := range lists {
+	// 	mp := map[string]any{
+	// 		"size": funcs.FormatFileSize(v.Sizes),
+	// 		// "url":      fmt.Sprintf("%s/%s/%s", config.MediaUrl, v.Path, v.Filename),
+	// 		"title":    v.Title,
+	// 		"id":       v.Id,
+	// 		"origin":   v.Url,
+	// 		"platform": v.Platform,
+	// 		"filetime": v.Addtime,
+	// 		// "mime":     v.Mime,
+	// 		"path": v.Path,
+	// 	}
+	// 	if v.User != nil {
+	// 		mp["user"] = map[string]any{
+	// 			"id":         v.User.Id,
+	// 			"cover":      storage.Load("local").URL(v.User.Cover),
+	// 			"title":      v.User.Name,
+	// 			"uuid":       v.User.Uuid,
+	// 			"works":      v.User.Works,
+	// 			"fans":       v.User.Fans,
+	// 			"local":      v.User.Local,
+	// 			"downloaded": v.User.Videos,
+	// 		}
+	// 	}
+	// 	listmap = append(listmap, mp)
+	// }
 	response.Success(c, gin.H{
 		"total": total,
-		"lists": listmap,
+		"lists": lists,
 		"pages": (total + int64(lob.Limit) - 1) / int64(lob.Limit),
 	}, "")
 }

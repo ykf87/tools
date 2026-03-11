@@ -82,13 +82,6 @@ func Load(key string) Storage {
 }
 
 func init() {
-	if s, err := New(Config{
-		Type:      "local",
-		LocalPath: config.FullPath(config.MEDIAROOT),
-		LocalURL:  config.MediaUrl,
-	}); err == nil {
-		Storages["local"] = s
-	}
 
 	if s, err := New(Config{
 		Type:      "minio",

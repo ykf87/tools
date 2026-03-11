@@ -75,7 +75,7 @@ func init() {
 	// 	},
 	// })
 	// fmt.Println(n, e)
-	getdouytest()
+	// getdouytest()
 
 }
 
