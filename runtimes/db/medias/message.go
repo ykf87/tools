@@ -8,7 +8,8 @@ import (
 )
 
 type MediaResponseMessage struct {
-	Type int `json:"type"` // 0媒体文件 1目录 2下载中的
+	Type   int   `json:"type"` // 0媒体文件 1目录 2下载中的
+	PathID int64 `json:"path_id"`
 
 	ID       int64  `json:"id"`
 	Title    string `json:"title"`
@@ -55,7 +56,7 @@ func (mms MediaResponseMessage) MarshalJSON() ([]byte, error) {
 	return config.Json.Marshal(a)
 }
 
-func (m *Media) Message(total int, cover string) *MediaResponseMessage {
+func (m *Media) Message(total int, cover string, pathID int64) *MediaResponseMessage {
 	if m.User != nil {
 		m.User.Cover = storage.Load("").URL(m.User.Cover)
 	}
@@ -73,6 +74,7 @@ func (m *Media) Message(total int, cover string) *MediaResponseMessage {
 		User:         m.User,
 		Type:         2,
 		Platform:     m.Platform,
+		PathID:       pathID,
 	}
 }
 

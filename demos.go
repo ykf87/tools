@@ -76,6 +76,8 @@ func init() {
 	// })
 	// fmt.Println(n, e)
 	// getdouytest()
+	//
+	// medias.MKDBNameID("dfgdfgaaa", 0)
 
 }
 

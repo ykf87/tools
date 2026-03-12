@@ -129,7 +129,6 @@ func router() {
 			spiderUserGroup.GET("getinfo", users.GetInfo)
 			spiderUserGroup.GET("usermeidas", users.UserMeidas)
 			spiderUserGroup.POST("batchadd", users.BatchAdd)
-			// spiderUserGroup.GET("localvideo", users.LocalVideo)
 			spiderUserGroup.POST("localvideo", users.LocalVideo)
 			spiderUserGroup.GET("onlinevideo", users.OnlinVideo)
 		}

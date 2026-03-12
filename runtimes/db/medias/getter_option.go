@@ -172,7 +172,8 @@ func (opt *Options) ParseInfos(str string, downloads bool) error {
 						if parseRes.VideoUrl != "" {
 							vtem := strings.Split(url, "/")
 							mp, err := MKDBNameID( // 构建文件存储目录
-								"autodownload/" + opt.mu.Name,
+								"autodownload/"+opt.mu.Name,
+								0,
 							)
 							if err != nil {
 								return err

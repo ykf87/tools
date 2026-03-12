@@ -615,24 +615,33 @@ type mkdirStruct struct {
 }
 
 func Mkdir(c *gin.Context) {
+	admin, err := admins.GetAdminUser(c)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
 	dt := new(mkdirStruct)
 	if err := c.ShouldBind(dt); err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
-	fullPath := filepath.Join(config.MEDIAROOT, dt.Path, dt.Name)
-	f, err := os.Stat(fullPath)
-
+	_, err = medias.MKDBNameID(fmt.Sprintf("%s/%s", dt.Path, dt.Name), admin.Id)
 	if err != nil {
-		if err := os.MkdirAll(fullPath, os.ModePerm); err != nil {
-			response.Error(c, http.StatusBadRequest, err.Error(), nil)
-			return
-		}
-	} else if f.IsDir() == false {
-		response.Error(c, 500, "已存在同名文件,无法创建", nil)
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
+	// f, err := os.Stat(fullPath)
+
+	// if err != nil {
+	// 	if err := os.MkdirAll(fullPath, os.ModePerm); err != nil {
+	// 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+	// 		return
+	// 	}
+	// } else if f.IsDir() == false {
+	// 	response.Error(c, 500, "已存在同名文件,无法创建", nil)
+	// 	return
+	// }
 	response.Success(c, nil, "Success")
 }
 

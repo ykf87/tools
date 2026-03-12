@@ -159,7 +159,7 @@ func GetPlatformVideos(urls string, pxys []*proxy.ProxyConfig, path string, admi
 				}
 
 				// 解析完成后需要先获取平台用户
-				var mediaUser MediaUser
+				var mediaUser *MediaUser
 				if info.Author.Uid != "" {
 					mu := mediaUserGetter(
 						info.Author.Uid,
@@ -170,13 +170,13 @@ func GetPlatformVideos(urls string, pxys []*proxy.ProxyConfig, path string, admi
 						proxy,
 						adminID,
 					)
-					mediaUser = *mu
+					mediaUser = mu
 					if userDir == true {
 						path = fmt.Sprintf("%s/%s/%s", path, info.Platform, info.Author.Name)
 					}
 				}
 
-				mp, _ := MKDBNameID(path)
+				mp, _ := MKDBNameID(path, adminID)
 				// fmt.Println(err, "---", mp)
 				// panic("----")
 
@@ -196,7 +196,7 @@ func GetPlatformVideos(urls string, pxys []*proxy.ProxyConfig, path string, admi
 				md.AdminID = adminID
 				md.Sizes = 0
 				md.Numbers = 0
-				md.User = &mediaUser
+				md.User = mediaUser
 				if mp != nil {
 					md.PathID = mp.ID
 				}
@@ -231,7 +231,7 @@ func GetPlatformVideos(urls string, pxys []*proxy.ProxyConfig, path string, admi
 					} else {
 						ccv = info.CoverUrl
 					}
-					msg := md.Message(fls, ccv)
+					msg := md.Message(fls, ccv, md.PathID)
 					msg.Sent("开始下载...", 0)
 					go func() {
 						_, err := md.DownMediaFiles(downUrls, proxy, msg)
@@ -245,7 +245,7 @@ func GetPlatformVideos(urls string, pxys []*proxy.ProxyConfig, path string, admi
 						}
 
 						err = dbs.Write(func(tx *gorm.DB) error {
-							return tx.Debug().Exec(`
+							return tx.Exec(`
 UPDATE media
 SET
     sizes = (
@@ -261,7 +261,17 @@ SET
 WHERE media.id = ?
 `, md.Id).Error
 						})
-						fmt.Println(err, "------ size", md.Id)
+
+						// if mediaUser != nil {
+						// 	if err := dbs.Write(func(tx *gorm.DB) error {
+						// 		return tx.Model(&Media{}).Debug().
+						// 			Select("count(*)").
+						// 			Where("user_id = ? and removed = 0", md.Id).
+						// 			Scan(&mediaUser.Videos).Error
+						// 	}); err == nil {
+						// 		mediaUser.Save(mediaUser, dbs.DB())
+						// 	}
+						// }
 						msg.Done(strings.Join(estrs, "\n"))
 					}()
 				}
@@ -373,10 +383,9 @@ func (m *Media) DownMediaFiles(fls []string, proxy string, msg *MediaResponseMes
 				Proxy: proxy,
 				Callback: func(total, downloaded, speed, workers int64) {
 					msgstr := fmt.Sprintf(
-						"%.2f%% %s/s 并发:%d %s",
+						"%.2f%% %s/s %s",
 						float64(downloaded)/float64(total)*100,
 						funcs.FormatFileSize(speed, "1", ""),
-						workers,
 						funcs.FormatFileSize(total, "1", ""),
 					)
 					if msg != nil {

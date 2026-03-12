@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 	"tools/runtimes/db"
 
@@ -22,59 +23,90 @@ type MediaPath struct {
 	db.BaseModel `json:"-"`
 }
 
+var lock sync.Mutex
+
 // 使用路径创建MediaPath表,并返回ID和path
 // key 为自己定义的,目录名称对应的唯一值,一般有用户和平台的唯一信息拼接的md5值
-func MKDBNameID(fullPath string) (*MediaPath, error) {
+func MKDBNameID(fullPath string, adminID int64) (*MediaPath, error) {
 	if fullPath == "" {
 		return nil, errors.New("path is empty")
 	}
+	lock.Lock()
+	defer lock.Unlock()
+
+	fullPath = strings.Trim(strings.ReplaceAll(fullPath, "\\", "/"), "/")
 	re := regexp.MustCompile(`/+`)
 	fullPath = re.ReplaceAllString(fullPath, "/")
-	fullPath = strings.ReplaceAll(fullPath, "\\", "/")
 	fps := strings.Split(fullPath, "/")
+	// fmt.Println(fullPath)
+	// panic("---")
 
-	var dbsv []*MediaPath
-	dbs.DB().Model(&MediaPath{}).Where("name in ?", fps).Find(&dbsv)
-	dbmp := make(map[string]*MediaPath)
-	for _, v := range dbsv {
-		dbmp[v.Name] = v
-	}
-
-	// for _, v := range dbmp {
-	// 	fmt.Println(v.ID, v.Name, v.Parent, "---")
-	// }
-
-	var pid int64
+	var parent int64
 	var pids []string
-	var node *MediaPath
-
-	var names []string
+	var lastMph *MediaPath
 	for _, v := range fps {
-		if oc, ok := dbmp[v]; ok {
-			pid = oc.ID
-			pids = append(pids, fmt.Sprintf("%d", oc.ID))
-			names = append(names, oc.Name)
-			node = oc
-		} else {
-			obj := &MediaPath{
-				Parent:  pid,
+		row := new(MediaPath)
+		dbs.DB().Model(&MediaPath{}).Where("name = ? and parent = ?", v, parent).Find(row)
+
+		if row.ID < 1 {
+			row = &MediaPath{
+				Parent:  parent,
 				Name:    v,
-				Chain:   "/" + strings.Join(pids, "/") + "/",
+				Chain:   re.ReplaceAllString(fmt.Sprintf("/%s/", strings.Join(pids, "/")), "/"),
+				AdminID: adminID,
 				Addtime: time.Now(),
 			}
-			if err := dbs.Write(func(tx *gorm.DB) error {
-				return tx.Create(obj).Error
-			}); err != nil {
+			err := dbs.Write(func(tx *gorm.DB) error {
+				return tx.Create(row).Error
+			})
+			if err != nil {
 				return nil, err
-			} else {
-				pid = obj.ID
-				pids = append(pids, fmt.Sprintf("%d", obj.ID))
-				names = append(names, obj.Name)
 			}
-			node = obj
 		}
+		parent = row.ID
+		pids = append(pids, fmt.Sprintf("%d", row.ID))
+		lastMph = row
 	}
-	return node, nil
+	return lastMph, nil
+
+	// var dbsv []*MediaPath
+	// dbs.DB().Model(&MediaPath{}).Where("name in ?", fps).Find(&dbsv)
+	// dbmp := make(map[string]*MediaPath)
+	// for _, v := range dbsv {
+	// 	dbmp[v.Name] = v
+	// }
+
+	// var pid int64
+	// var pids []string
+	// var node *MediaPath
+
+	// var names []string
+	// for _, v := range fps {
+	// 	if oc, ok := dbmp[v]; ok {
+	// 		pid = oc.ID
+	// 		pids = append(pids, fmt.Sprintf("%d", oc.ID))
+	// 		names = append(names, oc.Name)
+	// 		node = oc
+	// 	} else {
+	// 		obj := &MediaPath{
+	// 			Parent:  pid,
+	// 			Name:    v,
+	// 			Chain:   "/" + strings.Join(pids, "/") + "/",
+	// 			Addtime: time.Now(),
+	// 		}
+	// 		if err := dbs.Write(func(tx *gorm.DB) error {
+	// 			return tx.Create(obj).Error
+	// 		}); err != nil {
+	// 			return nil, err
+	// 		} else {
+	// 			pid = obj.ID
+	// 			pids = append(pids, fmt.Sprintf("%d", obj.ID))
+	// 			names = append(names, obj.Name)
+	// 		}
+	// 		node = obj
+	// 	}
+	// }
+	// return node, nil
 }
 
 // 获取当前目录下的子目录
@@ -85,7 +117,7 @@ func GetChilds(parent int64, page, limit int, q string) (mps []*MediaPath, total
 	if limit < 1 {
 		limit = 20
 	}
-	md := dbs.DB().Debug().Model(&MediaPath{}).Where("parent = ? and removed = 0", parent)
+	md := dbs.DB().Model(&MediaPath{}).Where("parent = ? and removed = 0", parent)
 
 	if q != "" {
 		md = md.Where("name like ?", fmt.Sprintf("%%%s%%", q))
