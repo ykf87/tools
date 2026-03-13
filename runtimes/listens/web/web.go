@@ -27,20 +27,20 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var WebCloseCh context.CancelFunc              // web关闭协程
-var ROUTER *gin.Engine                         // 路由
-var RunPort int                                // 后端监听端口
-var WebUrl string                              // 打开的url地址
-var NetIp string                               // 本机ip
-var DataPath string                            // 数据存储目录
-var WebPort = flag.Int("port", 15558, "管理员端口") // 网页打开的url
+var WebCloseCh context.CancelFunc                     // web关闭协程
+var ROUTER *gin.Engine                                // 路由
+var WebUrl string                                     // 打开的url地址
+var NetIp string                                      // 本机ip
+var DataPath string                                   // 数据存储目录
+var WebPort = flag.Int("port", 15558, "管理员端口")        // 网页打开的url
+var RunPort = flag.Int("apiport", 19998, "api或者后台端口") // 后端监听端口
 
 type fileReplaceReqs struct {
 	NewContent string
 	Req        *regexp.Regexp
 }
 
-func Start(port int) {
+func Start() {
 	flag.Parse()
 	var err error
 	NetIp, err = funcs.GetLocalIP(false)
@@ -51,19 +51,27 @@ func Start(port int) {
 	var ctx context.Context
 	ctx, WebCloseCh = context.WithCancel(context.Background())
 
+	port := *RunPort
+	if port < 100 {
+		if pt, err := funcs.FreePort(); err == nil {
+			port = pt
+		} else {
+			port = 19998
+		}
+	}
+
 	gin.SetMode(gin.ReleaseMode)
 	ROUTER = gin.Default()
 	ROUTER.Use(Corss())
 	ROUTER.Use(gzip.Gzip(gzip.DefaultCompression))
 	ROUTER.Use(WriteLogs)
 	ROUTER.Static("/media", config.FullPath(config.MEDIAROOT))
-	RunPort = port
 	config.ApiPort = port
 	router()
 
 	// 启动服务（放到 goroutine，不阻塞主线程）
 	go func() {
-		ROUTER.Run(fmt.Sprintf(":%d", RunPort))
+		ROUTER.Run(fmt.Sprintf(":%d", port))
 	}()
 	time.Sleep(time.Second)
 
@@ -76,7 +84,7 @@ func Start(port int) {
 	// go func() {
 	// 	webUrl(NetIp, RunPort, WebPort)
 	// }()
-	webUrl(NetIp, RunPort, *WebPort)
+	webUrl(NetIp, port, *WebPort)
 
 	go func() {
 		for {
@@ -90,11 +98,16 @@ func Start(port int) {
 
 	WebUrl = fmt.Sprintf("http://%s:%d", NetIp, *WebPort)
 	DataPath = config.FullPath(config.DATAROOT)
-	fmt.Println("\n服务已启动:", WebUrl)
+	fmt.Println(
+		"\n服务已启动:\n\t访问地址：",
+		WebUrl, "\n\tApi地址:", fmt.Sprintf("http://127.0.0.1:%d", port),
+		"\n\t文件系统:", fmt.Sprintf("http://127.0.0.1:%d", config.MINIPORT),
+		"\t用户名:", config.ACCESSKEY, "\t密码:", config.SECRETKEY,
+	)
 	config.WebUrl = WebUrl
 	// config.MediaUrl = fmt.Sprintf("http://%s:%d/%s", NetIp, RunPort, config.DATAROOT)
-	config.ApiUrl = fmt.Sprintf("http://%s:%d", NetIp, RunPort)
-	config.MediaUrl = fmt.Sprintf("http://%s:%d/media", NetIp, RunPort)
+	config.ApiUrl = fmt.Sprintf("http://%s:%d", NetIp, port)
+	config.MediaUrl = fmt.Sprintf("http://%s:%d/media", NetIp, port)
 
 	if s, err := storage.New(storage.Config{
 		Type:      "local",
@@ -145,9 +158,9 @@ func webUrl(NetIp string, port, WebPort int) {
 		if err := downWebFile(webFullPath); err != nil {
 			panic(err)
 		}
-		// 下载成功后替换内容
-		replaceJsFiles(assetsFullPath, NetIp, port)
 	}
+	// 替换内容
+	replaceJsFiles(assetsFullPath, NetIp, port)
 
 	r := gin.Default()
 	r.Static("/", config.FullPath(config.WEBROOT))

@@ -30,7 +30,7 @@ func init() {
 	)
 
 	if err := CreateBucket(config.BUCKET); err == nil {
-		fmt.Println("io文件存储启动端口:", config.MINIPORT)
+		// fmt.Println("io文件存储启动端口:", config.MINIPORT)
 		config.DefStorage = "minio"
 	} else {
 		config.DefStorage = "local"

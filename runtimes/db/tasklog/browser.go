@@ -34,14 +34,14 @@ func (tr *TaskRunner) callweb(ctx context.Context) error {
 		return fmt.Errorf("浏览器创建失败: %s", err.Error())
 	}
 
-	if bss.Opts.Proxy == "" && bss.Opts.Pc != nil {
-		if _, err := bss.Opts.Pc.Run(false); err == nil {
-			bss.Opts.Proxy = bss.Opts.Pc.Listened()
-		}
-	}
-	if bss.Opts.Proxy != "" {
-		tr.ProxyUrl = bss.Opts.Proxy
-	}
+	// if bss.Opts.Pc != nil {
+	// 	if _, err := bss.Opts.Pc.Run(false); err == nil {
+	// 		bss.Opts.Proxy = bss.Opts.Pc.Listened()
+	// 	}
+	// }
+	// if bss.Opts.Proxy != "" {
+	// 	tr.ProxyUrl = bss.Opts.Proxy
+	// }
 	tr.SetMsg("任务开始,获取信息中...")
 
 	bss.Opts.Msg = make(chan string)

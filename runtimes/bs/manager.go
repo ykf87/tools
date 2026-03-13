@@ -91,7 +91,13 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 		Opts: opt,
 	}
 
-	if _, err := MakeBrowserConfig(b.ID, b.Opts.Language, b.Opts.Timezone, b.Opts.Proxy); err != nil {
+	if b.Opts.Pc != nil {
+		if _, err := b.Opts.Pc.Run(false); err == nil {
+			b.Opts.proxy = b.Opts.Pc.Listened()
+		}
+	}
+
+	if _, err := MakeBrowserConfig(b.ID, b.Opts.Language, b.Opts.Timezone, b.Opts.proxy); err != nil {
 		return nil, err
 	}
 
@@ -171,9 +177,6 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 }
 
 func (m *Manager) Close(id int64) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
 	bs, ok := m.browsers[id]
 	if !ok {
 		return nil

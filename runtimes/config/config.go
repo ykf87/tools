@@ -31,7 +31,7 @@ const (
 
 	// s3相关配置, 如果使用云端,需要增加endpoint配置,本地minio自动生成
 	ACCESSKEY = "admin"
-	SECRETKEY = "StrongPassword123!"
+	SECRETKEY = "Admin@111111!"
 	BUCKET    = "default"
 	USESSL    = false
 

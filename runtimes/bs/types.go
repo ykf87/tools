@@ -699,7 +699,7 @@ type Options struct {
 	Msg       chan string
 	Ctx       context.Context
 	Pc        *proxy.ProxyConfig
-	Proxy     string
+	proxy     string
 }
 
 // 浏览器

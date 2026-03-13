@@ -61,11 +61,11 @@ func main() {
 		return
 	}
 
-	port := 19998
+	// port := 19998
 
-	fmt.Println("欢迎使用小卡卡辅助工具.有任何问题可以随时在系统内联系开发者或者前往官网留言.祝您使用愉快!")
+	fmt.Println("\n感谢使用小卡卡辅助工具.有任何问题可以随时在系统内联系开发者或者前往官网留言.祝您使用愉快!")
 	fmt.Println("系统UUID:", syncuuid.MachineUUID())
-	go web.Start(port)
+	go web.Start()
 	<-mainsignal.MainCtx.Done()
 	mainsignal.MainStop()
 	fmt.Println("\n系统准备关闭,释放内存中,请稍后...")

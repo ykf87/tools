@@ -4,6 +4,7 @@ import (
 	"tools/runtimes/controllers/browsers"
 	"tools/runtimes/controllers/infor"
 	"tools/runtimes/controllers/js"
+	"tools/runtimes/controllers/mediasec"
 	"tools/runtimes/controllers/phones"
 	"tools/runtimes/controllers/proxys"
 	"tools/runtimes/controllers/public"
@@ -31,6 +32,8 @@ func router() {
 	ROUTER.POST("browser/download", browsers.Download)
 	ROUTER.GET("client/ws", phones.Ws)   // app 的ws连接
 	ROUTER.GET("client/api", phones.Api) // app 的api连接
+
+	ROUTER.POST("/video", mediasec.GetVideos)
 	AuthRoutes := ROUTER
 	AuthRoutes.Use(AuthMiddleware)
 	AuthRoutes.GET("clientwh", public.SetWH)
@@ -95,6 +98,7 @@ func router() {
 		browserGroup.POST("start/:id", browsers.Start)
 		browserGroup.POST("stop/:id", browsers.Stop)
 		browserGroup.POST("delete/:id", browsers.Delete)
+		browserGroup.POST("delete", browsers.Delete)
 	}
 
 	clientGroup := AuthRoutes.Group("phones")

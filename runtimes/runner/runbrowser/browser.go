@@ -38,11 +38,11 @@ func (r *RunBrowser) Start(timeout time.Duration, callback func(str string) erro
 		r.ctx, r.cancle = context.WithTimeout(r.Browser.Opts.Ctx, timeout)
 	}
 
-	if r.Browser.Opts.Proxy == "" && r.Browser.Opts.Pc != nil {
-		if _, err := r.Browser.Opts.Pc.Run(false); err == nil {
-			r.Browser.Opts.Proxy = r.Browser.Opts.Pc.Listened()
-		}
-	}
+	// if r.Browser.Opts.Proxy == "" && r.Browser.Opts.Pc != nil {
+	// 	if _, err := r.Browser.Opts.Pc.Run(false); err == nil {
+	// 		r.Browser.Opts.Proxy = r.Browser.Opts.Pc.Listened()
+	// 	}
+	// }
 
 	if err := r.Browser.OpenBrowser(); err != nil {
 		return fmt.Errorf("浏览器打开失败: %s", err.Error())

@@ -83,25 +83,35 @@ func GetBrowserById(id any) (*Browser, error) {
 // }
 
 func (this *Browser) Open(opt *bs.Options) error {
-	if bs.BsManager.IsArride(this.Id) {
+	if opt == nil {
+		opt = &bs.Options{
+			ID:       this.Id,
+			Width:    this.Width,
+			Height:   this.Height,
+			Language: this.Lang,
+			Timezone: this.Timezone,
+			Url:      this.DefUrl,
+			Show:     true,
+		}
+	}
+	browser, err := bs.BsManager.New(this.Id, opt, true)
+
+	if browser.IsArrive() {
 		return fmt.Errorf("浏览器已经打开")
 	}
-	if opt == nil {
-		opt = new(bs.Options)
-	}
-	if opt.Proxy == "" {
+
+	if opt.Pc == nil {
 		if this.Proxy > 0 {
 			px := proxys.GetById(this.Proxy)
 			if px != nil && px.Id > 0 {
 				if pc, err := px.Start(false); err == nil {
-					opt.Proxy = pc.Listened()
+					opt.Pc = pc
 				}
 			}
-		}
-		if opt.Proxy == "" && this.ProxyConfig != "" {
+		} else if this.ProxyConfig != "" {
 			if pc, err := proxy.Client(this.ProxyConfig, "", 0); err == nil {
 				if _, err := pc.Run(false); err == nil {
-					opt.Proxy = pc.Listened()
+					opt.Pc = pc
 				}
 			}
 		}
@@ -149,13 +159,29 @@ func (this *Browser) Close(rmv bool) error {
 	if err := bs.BsManager.Close(this.Id); err != nil {
 		return err
 	}
-
 	if rmv == true {
 		bs.BsManager.Remove(this.Id)
 	}
 
 	eventbus.Bus.Publish("browser-close", this)
 	return nil
+}
+
+// 批量删除
+func BatchDelete(ids []int64) error {
+
+	var bs []*Browser
+	db.DB.DB().Where("id in ?", ids).Find(&bs)
+
+	for _, v := range bs {
+		v.Close(true)
+	}
+	return db.DB.Write(func(tx *gorm.DB) error {
+		if err := tx.Where("id in ?", ids).Delete(&Browser{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("browser_id in ?", ids).Delete(&BrowserToTag{}).Error
+	})
 }
 
 func (this *Browser) Delete() error {
@@ -169,7 +195,7 @@ func (this *Browser) Delete() error {
 		if err := txx.Where("browser_id = ?", this.Id).Delete(&BrowserToTag{}).Error; err != nil {
 			return err
 		}
-		if err := this.Close(false); err != nil {
+		if err := this.Close(true); err != nil {
 			return err
 		}
 		return nil

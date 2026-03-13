@@ -118,7 +118,7 @@ func List(c *gin.Context) {
 	}
 
 	var ps []*browserdb.Browser
-	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Offset((l.Page - 1) * l.Limit).Limit(l.Limit).Debug().Find(&ps)
+	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Offset((l.Page - 1) * l.Limit).Limit(l.Limit).Find(&ps)
 	for _, v := range ps {
 		v.Opend = bs.BsManager.IsArride(v.Id)
 	}
@@ -274,14 +274,9 @@ func Start(c *gin.Context) {
 		return
 	}
 
-	u, ok := c.Get("_user")
-	if ok == false {
-		response.Error(c, http.StatusNotFound, i18n.T("Please login first"), nil)
-		return
-	}
-	user, ok := u.(*admins.Admin)
-	if ok != true {
-		response.Error(c, http.StatusNotFound, i18n.T("Please login first"), nil)
+	user, err := admins.GetAdminUser(c)
+	if err != nil {
+		response.Error(c, http.StatusNonAuthoritativeInfo, err.Error(), nil)
 		return
 	}
 
@@ -327,6 +322,19 @@ func Stop(c *gin.Context) {
 
 // 删除浏览器
 func Delete(c *gin.Context) {
+	type ids struct {
+		Ids []int64 `json:"ids" form:"ids"`
+	}
+
+	var removeIds ids
+	if err := c.ShouldBindJSON(&removeIds); err == nil {
+		if err := browserdb.BatchDelete(removeIds.Ids); err != nil {
+			response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		}
+		response.Success(c, nil, "")
+		return
+	}
+
 	id := c.Param("id")
 	bs, err := browserdb.GetBrowserById(id)
 	if err != nil {

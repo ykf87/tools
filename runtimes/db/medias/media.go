@@ -42,6 +42,7 @@ type Media struct {
 	Addtime      time.Time    `json:"addtime" gorm:"index"`                                    // 本数据添加日期
 	Files        []*MediaFile `json:"files" gorm:"foreignKey:MID;constraint:OnDelete:CASCADE"` // 文件列表
 	User         *MediaUser   `json:"user" gorm:"foreignKey:UserId;references:Id"`             // 用户
+	Used         int          `json:"used" gorm:"default:0;index"`                             // 是否通过获取接口使用过
 	// TempFile   string      `json:"temp_file"`                                          // 删除后的文件路径
 	// RemoveTime int64       `json:"remove_time" gorm:"default:0;index"`                 // 删除时间
 	// Filetime   int64       `json:"filetime" gorm:"index;default:0" form:"filetime"`    // 文件最后修改日期
@@ -249,7 +250,7 @@ func GetPlatformVideos(urls string, pxys []*proxy.ProxyConfig, path string, admi
 UPDATE media
 SET
     sizes = (
-        SELECT GROUP_CONCAT(size)
+        SELECT SUM(size)
         FROM media_files
         WHERE media_files.m_id = media.id
     ),
@@ -262,16 +263,16 @@ WHERE media.id = ?
 `, md.Id).Error
 						})
 
-						// if mediaUser != nil {
-						// 	if err := dbs.Write(func(tx *gorm.DB) error {
-						// 		return tx.Model(&Media{}).Debug().
-						// 			Select("count(*)").
-						// 			Where("user_id = ? and removed = 0", md.Id).
-						// 			Scan(&mediaUser.Videos).Error
-						// 	}); err == nil {
-						// 		mediaUser.Save(mediaUser, dbs.DB())
-						// 	}
-						// }
+						if mediaUser != nil {
+							if err := dbs.DB().Model(&Media{}).
+								Select("count(*)").
+								Where("user_id = ? and removed = 0", mediaUser.Id).
+								Scan(&mediaUser.Videos).Error; err == nil {
+								dbs.Write(func(tx *gorm.DB) error {
+									return tx.Model(&MediaUser{}).Where("id = ?", mediaUser.Id).Update("videos", mediaUser.Videos).Error
+								})
+							}
+						}
 						msg.Done(strings.Join(estrs, "\n"))
 					}()
 				}

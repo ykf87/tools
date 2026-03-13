@@ -91,6 +91,7 @@ func (mu MediaUser) MarshalJSON() ([]byte, error) {
 		if a.CoverStorage == "" {
 			a.CoverStorage = "local"
 		}
+		// fmt.Println(a.CoverStorage, "----")
 		a.Cover = storage.Load(a.CoverStorage).URL(a.Cover)
 	}
 
@@ -126,7 +127,7 @@ func (this *MediaUser) GetClients() map[int][]int64 {
 func (this *MediaUser) Commpare() {
 	this.GetClients()
 	this.GetProxys()
-	this.GenAvatarToHttp()
+	// this.GenAvatarToHttp()
 
 	this.Tags = nil
 	for _, zv := range this.GetTags() {
@@ -134,11 +135,11 @@ func (this *MediaUser) Commpare() {
 	}
 }
 
-func (this *MediaUser) GenAvatarToHttp() {
-	if !strings.HasPrefix(this.Cover, "http") {
-		this.Cover = fmt.Sprintf("%s/%s", config.MediaUrl, this.Cover)
-	}
-}
+// func (this *MediaUser) GenAvatarToHttp() {
+// 	if !strings.HasPrefix(this.Cover, "http") {
+// 		this.Cover = fmt.Sprintf("%s/%s", config.MediaUrl, this.Cover)
+// 	}
+// }
 
 // 获取代理列表
 func (this *MediaUser) GetProxys() []int64 {

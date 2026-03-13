@@ -127,7 +127,7 @@ func List(c *gin.Context) {
 		model := medias.GetDb().DB().Model(&medias.Media{}).
 			Where("removed = 0 and path_id = ?", ddt.PathID)
 		if ddt.Search != "" {
-			model = model.Where("media.title like ?", fmt.Sprintf("%%%s%%", ddt.Search))
+			model = model.Where("title like ?", fmt.Sprintf("%%%s%%", ddt.Search))
 		}
 
 		model.Count(&flen)
