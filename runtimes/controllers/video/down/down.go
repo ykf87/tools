@@ -12,6 +12,7 @@ import (
 	// "sync"
 
 	"tools/runtimes/config"
+	"tools/runtimes/db"
 	"tools/runtimes/db/admins"
 	"tools/runtimes/db/medias"
 	"tools/runtimes/db/proxys"
@@ -168,169 +169,7 @@ func List(c *gin.Context) {
 		"prevurl":  config.MediaUrl,
 	}
 	response.Success(c, rs, "")
-
-	// 以下代码废弃
-	// findPath := filepath.Join(config.MEDIAROOT, ddt.Path)
-	// fn, err := os.Stat(findPath)
-	// if err != nil {
-	// 	response.Error(c, http.StatusNotFound, err.Error(), nil)
-	// 	return
-	// }
-	// if fn.IsDir() == false {
-	// 	response.Error(c, http.StatusNotFound, i18n.T("%s 不是有效目录", ddt.Path), nil)
-	// 	return
-	// }
-
-	// fls, err := ioutil.ReadDir(findPath)
-	// if err != nil {
-	// 	response.Error(c, http.StatusNotFound, err.Error(), nil)
-	// 	return
-	// }
-
-	// if ddt.Page < 1 {
-	// 	ddt.Page = 1
-	// }
-	// if ddt.Limit < 1 {
-	// 	ddt.Limit = 10
-	// }
-	// limits := ddt.Limit
-
-	// var dirs []*Pms
-	// var files []*Pms
-	// var dbFinderNames []string
-	// for _, v := range fls {
-	// 	nm := v.Name()
-	// 	if nm == "." || nm == ".." {
-	// 		continue
-	// 	}
-	// 	if nm[0:1] == "." {
-	// 		continue
-	// 	}
-
-	// 	t := new(Pms)
-	// 	t.Dir = v.IsDir()
-	// 	if t.Dir {
-	// 		t.Path = filepath.Join(ddt.Path, nm)
-	// 	} else {
-	// 		t.Path = ddt.Path
-	// 	}
-	// 	t.Name = nm
-
-	// 	t.Timer = v.ModTime().Unix()
-	// 	t.FullName = fmt.Sprintf("%s/%s", ddt.Path, nm)
-
-	// 	tms := strings.Split(nm, ".")
-	// 	if len(tms) > 1 {
-	// 		t.Ext = strings.ToLower(tms[len(tms)-1])
-	// 	}
-	// 	t.Mime = getMime(filepath.Join(config.MEDIAROOT, t.FullName))
-	// 	// fmt.Println(config.MediaUrl, "------------")
-	// 	t.Url = fmt.Sprintf("%s%s", config.MediaUrl, t.FullName)
-
-	// 	if ddt.Ext != "" && ddt.Ext != t.Ext {
-	// 		continue
-	// 	}
-	// 	if t.Ext == "yaml" {
-	// 		continue
-	// 	}
-	// 	if v.IsDir() {
-	// 		if ddt.Tp != "file" {
-	// 			dirs = append(dirs, t)
-	// 		}
-	// 	} else {
-	// 		if ddt.Mime != "" {
-	// 			if !checkMime(ddt.Mime, filepath.Join(findPath, nm)) {
-	// 				continue
-	// 			}
-	// 		}
-	// 		if ddt.Tp != "dir" {
-	// 			t.Size = funcs.FormatFileSize(v.Size())
-	// 			// t.Size = fmt.Sprintf("%.2f M", float64(v.Size())/1048576.0)
-	// 			files = append(files, t)
-	// 			dbFinderNames = append(dbFinderNames, t.Name)
-	// 		}
-	// 	}
-	// }
-
-	// start := (ddt.Page - 1) * ddt.Limit
-
-	// var lists []*Pms
-	// sort.Sort(ByTimerDesc(dirs))
-	// for k, v := range dirs {
-	// 	if k >= start {
-	// 		lists = append(lists, v)
-	// 		ddt.Limit--
-	// 		if ddt.Limit <= 0 {
-	// 			break
-	// 		}
-	// 	}
-	// }
-
-	// dirlen := len(dirs)
-	// sort.Sort(ByTimerDesc(files))
-
-	// flen := len(files)
-	// total := flen + dirlen
-	// tf, _ := strconv.ParseFloat(fmt.Sprintf("%d", total), 64)
-	// lf, _ := strconv.ParseFloat(fmt.Sprintf("%d", limits), 64)
-	// pages := int(math.Ceil(tf / lf))
-
-	// rp := map[string]any{"pages": pages, "limit": limits, "list": lists, "total": total, "dirs": dirlen, "fils": flen, "baseurl": config.FullPath(config.MEDIAROOT), "prevpath": ddt.Path, "prevurl": config.MediaUrl}
-	// response.Success(c, rp, "Success")
 }
-
-// func getMime(fn string) string {
-// 	f, _ := os.Open(fn)
-// 	defer f.Close()
-
-// 	// 读取文件前几字节用于 MIME 类型检测
-// 	buf := make([]byte, 512)
-// 	_, err := f.Read(buf)
-// 	if err != nil {
-// 		return ""
-// 	}
-
-// 	return strings.ToLower(http.DetectContentType(buf))
-// }
-
-// // 检查mime
-// func checkMime(mime, fn string) bool {
-// 	if mime == "" {
-// 		return true
-// 	}
-// 	fileinfo, err := os.Stat(fn)
-// 	if err != nil {
-// 		return true
-// 	}
-// 	if fileinfo.IsDir() == true {
-// 		return true
-// 	}
-// 	mime = strings.ToLower(strings.ReplaceAll(mime, "*", ""))
-
-// 	f, _ := os.Open(fn)
-// 	defer f.Close()
-
-// 	// 读取文件前几字节用于 MIME 类型检测
-// 	buf := make([]byte, 512)
-// 	_, err = f.Read(buf)
-// 	if err != nil {
-// 		return true
-// 	}
-
-// 	// 检测 MIME 类型
-// 	mimeType := strings.ToLower(http.DetectContentType(buf))
-// 	if strings.HasPrefix(mimeType, mime) {
-// 		return true
-// 	}
-// 	return false
-// }
-
-// // type downWsBack struct {
-// // 	Fmt    string  `json:"fmt"`
-// // 	Num    float64 `json:"num"`
-// // 	File   string  `json:"file"`
-// // 	Status int     `json:"status"`
-// // }
 
 func Download(c *gin.Context) {
 	user, err := admins.GetAdminUser(c)
@@ -358,256 +197,53 @@ func Download(c *gin.Context) {
 		errmsg = append(errmsg, err.Error())
 	}
 	response.Success(c, nil, strings.Join(errmsg, "\n"))
-
-	// dt.Urls = strings.ReplaceAll(dt.Urls, "\r\n", "\n")
-	// dt.Urls = strings.ReplaceAll(dt.Urls, "\r", "\n")
-	// urls := strings.Split(dt.Urls, "\n")
-
-	// if len(urls) < 1 {
-	// 	response.Error(c, http.StatusBadRequest, i18n.T("Please enter the download address"), nil)
-	// 	return
-	// }
-
-	// // var transport *http.Transport
-	// var errs []string
-	// // var downs []*parser.VideoParseInfo
-
-	// // 开启选择的代理
-	// // rand.Seed(time.Now().UnixNano())
-	// proxyObjs := make(map[int64]*proxy.ProxyConfig)
-	// if len(dt.Proxys) > 0 {
-	// 	proxyid := dt.Proxys[rand.Intn(len(dt.Proxys))]
-	// 	if _, ok := proxyObjs[proxyid]; !ok {
-	// 		px := proxys.GetById(proxyid)
-	// 		if px != nil && px.Id > 0 {
-	// 			if pc, err := proxy.Client(px.GetConfig(), "", px.Port, px.GetTransfer()); err == nil {
-	// 				if _, err := pc.Run(false); err == nil {
-	// 					proxyObjs[px.Id] = pc
-	// 					defer pc.Close(false)
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	// // rps := make(map[string]any)
-	// var rps []*Pms
-	// re := regexp.MustCompile(`https?://[^\s]+`)
-
-	// var wg sync.WaitGroup
-	// for _, ustr := range urls {
-	// 	wg.Go(func() {
-	// 		fmt.Println(ustr, "----")
-	// 	})
-	// }
-
-	// // 下方代码准备放弃
-	// for _, u := range urls {
-	// 	wg.Add(1)
-	// 	ul := re.FindString(u)
-	// 	urlmd5 := funcs.Md5String(ul)
-
-	// 	rsrow := new(Pms)
-	// 	rsrow.DownFile = urlmd5
-
-	// 	if mmmd := medias.GerUrlMd5Row(urlmd5); mmmd.Id > 0 {
-	// 		errs = append(errs, fmt.Sprintf("%s 已经下载", ul))
-	// 		wg.Done()
-	// 		continue
-	// 	}
-
-	// 	var proxyUrl string
-	// 	if len(dt.Proxys) > 0 {
-	// 		proxyid := dt.Proxys[rand.Intn(len(dt.Proxys))]
-	// 		if pc, ok := proxyObjs[proxyid]; ok {
-	// 			proxyUrl = pc.Listened()
-	// 			defer pc.Close(true)
-	// 		}
-	// 	}
-
-	// 	go func(proxy, urlmd5 string) {
-	// 		defer wg.Done()
-	// 		var transport *http.Transport
-	// 		if proxy != "" {
-	// 			if proxyURL, err := url.Parse(proxy); err == nil {
-	// 				transport = &http.Transport{
-	// 					Proxy: http.ProxyURL(proxyURL),
-	// 				}
-	// 			}
-	// 		}
-	// 		parseRes, err := parser.ParseVideoShareUrlByRegexp(u, transport)
-	// 		if err != nil {
-	// 			errs = append(errs, err.Error()) //i18n.T("%s download failed", u)
-	// 			return
-	// 		}
-
-	// 		bt, _ := config.Json.Marshal(parseRes)
-	// 		fmt.Println(string(bt), "=====")
-
-	// 		rsrow.Cover = parseRes.CoverUrl
-	// 		rsrow.Platform = parseRes.Platform
-
-	// 		if dt.AutoDown == true {
-	// 			go requestDown(proxy, parseRes, urlmd5, dt.Path, ul, user.Id, parseRes.CoverUrl)
-	// 		}
-
-	// 		// downs = append(downs, parseRes)
-	// 	}(proxyUrl, urlmd5)
-	// 	rps = append(rps, rsrow)
-	// }
-	// wg.Wait()
-	// response.Success(c, rps, strings.Join(errs, "\n"))
 }
 
-// func requestDown(proxy string, parseRes *parser.VideoParseInfo, urlmd5, path, vurl string, uid int64, cover string) {
-// 	var downurls []string
-// 	if parseRes.VideoUrl != "" {
-// 		downurls = append(downurls, parseRes.VideoUrl)
-// 		// md, err := medias.DownLoadVideo(vurl, parseRes.VideoUrl, path, "", proxy, func(percent float64, downloaded, total int64) {
-// 		// 	fmt.Printf("\r下载进度: %.2f%%", percent)
-// 		// 	dbk := new(Pms)
-// 		// 	dbk.DownFile = urlmd5
-// 		// 	dbk.Fmt = fmt.Sprintf("%.2f%%", percent)
-// 		// 	dbk.Num = percent
-// 		// 	dbk.Dir = false
-// 		// 	dbk.Cover = cover
-// 		// 	dbk.Name = urlmd5
-// 		// 	dbk.Platform = parseRes.Platform
+func ReDownload(c *gin.Context) {
+	user, err := admins.GetAdminUser(c)
+	if err != nil {
+		response.Error(c, http.StatusNonAuthoritativeInfo, err.Error(), nil)
+		return
+	}
 
-// 		// 	ws.SentBus(uid, "video-download", dbk, "")
-// 		// })
-// 		// if err != nil {
-// 		// 	dbk := new(Pms)
-// 		// 	dbk.DownFile = urlmd5
-// 		// 	dbk.Fmt = ""
-// 		// 	dbk.Num = 0
-// 		// 	dbk.Dir = false
-// 		// 	dbk.Status = -1
-// 		// 	dbk.DownErrMsg = err.Error()
+	type idsobj struct {
+		Ids    []int64 `json:"ids"`
+		Proxys []int64 `json:"proxys"`
+	}
+	var ids idsobj
+	if err := c.ShouldBindJSON(&ids); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
 
-// 		// 	ws.SentBus(uid, "video-download", dbk, "")
-// 		// 	return
-// 		// }
-// 		// md.VideoID = parseRes.VideoID
-// 		// md.Platform = parseRes.Platform
-// 		// md.Title = parseRes.Title
+	var pxobj []*proxys.Proxy
+	db.DB.DB().Model(&proxys.Proxy{}).Where("id in ?", ids.Proxys).Find(&pxobj)
+	var pcs []*proxy.ProxyConfig
+	for _, v := range pxobj {
+		if pc, err := v.Start(false); err == nil {
+			pcs = append(pcs, pc)
+		}
+	}
 
-// 		// if parseRes.Author.Uid != "" {
-// 		// 	mu := medias.MkerMediaUser(parseRes.Platform, parseRes.Author.Uid, parseRes.Author.Avatar, parseRes.Author.Name, proxy, parseRes.Author.SearchID, uid)
-// 		// 	md.UserId = mu.Id
-// 		// }
-// 		// // md.Save(nil)
-// 		// md.Save(md, medias.GetDb().DB())
+	var mds []*medias.Media
+	medias.GetDb().DB().Model(&medias.Media{}).Where("id in ?", ids.Ids).Find(&mds)
 
-// 		// dbk := new(Pms)
-// 		// dbk.DownFile = urlmd5
-// 		// dbk.Fmt = "100%"
-// 		// dbk.Num = 100
-// 		// dbk.Dir = false
-// 		// dbk.Status = 1
-// 		// dbk.Mime = md.Mime
-// 		// dbk.Size = funcs.FormatFileSize(md.Size)
-// 		// dbk.Name = md.Name
-// 		// dbk.Platform = md.Platform
-// 		// dbk.Url = fmt.Sprintf("%s/%s", config.MediaUrl, filepath.Join(path, md.Name))
+	var errs []string
+	for _, v := range mds {
+		go func() {
+			rerrs := v.ReDown(pcs, user.Id)
+			for _, ev := range rerrs {
+				errs = append(errs, ev.Error())
+			}
+		}()
+	}
 
-// 		// rrs := medias.GetMediasUserFromName([]string{md.Mime})
-// 		// if vvs, ok := rrs[md.Mime]; ok {
-// 		// 	dbk.User = vvs
-// 		// }
-
-// 		// tms := strings.Split(md.Mime, ".")
-// 		// if len(tms) > 1 {
-// 		// 	dbk.Ext = strings.ToLower(tms[len(tms)-1])
-// 		// }
-
-// 		// dbk.FullName = fmt.Sprintf("%s/%s", md.Path, md.Name)
-// 		// dbk.Timer = md.Filetime
-
-// 		// ws.SentBus(uid, "video-download", dbk, "")
-// 	} else if len(parseRes.Images) > 0 { // 下载图片
-// 		for _, v := range parseRes.Images {
-// 			downurls = append(downurls, v.Url)
-// 			// _, err := medias.DownLoadVideo(vurl, v.Url, path, "", proxy, func(percent float64, downloaded, total int64) {
-// 			// 	fmt.Printf("\r下载进度: %.2f%%", percent)
-// 			// 	dbk := new(Pms)
-// 			// 	dbk.DownFile = urlmd5
-// 			// 	dbk.Fmt = fmt.Sprintf("%.2f%%", percent)
-// 			// 	dbk.Num = percent
-// 			// 	dbk.Dir = false
-// 			// 	dbk.Cover = cover
-// 			// 	dbk.Name = urlmd5
-// 			// 	dbk.Platform = parseRes.Platform
-
-// 			// 	ws.SentBus(uid, "video-download", dbk, "")
-// 			// })
-// 		}
-// 	}
-
-// 	md, err := medias.DownLoadVideo(vurl, downurls, path, "", proxy, func(percent float64, downloaded, total int64) {
-// 		fmt.Printf("\r下载进度: %.2f%%", percent)
-// 		dbk := new(Pms)
-// 		dbk.DownFile = urlmd5
-// 		dbk.Fmt = fmt.Sprintf("%.2f%%", percent)
-// 		dbk.Num = percent
-// 		dbk.Dir = false
-// 		dbk.Cover = cover
-// 		dbk.Name = urlmd5
-// 		dbk.Platform = parseRes.Platform
-
-// 		ws.SentBus(uid, "video-download", dbk, "")
-// 	})
-// 	if err != nil {
-// 		dbk := new(Pms)
-// 		dbk.DownFile = urlmd5
-// 		dbk.Fmt = ""
-// 		dbk.Num = 0
-// 		dbk.Dir = false
-// 		dbk.Status = -1
-// 		dbk.DownErrMsg = err.Error()
-
-// 		ws.SentBus(uid, "video-download", dbk, "")
-// 		return
-// 	}
-// 	md.VideoID = parseRes.VideoID
-// 	md.Platform = parseRes.Platform
-// 	md.Title = parseRes.Title
-
-// 	if parseRes.Author.Uid != "" {
-// 		mu := medias.MkerMediaUser(parseRes.Platform, parseRes.Author.Uid, parseRes.Author.Avatar, parseRes.Author.Name, proxy, parseRes.Author.SearchID, uid)
-// 		md.UserId = mu.Id
-// 	}
-// 	// md.Save(nil)
-// 	// md.Save(nil)
-// 	// md.Save(md, medias.GetDb().DB())
-
-// 	dbk := new(Pms)
-// 	dbk.DownFile = urlmd5
-// 	dbk.Fmt = "100%"
-// 	dbk.Num = 100
-// 	dbk.Dir = false
-// 	dbk.Status = 1
-// 	// dbk.Mime = md.Mime
-// 	// dbk.Size = funcs.FormatFileSize(md.Size)
-// 	// dbk.Name = md.Name
-// 	dbk.Platform = md.Platform
-// 	// dbk.Url = fmt.Sprintf("%s/%s", config.MediaUrl, filepath.Join(path, md.Name))
-
-// 	// rrs := medias.GetMediasUserFromName([]string{md.Mime})
-// 	// if vvs, ok := rrs[md.Mime]; ok {
-// 	// 	dbk.User = vvs
-// 	// }
-
-// 	// tms := strings.Split(md.Mime, ".")
-// 	// if len(tms) > 1 {
-// 	// 	dbk.Ext = strings.ToLower(tms[len(tms)-1])
-// 	// }
-
-// 	// dbk.FullName = fmt.Sprintf("%s/%s", md.Path, md.Name)
-// 	// dbk.Timer = md.Filetime
-
-// 	ws.SentBus(uid, "video-download", dbk, "")
-// }
+	msg := "重新下载已提交"
+	if len(errs) > 0 {
+		msg = strings.Join(errs, "\n")
+	}
+	response.Success(c, nil, msg)
+}
 
 type mkdirStruct struct {
 	Name string `json:"name" form:"name"` // 目录名称
@@ -631,17 +267,6 @@ func Mkdir(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
-	// f, err := os.Stat(fullPath)
-
-	// if err != nil {
-	// 	if err := os.MkdirAll(fullPath, os.ModePerm); err != nil {
-	// 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
-	// 		return
-	// 	}
-	// } else if f.IsDir() == false {
-	// 	response.Error(c, 500, "已存在同名文件,无法创建", nil)
-	// 	return
-	// }
 	response.Success(c, nil, "Success")
 }
 

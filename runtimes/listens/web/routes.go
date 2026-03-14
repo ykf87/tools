@@ -84,6 +84,7 @@ func router() {
 		vDownloader := videosGroup.Group("downloader")
 		{
 			vDownloader.POST("", down.Download)
+			vDownloader.POST("redown", down.ReDownload)
 		}
 	}
 

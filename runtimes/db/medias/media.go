@@ -136,6 +136,13 @@ func GetDb() *db.SQLiteWriter {
 	return dbs
 }
 
+// urls 待下载的地址
+// pxys 代理
+// path 下载到哪个目录
+// adminID 管理员id
+// systype  使用的存储系统, local 和 minio
+// userDir 是否使用用户目录,自动生成平台加用户的独立目录
+// redown 是否强制重新下载
 func GetPlatformVideos(urls string, pxys []*proxy.ProxyConfig, path string, adminID int64, systype string, userDir, redown bool) []error {
 	if systype == "" {
 		systype = config.DefStorage
@@ -370,6 +377,103 @@ func getNeedDownUrls(urls []string, reget bool) map[string]*Media {
 	}
 
 	return md5map
+}
+
+func (m *Media) ReDown(pcs []*proxy.ProxyConfig, adminID int64) (errs []error) {
+	t, proxy, pc, _ := getTransport(pcs)
+	if pc != nil {
+		defer pc.Close(false)
+	}
+
+	// 解析地址
+	info, err := parser.ParseVideoShareUrlByRegexp(m.Url, t)
+	if err != nil {
+		errs = append(errs, errors.New(m.Url+" 下载错误:"+err.Error()))
+		fmt.Println("视频解析错误:", err)
+		return
+	}
+
+	// 解析完成后需要先获取平台用户
+	var mediaUser *MediaUser
+	if info.Author.Uid != "" {
+		mu := mediaUserGetter(
+			info.Author.Uid,
+			info.Author.Name,
+			info.Author.Avatar,
+			info.Author.SearchID,
+			info.Platform,
+			proxy,
+			adminID,
+		)
+		mediaUser = mu
+	}
+
+	var downUrls []string
+
+	if info.VideoUrl != "" {
+		downUrls = []string{info.VideoUrl}
+	} else if len(info.Images) > 0 {
+		for _, v := range info.Images {
+			downUrls = append(downUrls, v.Url)
+		}
+	} else {
+		errs = append(errs, errors.New(m.Url+" 找不到可下载内容!"))
+		return
+	}
+
+	fls := len(downUrls)
+	if fls > 0 {
+		var ccv string
+		if m.Cover != "" {
+			ccv = storage.Load(m.CoverStorage).URL(m.Cover)
+		} else {
+			ccv = info.CoverUrl
+		}
+		msg := m.Message(fls, ccv, m.PathID)
+		msg.Sent("开始下载...", 0)
+		go func() {
+			_, err := m.DownMediaFiles(downUrls, proxy, msg)
+			if err != nil {
+				errs = append(errs, errors.New(m.Url+" 文件下载失败:"+err.Error()))
+			}
+
+			var estrs []string
+			for _, v := range errs {
+				estrs = append(estrs, v.Error())
+			}
+
+			err = dbs.Write(func(tx *gorm.DB) error {
+				return tx.Exec(`
+UPDATE media
+SET
+    sizes = (
+        SELECT SUM(size)
+        FROM media_files
+        WHERE media_files.m_id = media.id
+    ),
+    numbers = (
+        SELECT COUNT(*)
+        FROM media_files
+        WHERE media_files.m_id = media.id
+    )
+WHERE media.id = ?
+`, m.Id).Error
+			})
+
+			if mediaUser != nil {
+				if err := dbs.DB().Model(&Media{}).
+					Select("count(*)").
+					Where("user_id = ? and removed = 0", mediaUser.Id).
+					Scan(&mediaUser.Videos).Error; err == nil {
+					dbs.Write(func(tx *gorm.DB) error {
+						return tx.Model(&MediaUser{}).Where("id = ?", mediaUser.Id).Update("videos", mediaUser.Videos).Error
+					})
+				}
+			}
+			msg.Done(strings.Join(estrs, "\n"))
+		}()
+	}
+	return
 }
 
 func (m *Media) DownMediaFiles(fls []string, proxy string, msg *MediaResponseMessage) ([]*MediaFile, error) {
