@@ -166,6 +166,14 @@ func GetPlatformVideos(urls string, pxys []*proxy.ProxyConfig, path string, admi
 					return
 				}
 
+				if md.Id < 1 {
+					mmd := new(Media)
+					dbs.DB().Model(&Media{}).Where("video_id = ?", info.VideoID).Find(mmd)
+					if mmd.Id > 0 {
+						md = mmd
+					}
+				}
+
 				// 解析完成后需要先获取平台用户
 				var mediaUser *MediaUser
 				if info.Author.Uid != "" {

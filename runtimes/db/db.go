@@ -144,7 +144,7 @@ func (this *BaseModel) Save(model any, db *gorm.DB) error {
 		return nil
 	}
 
-	return db.Model(model).Debug().
+	return db.Model(model).
 		Where(where).
 		Updates(updates).
 		Error

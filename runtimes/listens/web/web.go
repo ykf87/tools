@@ -175,11 +175,16 @@ func webUrl(NetIp string, port, WebPort int) {
 func downWebFile(webFullPath string) error {
 	fmt.Println("Downloading web files...")
 	dfname := "web.zip"
-	downurl := fmt.Sprint(config.SERVERDOMAIN, "down?file="+dfname+"&versions="+config.VERSION)
 	saveFile := filepath.Join(webFullPath, dfname)
-	fmt.Println(downurl, "----")
-	if err := services.ServerDownload(downurl, saveFile, nil, func(perc float64, downloaded, total int64) {
-		fmt.Printf("\r下载中：%.2f%% (%s/%s)", perc, funcs.FormatFileSize(downloaded), funcs.FormatFileSize(total))
+	if err := services.ServerDownload(dfname, filepath.Dir(saveFile), nil, func(total, downloaded, speed, workers int64) {
+		msgstr := fmt.Sprintf(
+			"%.2f%% %s/s %s 线程: %d",
+			float64(downloaded)/float64(total)*100,
+			funcs.FormatFileSize(speed, "1", ""),
+			funcs.FormatFileSize(total, "1", ""),
+			workers,
+		)
+		fmt.Print("\r", msgstr)
 	}); err != nil {
 		return err
 	}

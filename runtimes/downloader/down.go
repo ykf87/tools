@@ -2,6 +2,7 @@ package downloader
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"mime"
 	"net/http"
@@ -202,6 +203,7 @@ func worker(ctx context.Context, client *http.Client, url string, headers map[st
 				return
 			}
 			req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+			// fmt.Println(headers)
 			applyHeaders(req, headers)
 			req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", c.start, c.end))
 
@@ -211,24 +213,33 @@ func worker(ctx context.Context, client *http.Client, url string, headers map[st
 			// 	continue
 			// }
 			var resp *http.Response
-			for retry := range [3]int{} {
+			for range 3 {
+
+				req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+				applyHeaders(req, headers)
+				req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", c.start, c.end))
+
 				rp, err := client.Do(req)
+
+				// if err != nil {
+				// 	fmt.Println("request error:", err)
+				// } else {
+				// 	fmt.Println("status:", rp.Status)
+				// 	// bt, _ := io.ReadAll(rp.Body)
+				// 	// fmt.Println(string(bt))
+				// }
 				if err == nil && rp.StatusCode < 400 {
 					resp = rp
 					break
 				}
+
 				time.Sleep(time.Second)
-				if retry == 2 {
-					return
-					// 最终失败
-					// fmt.Println("failed chunk:", c)
-				}
 			}
 			if resp == nil {
 				fmt.Println("failed chunk:", c)
 				continue
 			}
-			defer resp.Body.Close()
+			// defer resp.Body.Close()
 
 			offset := c.start
 			for {
@@ -250,6 +261,7 @@ func worker(ctx context.Context, client *http.Client, url string, headers map[st
 					break
 				}
 			}
+			resp.Body.Close()
 		}
 	}
 }
@@ -344,6 +356,9 @@ func safeFileName(name string) string {
 }
 
 func df(ctx context.Context, opt *DownloadOption) (*DownLoadFileInfo, error) {
+	if opt.Dir == "" {
+		return nil, errors.New("保存目录不能为空!")
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	if opt.Threads <= 0 {
@@ -360,7 +375,6 @@ func df(ctx context.Context, opt *DownloadOption) (*DownLoadFileInfo, error) {
 		}
 		client.Jar.SetCookies(u, cookies)
 	}
-
 	size, name, err := func() (int64, string, error) {
 		size, err := getFileSize(ctx, client, opt.URL, opt.Headers)
 		if err != nil || size <= 0 {
@@ -472,9 +486,9 @@ func df(ctx context.Context, opt *DownloadOption) (*DownLoadFileInfo, error) {
 			return nil, ctx.Err()
 		case <-ticker.C:
 			if atomic.LoadInt64(&progress) >= size {
-				file.Close()
 				writerWG.Wait()
 				complated = true
+				file.Close()
 
 				if err := os.Rename(partPath, filePath); err != nil {
 					return nil, err

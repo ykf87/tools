@@ -4,9 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
-	"net/http"
-	"path"
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/downloader"
@@ -109,31 +106,46 @@ func GerProxySub(suburl string) ([]*SubResp, error) {
 }
 
 // 从服务端下载
-func ServerDownload(url, saveto string, hdds map[string]string, fun func(p float64, ded, total int64)) error {
-	hds := make(http.Header)
-	hd := funcs.ServerHeader(config.VERSION, config.VERSIONCODE)
-	maps.Copy(hd, hdds)
-	for k, v := range hd {
-		hds.Add(k, v)
-	}
-
-	if _, err := downloader.Download(mainsignal.MainCtx, &downloader.DownloadOption{
-		URL:      url,
-		Dir:      path.Dir(saveto),
-		FileName: path.Base(saveto),
-		Callback: func(total, downloaded, speed, workers int64) {
-			fmt.Printf(
-				"\r%.2f%% %s/s workers:%d %s",
-				float64(downloaded)/float64(total)*100,
-				funcs.FormatFileSize(speed, "1", ""),
-				workers,
-				funcs.FormatFileSize(total, "1", ""),
-			)
-		},
-	}); err != nil {
+func ServerDownload(filename, saveto string, hdds map[string]string, call downloader.Callback) error {
+	downUrl := fmt.Sprint(config.SERVERDOMAIN, "down?file="+filename+"&versions="+config.VERSION)
+	_, err := downloader.Download(mainsignal.MainCtx, &downloader.DownloadOption{
+		URL:      downUrl,
+		Threads:  4,
+		Timeout:  time.Second * 30,
+		MainWait: &mainsignal.MainWait,
+		Dir:      saveto,
+		Callback: call,
+		Headers:  funcs.ServerHeader(config.VERSION, config.VERSIONCODE),
+	})
+	if err != nil {
 		return err
 	}
 	return nil
+
+	// hds := make(http.Header)
+	// hd := funcs.ServerHeader(config.VERSION, config.VERSIONCODE)
+	// maps.Copy(hd, hdds)
+	// for k, v := range hd {
+	// 	hds.Add(k, v)
+	// }
+
+	// if _, err := downloader.Download(mainsignal.MainCtx, &downloader.DownloadOption{
+	// 	URL:      url,
+	// 	Dir:      path.Dir(saveto),
+	// 	FileName: path.Base(saveto),
+	// 	Callback: func(total, downloaded, speed, workers int64) {
+	// 		fmt.Printf(
+	// 			"\r%.2f%% %s/s workers:%d %s",
+	// 			float64(downloaded)/float64(total)*100,
+	// 			funcs.FormatFileSize(speed, "1", ""),
+	// 			workers,
+	// 			funcs.FormatFileSize(total, "1", ""),
+	// 		)
+	// 	},
+	// }); err != nil {
+	// 	return err
+	// }
+	// return nil
 	// dl := downloader.NewDownloader("", fun, hds)
 	// return dl.Download(url, saveto)
 }

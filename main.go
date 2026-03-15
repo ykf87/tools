@@ -45,9 +45,11 @@ import (
 	"tools/runtimes/config"
 	_ "tools/runtimes/db"
 	"tools/runtimes/db/tasks"
+	_ "tools/runtimes/ffmpeg"
 	"tools/runtimes/i18n"
 	"tools/runtimes/listens/web"
 	"tools/runtimes/mainsignal"
+	"tools/runtimes/minio"
 	_ "tools/runtimes/minio"
 	_ "tools/runtimes/subscribes/submqs"
 	_ "tools/runtimes/subscribes/subws"
@@ -90,5 +92,6 @@ func flush() {
 	tasks.Flush()
 	bs.Flush()
 	web.WebCloseCh()
+	minio.Flush()
 	// time.Sleep(time.Second)
 }

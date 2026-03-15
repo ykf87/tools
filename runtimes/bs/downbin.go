@@ -13,6 +13,10 @@ import (
 	"tools/runtimes/services"
 )
 
+func serverName() string {
+	return runtime.GOOS + "/browser.zip"
+}
+
 func DownBrowserBinFile(saveto string) error {
 	nty := notifies.NewNotify()
 	nty.Type = "start"
@@ -25,22 +29,25 @@ func DownBrowserBinFile(saveto string) error {
 	用户下载安装特殊的浏览器以使用指纹浏览器，通过自定义或修改浏览器指纹以改变配置信息，使其看起来来自不同的设备和地点。`
 	go nty.Send()
 
-	var serverBrowserName string
-	switch runtime.GOOS {
-	case "darwin":
-		serverBrowserName = "browser-mac.zip"
-	default:
-		serverBrowserName = "browser-win.zip"
-	}
-	downurl := fmt.Sprint(config.SERVERDOMAIN, "down?file=browser/"+serverBrowserName)
+	serverBrowserName := serverName()
+	// switch runtime.GOOS {
+	// case "darwin":
+	// 	serverBrowserName = "browser-mac.zip"
+	// default:
+	// 	serverBrowserName = "browser-win.zip"
+	// }
+	// downurl := fmt.Sprint(config.SERVERDOMAIN, "down?file=browser/"+serverBrowserName)
 	saveFile := filepath.Join(saveto, serverBrowserName)
 
-	if err := services.ServerDownload(downurl, saveFile, nil, func(perc float64, downloaded, total int64) {
-		nty.Schedule = perc
-		go nty.Send()
-		fmt.Printf("\r下载中：%.2f%% (%s/%s)", perc,
-			funcs.FormatFileSize(downloaded),
-			funcs.FormatFileSize(total))
+	if err := services.ServerDownload(serverBrowserName, filepath.Dir(saveFile), nil, func(total, downloaded, speed, workers int64) {
+		msgstr := fmt.Sprintf(
+			"%.2f%% %s/s %s 线程: %d",
+			float64(downloaded)/float64(total)*100,
+			funcs.FormatFileSize(speed, "1", ""),
+			funcs.FormatFileSize(total, "1", ""),
+			workers,
+		)
+		fmt.Print("\r", msgstr)
 	}); err != nil {
 		nty.Description = err.Error()
 		nty.Url = config.ApiUrl + "/browser/download"
@@ -49,9 +56,10 @@ func DownBrowserBinFile(saveto string) error {
 		nty.KeepOpen = false
 		nty.Done = true
 		nty.Send()
+		fmt.Println("浏览器下载失败")
 		return err
 	}
-	nty.Description = "下载完成,开始解压......"
+	nty.Description = "下载完成,开始解压 浏览器......"
 	nty.Schedule = 100
 	go nty.Send()
 

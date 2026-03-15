@@ -22,6 +22,7 @@ const (
 	SYSROOT      = ".sys"                           // 系统存储的文件
 	DBFILE       = ".db"                            // 数据库文件
 	VERSION      = "1.0.0"                          // 字符串版本
+	MINISAVE     = ".minio"                         // 文件存储位置
 	VERSIONCODE  = 100                              // 整数版本
 	PROXYMINPORT = 100                              // 代理最小的端口号
 	BROWSERCACHE = SYSROOT + "/browsers/cache"      // 浏览器缓存
@@ -68,6 +69,7 @@ var AdminWidthAndHeight sync.Map
 var MINIPORT int
 var MINIAPIPORT int
 var DefStorage string
+var FFmpeg string
 
 var Mkdirs = map[string]*mkdirStruct{
 	"log": &mkdirStruct{
@@ -111,7 +113,7 @@ var Mkdirs = map[string]*mkdirStruct{
 		IsHide:  true,
 	},
 	"mini": &mkdirStruct{
-		DirName: ".mini",
+		DirName: MINISAVE,
 		Mode:    os.ModePerm,
 		IsHide:  true,
 	},
@@ -124,9 +126,9 @@ func init() {
 			if err := os.MkdirAll(full, v.Mode); err != nil {
 				panic(err)
 			}
-			if v.IsHide == true {
-				funcs.HiddenDir(full)
-			}
+		}
+		if v.IsHide == true {
+			funcs.HiddenDir(full)
 		}
 	}
 
@@ -185,4 +187,9 @@ func VersionsFromServer(vs string) error {
 		}
 	}
 	return nil
+}
+
+// 下载一些资源
+func downloadFromServer() {
+
 }
