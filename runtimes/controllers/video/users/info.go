@@ -18,7 +18,7 @@ func GetInfo(c *gin.Context) {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
-	response.Success(c, mu, "")
+	response.Success(c, nil, "")
 }
 
 func UserMeidas(c *gin.Context) {

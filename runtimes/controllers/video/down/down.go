@@ -1,13 +1,17 @@
 package down
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	// "sync"
 
@@ -16,6 +20,7 @@ import (
 	"tools/runtimes/db/admins"
 	"tools/runtimes/db/medias"
 	"tools/runtimes/db/proxys"
+	"tools/runtimes/storage"
 
 	// "tools/runtimes/eventbus"
 
@@ -24,6 +29,8 @@ import (
 	"tools/runtimes/response"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 const (
@@ -294,38 +301,102 @@ func OpenDir(c *gin.Context) {
 }
 
 func Upload(c *gin.Context) {
-	file, err := c.FormFile("file")
+	file, header, err := c.Request.FormFile("file")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 1,
-			"msg":  "获取文件失败",
-		})
+		response.Error(c, http.StatusNotModified, err.Error(), nil)
+		return
+	}
+	defer file.Close()
+	storageType := c.PostForm("storage")
+	if storageType == "" {
+		storageType = config.DefStorage
+	}
+
+	contentType := header.Header.Get("Content-Type")
+
+	// 1️⃣ 读取头部用于 MIME 判断
+	buffer := make([]byte, 512)
+	n, _ := file.Read(buffer)
+
+	mimeType := http.DetectContentType(buffer[:n])
+
+	fullReader := io.MultiReader(
+		bytes.NewReader(buffer[:n]),
+		file,
+	)
+
+	h := sha256.New()
+	tr := io.TeeReader(fullReader, h)
+	fm := &storage.FileMeta{
+		Ext:         filepath.Ext(header.Filename),
+		ObjectKey:   fmt.Sprintf("tmp/%s", uuid.New().String()),
+		Reader:      tr,
+		H:           h,
+		Size:        header.Size,
+		ContentType: contentType,
+	}
+
+	s, err := storage.Load(storageType).Put(file, fm)
+	if err != nil {
+		response.Error(c, http.StatusNotModified, err.Error(), nil)
 		return
 	}
 
-	path := c.PostForm("dir")
+	dir := c.PostForm("dir")
+	mp, _ := medias.MKDBNameID(c.PostForm("dir"), 0)
+	// if err != nil {
+	// 	response.Error(c, http.StatusNotModified, err.Error(), nil)
+	// 	return
+	// }
 
-	// 2. 保存路径
-	dst := filepath.Join(config.MEDIAROOT, path, file.Filename)
-	// dst := filepath.Join("uploads", file.Filename)
+	var pid int64
+	if mp != nil && mp.ID > 0 {
+		pid = mp.ID
+	}
+	nsps := strings.Split(filepath.Base(s), ".")
+	hash := nsps[0]
+	if err := medias.GetDb().Write(func(tx *gorm.DB) error {
+		md := &medias.Media{
+			Title:   header.Filename,
+			PathID:  pid,
+			Path:    dir,
+			Sizes:   fm.Size,
+			Numbers: 1,
+			Addtime: time.Now(),
+		}
+		if err := tx.Create(md).Error; err != nil {
+			return err
+		}
 
-	// 3. 保存文件
-	if err := c.SaveUploadedFile(file, dst); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code": 2,
-			"msg":  "保存文件失败",
-		})
+		mf := &medias.MediaFile{
+			MID:        md.Id,
+			FileName:   s,
+			FileSystem: storageType,
+			Size:       fm.Size,
+			MimeType:   mimeType,
+			CreatedAt:  time.Now(),
+			Ext:        filepath.Ext(header.Filename),
+			Hash:       hash,
+		}
+		return tx.Create(mf).Error
+	}); err != nil {
+		response.Error(c, http.StatusNotModified, err.Error(), nil)
 		return
 	}
+	response.Success(c, gin.H{
+		"filename": header.Filename,
+		"path":     filepath.Base(s),
+		"size":     fm.Size,
+	}, "上传成功")
 
 	// 4. 返回结果
-	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
-		"msg":  "上传成功",
-		"data": gin.H{
-			"filename": file.Filename,
-			"path":     filepath.Base(dst),
-			"size":     file.Size,
-		},
-	})
+	// c.JSON(http.StatusOK, gin.H{
+	// 	"code": 0,
+	// 	"msg":  "上传成功",
+	// 	"data": gin.H{
+	// 		"filename": header.Filename,
+	// 		"path":     filepath.Base(s),
+	// 		"size":     fm.Size,
+	// 	},
+	// })
 }

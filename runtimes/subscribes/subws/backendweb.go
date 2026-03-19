@@ -2,8 +2,6 @@
 package subws
 
 import (
-	"fmt"
-	"strings"
 	"time"
 	"tools/runtimes/bs"
 	"tools/runtimes/config"
@@ -173,9 +171,6 @@ func proxyPing() {
 func getMediaUserInfo() {
 	eventbus.Bus.Subscribe("media_user_info", func(dt any) {
 		if info, ok := dt.(*medias.MediaUser); ok {
-			if info.Cover != "" && strings.Contains(info.Cover, "http") == false {
-				info.Cover = fmt.Sprintf("%s/%s", config.MediaUrl, info.Cover)
-			}
 			mmv := map[string]any{
 				"type": "media_user_info",
 				"data": info,

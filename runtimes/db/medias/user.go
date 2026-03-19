@@ -89,7 +89,7 @@ func (mu MediaUser) MarshalJSON() ([]byte, error) {
 	a := Alias(mu)
 	if a.Cover != "" {
 		if a.CoverStorage == "" {
-			a.CoverStorage = "local"
+			a.CoverStorage = config.DEFSTORAGE
 		}
 		// fmt.Println(a.CoverStorage, "----")
 		a.Cover = storage.Load(a.CoverStorage).URL(a.Cover)

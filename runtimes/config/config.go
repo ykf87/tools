@@ -22,7 +22,7 @@ const (
 	SYSROOT      = ".sys"                           // 系统存储的文件
 	DBFILE       = ".db"                            // 数据库文件
 	VERSION      = "1.0.0"                          // 字符串版本
-	MINISAVE     = ".minio"                         // 文件存储位置
+	MINISAVE     = ".mini"                          // 文件存储位置
 	VERSIONCODE  = 100                              // 整数版本
 	PROXYMINPORT = 100                              // 代理最小的端口号
 	BROWSERCACHE = SYSROOT + "/browsers/cache"      // 浏览器缓存
@@ -142,6 +142,12 @@ func init() {
 }
 
 func FullPath(pathName ...string) string {
+	if len(pathName) < 1 {
+		return ""
+	}
+	if strings.HasPrefix(strings.ToLower(pathName[0]), "http") {
+		return pathName[0]
+	}
 	// 过滤掉空的 pathName，避免出现多余的 "/"
 	cleaned := make([]string, 0, len(pathName))
 	for _, p := range pathName {

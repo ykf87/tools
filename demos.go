@@ -78,7 +78,21 @@ func init() {
 	// getdouytest()
 	//
 	// medias.MKDBNameID("dfgdfgaaa", 0)
+	runffmpeg()
+}
 
+// ffmpeg
+func runffmpeg() {
+	// rr, err := ffmpeg.GetAudioInfo("./data/2.mp4")
+	// fmt.Println(*rr, err)
+	//
+	// r, err := storage.Load("minio").PutStr("./data/f.mp3")
+	// fmt.Println(r, err)
+	//
+	// u := storage.Load("minio").URL("9e/7a/9e7aa05f1ed0ecbdc386fe4c549ac3d37e2e443891123facddfb2b08a453d650.mp3")
+
+	// cc, err := audios.AddAudio("df/2b/df2baf0d9268ec62d9f1ab207cc8cec562a9b74aae7d1a665408d139ccc303ec.mp4", "aaa")
+	// fmt.Println(cc, err)
 }
 
 func getdouytest() {

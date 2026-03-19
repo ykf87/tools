@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"tools/runtimes/config"
@@ -139,4 +140,33 @@ func copyFile(src, dst string) error {
 
 func serverName() string {
 	return runtime.GOOS + "/ffmpeg.zip"
+}
+
+func getffmpegPath() string {
+	str := "ffmpeg"
+	switch runtime.GOOS {
+	case "windows":
+		str = str + ".exe"
+	default:
+	}
+	return config.FullPath(config.SYSROOT, "ffmpeg", str)
+}
+func getffprobPath() string {
+	str := "ffprobe"
+	switch runtime.GOOS {
+	case "windows":
+		str = str + ".exe"
+	default:
+	}
+	return config.FullPath(config.SYSROOT, "ffmpeg", str)
+}
+
+// 执行ffmpeg方法
+func RunFfmpeg(wait bool, args ...string) (string, *exec.Cmd, error) {
+	return funcs.RunCommand(wait, getffmpegPath(), args...)
+}
+
+// 执行ffporbe方法
+func RunFfporbe(wait bool, args ...string) (string, *exec.Cmd, error) {
+	return funcs.RunCommand(wait, getffprobPath(), args...)
 }

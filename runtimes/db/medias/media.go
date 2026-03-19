@@ -66,7 +66,8 @@ type MediaFile struct {
 	MimeType string `json:"mime_type" gorm:"size:100"`
 	DownSec  int64  `json:"down_sec" gorm:"default:0;comment:下载耗费的秒数 "`
 
-	CreatedAt time.Time `json:"create_at" gorm:"index;default:0"`
+	CreatedAt    time.Time `json:"create_at" gorm:"index;default:0"`
+	db.BaseModel `json:"-" gorm:"-"`
 }
 
 var dbs *db.SQLiteWriter
@@ -124,7 +125,7 @@ func (m MediaFile) MarshalJSON() ([]byte, error) {
 	a := Alias(m)
 	if a.FileName != "" {
 		if a.FileSystem == "" {
-			a.FileSystem = "local"
+			a.FileSystem = config.DefStorage
 		}
 		a.FileName = storage.Load(a.FileSystem).URL(a.FileName)
 	}
@@ -379,6 +380,8 @@ func getNeedDownUrls(urls []string, reget bool) map[string]*Media {
 	for _, v := range exists {
 		if reget != true && len(v.Files) > 0 {
 			delete(md5map, v.UrlMd5)
+			v.Removed = 0
+			v.Save()
 		} else if _, ok := md5map[v.UrlMd5]; ok {
 			md5map[v.UrlMd5] = v
 		}
@@ -578,6 +581,12 @@ func (m *Media) Save() error {
 
 func Downloads() {
 
+}
+
+func GetRow(id any) *Media {
+	md := new(Media)
+	dbs.DB().Model(&Media{}).Preload("Files").Where("id = ?", id).First(md)
+	return md
 }
 
 // 以下方法即将废弃

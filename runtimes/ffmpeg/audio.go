@@ -3,31 +3,32 @@ package ffmpeg
 import (
 	"encoding/json"
 	"errors"
-	"os/exec"
 	"strconv"
 )
 
 type AudioInfo struct {
-	Duration   int64
+	Duration   int64 // 毫秒
 	Bitrate    string
 	SampleRate string
 	Channels   string
 	Codec      string
 }
 
+// 获取音频信息
 func GetAudioInfo(src string) (*AudioInfo, error) {
-	cmd := exec.Command(
-		"ffprobe",
-		"-v", "quiet",
+	str, _, err := RunFfporbe(
+		true,
+		"-protocol_whitelist", "file,http,https,tcp,tls",
+		"-v",
+		"quiet",
 		"-print_format", "json",
 		"-show_entries", "format=duration,bit_rate",
 		"-show_entries", "stream=codec_name,sample_rate,channels",
 		"-analyzeduration", "1000000",
 		"-probesize", "1000000",
+		"-i",
 		src,
 	)
-
-	out, err := cmd.Output()
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +46,7 @@ func GetAudioInfo(src string) (*AudioInfo, error) {
 		} `json:"format"`
 	}
 
-	err = json.Unmarshal(out, &result)
+	err = json.Unmarshal([]byte(str), &result)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +58,7 @@ func GetAudioInfo(src string) (*AudioInfo, error) {
 	durationFloat, _ := strconv.ParseFloat(result.Format.Duration, 64)
 
 	info := &AudioInfo{
-		Duration:   int64(durationFloat),
+		Duration:   int64(durationFloat * 1000),
 		Bitrate:    result.Format.BitRate,
 		SampleRate: result.Streams[0].SampleRate,
 		Channels:   strconv.Itoa(result.Streams[0].Channels),
@@ -65,4 +66,22 @@ func GetAudioInfo(src string) (*AudioInfo, error) {
 	}
 
 	return info, nil
+}
+
+// 从视频中分离出音频
+func SeparateAudio(src, audioSrc string) error {
+	if _, _, err := RunFfmpeg(
+		true,
+		"-i",
+		src,
+		"-vn",
+		"-c:a",
+		"libmp3lame",
+		"-b:a",
+		"192k",
+		audioSrc,
+	); err != nil {
+		return err
+	}
+	return nil
 }

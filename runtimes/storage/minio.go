@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/url"
 	"os"
@@ -49,21 +50,34 @@ func newMinio(cfg Config) (Storage, error) {
 	}, nil
 }
 
-func (m *minioStorage) Put(r io.Reader) (string, error) {
+func (m *minioStorage) GetObject(src string) (*url.URL, error) {
+	return m.client.PresignedGetObject(
+		m.ctx,
+		m.bucket,
+		src,
+		time.Hour,
+		nil,
+	)
+}
 
-	fm, err := PrepareFile(r)
-	if err != nil {
-		return "s", err
+func (m *minioStorage) Put(r io.Reader, fm *FileMeta) (string, error) {
+
+	if fm == nil {
+		fms, err := PrepareFile(r)
+		if err != nil {
+			return "", err
+		}
+		fm = fms
 	}
 
-	_, err = m.client.PutObject(
+	_, err := m.client.PutObject(
 		m.ctx,
 		m.bucket,
 		fm.ObjectKey,
 		fm.Reader,
-		-1,
+		fm.Size,
 		minio.PutObjectOptions{
-			ContentType: "application/octet-stream",
+			ContentType: fm.ContentType,
 		},
 	)
 
@@ -101,7 +115,12 @@ func (m *minioStorage) PutStr(str string) (string, error) {
 		return "", err
 	}
 
-	name, err := m.Put(f)
+	var fm *FileMeta
+	if ffm, err := PrepareFileStr(str, f); err == nil {
+		fm = ffm
+	}
+
+	name, err := m.Put(f, fm)
 	if err != nil {
 		f.Close()
 		return "", err
@@ -191,6 +210,8 @@ func (m *minioStorage) URL(object string) string {
 	}
 	if strings.HasPrefix(object, "http") {
 		return object
+	} else if _, err := os.Stat(object); err == nil {
+		return object
 	}
 
 	u := url.URL{
@@ -232,4 +253,9 @@ func (m *minioStorage) Download(ctx context.Context, url string, opt *downloader
 	}
 
 	return rname, rsp.Size, rsp.End.Unix() - rsp.Start.Unix(), mime, nil
+}
+
+func (m *minioStorage) Base(src string) string {
+	prev := fmt.Sprintf("http://%s/%s", m.endpoint, m.bucket)
+	return strings.Trim(strings.ReplaceAll(src, prev, ""), "/")
 }

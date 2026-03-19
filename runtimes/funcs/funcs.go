@@ -150,7 +150,6 @@ func RunCommandWithENV(wait bool, cmdName string, fun func(*exec.Cmd), args ...s
 	if fun != nil {
 		fun(cmd)
 	}
-
 	if wait {
 		// 等待执行完成并获取输出
 		var out, stderr bytes.Buffer
@@ -656,4 +655,19 @@ func ExtractURLs(text string) []string {
 		result = append(result, u)
 	}
 	return result
+}
+
+// 获取网络文件的size
+func GetFileSize(url string) int64 {
+	resp, err := http.Head(url)
+	if err != nil {
+		return 0
+	}
+	defer resp.Body.Close()
+
+	if resp.ContentLength > 0 {
+		return resp.ContentLength
+	}
+
+	return 0
 }

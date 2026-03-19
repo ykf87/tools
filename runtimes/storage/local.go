@@ -3,7 +3,9 @@ package storage
 import (
 	"context"
 	"encoding/hex"
+	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,11 +33,14 @@ func (l *localStorage) full(p string) string {
 	return filepath.Join(l.basePath, p)
 }
 
-func (l *localStorage) Put(r io.Reader) (string, error) {
+func (l *localStorage) Put(r io.Reader, meta *FileMeta) (string, error) {
 
-	meta, err := PrepareFile(r)
-	if err != nil {
-		return "", err
+	if meta == nil {
+		fms, err := PrepareFile(r)
+		if err != nil {
+			return "", err
+		}
+		meta = fms
 	}
 
 	tmpPath := filepath.Join(l.basePath, meta.ObjectKey)
@@ -79,7 +84,12 @@ func (l *localStorage) PutStr(str string) (string, error) {
 		return "", err
 	}
 
-	name, err := l.Put(f)
+	var fm *FileMeta
+	if ffm, err := PrepareFileStr(str, f); err == nil {
+		fm = ffm
+	}
+
+	name, err := l.Put(f, fm)
 	if err != nil {
 		f.Close()
 		return "", err
@@ -153,6 +163,10 @@ func (l *localStorage) URL(path string) string {
 	return l.baseURL + "/" + path
 }
 
+func (l *localStorage) GetObject(src string) (*url.URL, error) {
+	return nil, nil
+}
+
 func (l *localStorage) Download(ctx context.Context, url string, opt *downloader.DownloadOption) (string, int64, int64, string, error) {
 
 	dirname := config.FullPath(config.MEDIAROOT, ".tmp")
@@ -182,4 +196,9 @@ func (l *localStorage) Download(ctx context.Context, url string, opt *downloader
 		return "", 0, 0, "", err
 	}
 	return rname, name.Size, name.End.Unix() - name.Start.Unix(), mime, nil
+}
+
+func (l *localStorage) Base(src string) string {
+	prev := fmt.Sprintf("http://%s", l.baseURL)
+	return strings.Trim(strings.ReplaceAll(src, prev, ""), "/")
 }

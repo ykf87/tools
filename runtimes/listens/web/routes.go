@@ -1,6 +1,7 @@
 package web
 
 import (
+	"tools/runtimes/controllers/audios"
 	"tools/runtimes/controllers/browsers"
 	"tools/runtimes/controllers/infor"
 	"tools/runtimes/controllers/js"
@@ -29,6 +30,7 @@ func router() {
 	ROUTER.POST("/auth/login", user.Login)
 	ROUTER.POST("sugg_cate", suggs.SuggCate)
 	ROUTER.POST("upload", down.Upload)
+	ROUTER.POST("audio/upload", audios.Uploads)
 	ROUTER.POST("browser/download", browsers.Download)
 	ROUTER.GET("client/ws", phones.Ws)   // app 的ws连接
 	ROUTER.GET("client/api", phones.Api) // app 的api连接
@@ -123,6 +125,7 @@ func router() {
 			spiderVideoGroup.POST("mkdir", down.Mkdir)
 			spiderVideoGroup.POST("open", down.OpenDir)
 			spiderVideoGroup.POST("remove", video.RemoveVideo)
+			spiderVideoGroup.POST("audio/uploads", audios.Uploads)
 		}
 		spiderUserGroup := spiderGroup.Group("user")
 		{
@@ -136,6 +139,11 @@ func router() {
 			spiderUserGroup.POST("batchadd", users.BatchAdd)
 			spiderUserGroup.POST("localvideo", users.LocalVideo)
 			spiderUserGroup.GET("onlinevideo", users.OnlinVideo)
+		}
+		spiderAudioGroup := spiderGroup.Group("audio")
+		{
+			spiderAudioGroup.POST("", audios.List)
+			spiderAudioGroup.POST("upload/:id", audios.UploadFromMedia)
 		}
 	}
 
