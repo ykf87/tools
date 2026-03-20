@@ -144,6 +144,9 @@ func router() {
 		{
 			spiderAudioGroup.POST("", audios.List)
 			spiderAudioGroup.POST("upload/:id", audios.UploadFromMedia)
+			spiderAudioGroup.POST("tags", audios.GetTags)
+			spiderAudioGroup.POST("tags/editer", audios.EditerTag)
+			spiderAudioGroup.POST("tags/remove", audios.RemoveTag)
 		}
 	}
 

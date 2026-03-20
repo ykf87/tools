@@ -18,9 +18,14 @@ func List(c *gin.Context) {
 	}
 
 	total, lists := audios.GetList(&geter)
+	tagTotal, tags := audios.GetAudioTags(&db.ListFinder{
+		Page: 1,
+	})
 
 	response.Success(c, gin.H{
-		"total": total,
-		"lists": lists,
+		"total":     total,
+		"lists":     lists,
+		"tag_total": tagTotal,
+		"tags":      tags,
 	}, "")
 }

@@ -10,6 +10,7 @@ import (
 	"tools/runtimes/db/audios"
 	"tools/runtimes/db/medias"
 	"tools/runtimes/response"
+	"tools/runtimes/storage"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -73,8 +74,9 @@ func UploadFromMedia(c *gin.Context) {
 		response.Error(c, http.StatusBadGateway, "未找到文件内容", nil)
 		return
 	}
-
-	cc, err := audios.AddAudio(md.Files[0].FileName, md.Title)
+	filename := storage.Load(md.Files[0].FileSystem).URL(md.Files[0].FileName)
+	// fmt.Println(filename)
+	cc, err := audios.AddAudio(filename, md.Title)
 	if err != nil {
 		response.Error(c, http.StatusBadGateway, "未找到文件内容", nil)
 		return
