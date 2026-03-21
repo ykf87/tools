@@ -137,6 +137,12 @@ func GetDb() *db.SQLiteWriter {
 	return dbs
 }
 
+func GetUserMedias(id any) []*Media {
+	var mus []*Media
+	dbs.DB().Model(&Media{}).Where("user_id = ?", id).Find(&mus)
+	return mus
+}
+
 // urls 待下载的地址
 // pxys 代理
 // path 下载到哪个目录

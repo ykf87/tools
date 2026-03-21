@@ -24,6 +24,7 @@ func New(opt any, wait bool) (*RunBrowser, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("构建browser")
 
 	return &RunBrowser{
 		Browser: bbs,
@@ -37,6 +38,7 @@ func (r *RunBrowser) Start(timeout time.Duration, callback func(str string) erro
 	} else {
 		r.ctx, r.cancle = context.WithTimeout(r.Browser.Opts.Ctx, timeout)
 	}
+	fmt.Println("开启浏览器")
 
 	// if r.Browser.Opts.Proxy == "" && r.Browser.Opts.Pc != nil {
 	// 	if _, err := r.Browser.Opts.Pc.Run(false); err == nil {

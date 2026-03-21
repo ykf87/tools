@@ -15,7 +15,7 @@ func GetList(s *db.ListFinder) (total int64, lists []*Audio) {
 		limit = s.Limit
 	}
 
-	model := Dbs.DB().Debug().Model(&Audio{}).Where("removed = 0")
+	model := Dbs.DB().Model(&Audio{}).Where("removed = 0")
 	if s.Q != "" {
 		model = model.Where("title like ?", fmt.Sprintf("%%%s%%", s.Q))
 	}

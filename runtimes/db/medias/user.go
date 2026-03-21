@@ -98,12 +98,6 @@ func (mu MediaUser) MarshalJSON() ([]byte, error) {
 	return config.Json.Marshal(a)
 }
 
-func GetUserMedias(id any) []*Media {
-	var mus []*Media
-	dbs.DB().Model(&Media{}).Where("user_id = ?", id).Find(&mus)
-	return mus
-}
-
 func (this *MediaUser) GetTags() []*MediaUserTag {
 	var tagIDs []int64
 	dbs.DB().Model(&MediaUserToTag{}).Select("tag_id").Where("user_id = ?", this.Id).Find(&tagIDs)

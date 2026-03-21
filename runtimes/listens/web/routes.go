@@ -138,7 +138,7 @@ func router() {
 			spiderUserGroup.GET("usermeidas", users.UserMeidas)
 			spiderUserGroup.POST("batchadd", users.BatchAdd)
 			spiderUserGroup.POST("localvideo", users.LocalVideo)
-			spiderUserGroup.GET("onlinevideo", users.OnlinVideo)
+			spiderUserGroup.POST("onlinevideo", users.OnlinVideo)
 		}
 		spiderAudioGroup := spiderGroup.Group("audio")
 		{
@@ -146,7 +146,9 @@ func router() {
 			spiderAudioGroup.POST("upload/:id", audios.UploadFromMedia)
 			spiderAudioGroup.POST("tags", audios.GetTags)
 			spiderAudioGroup.POST("tags/editer", audios.EditerTag)
+			spiderAudioGroup.POST("tags/batchadd", audios.BatchAdd)
 			spiderAudioGroup.POST("tags/remove", audios.RemoveTag)
+			spiderAudioGroup.POST("delete", audios.Delete)
 		}
 	}
 

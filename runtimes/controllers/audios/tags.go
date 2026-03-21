@@ -83,7 +83,53 @@ func EditerTag(c *gin.Context) {
 	}
 
 	if err := audios.Dbs.Write(func(tx *gorm.DB) error {
-		return tx.Model(&audio).Debug().Association("Tags").Replace(tags)
+		return tx.Model(&audio).Association("Tags").Replace(tags)
+	}); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+	response.Success(c, nil, "")
+}
+
+// 批量添加标签
+func BatchAdd(c *gin.Context) {
+	type tmp struct {
+		AIDs []int64  `json:"aids"`
+		Tags []string `json:"tags"`
+	}
+
+	var req tmp
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	if len(req.AIDs) < 1 || len(req.Tags) < 1 {
+		response.Error(c, http.StatusBadRequest, "未找到添加的内容", nil)
+		return
+	}
+
+	var ads []*audios.Audio
+	audios.Dbs.DB().Model(&audios.Audio{}).Where("id in ?", req.AIDs).Find(&ads)
+
+	if len(ads) < 1 {
+		response.Error(c, http.StatusBadRequest, "未找到添加的内容", nil)
+		return
+	}
+
+	tags, err := audios.MakerTags(req.Tags)
+	if err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	if err := audios.Dbs.Write(func(tx *gorm.DB) error {
+		for _, audio := range ads {
+			if err := tx.Model(audio).Association("Tags").Append(tags); err != nil {
+				return err
+			}
+		}
+		return nil
 	}); err != nil {
 		response.Error(c, http.StatusBadRequest, err.Error(), nil)
 		return

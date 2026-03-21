@@ -107,10 +107,14 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 	b.onURLChange.Store(func(url string) {
 		b.RunJs(b.Opts.JsStr)
 	})
+	fmt.Println("添加console----")
 	b.onConsole.Store(func(args []*rt.RemoteObject) {
+		fmt.Println("console----")
 		for _, arg := range args {
 			if arg.Value != nil {
 				gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
+
+				fmt.Println("得到字符串:", arg.Value.String())
 				if gs.Get("version").String() == "" {
 					continue
 				}
