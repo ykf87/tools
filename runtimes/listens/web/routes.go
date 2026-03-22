@@ -139,6 +139,7 @@ func router() {
 			spiderUserGroup.POST("batchadd", users.BatchAdd)
 			spiderUserGroup.POST("localvideo", users.LocalVideo)
 			spiderUserGroup.POST("onlinevideo", users.OnlinVideo)
+			spiderUserGroup.POST("downuservideo", users.DownUserVideo)
 		}
 		spiderAudioGroup := spiderGroup.Group("audio")
 		{

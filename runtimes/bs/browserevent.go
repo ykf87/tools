@@ -94,10 +94,10 @@ func (b *Browser) Close() {
 		if b.Opts.Pc != nil {
 			b.Opts.Pc.Close(false)
 		}
-		if b.Opts.Msg != nil {
-			close(b.Opts.Msg)
-			b.Opts.Msg = nil
-		}
+		// if b.Opts.Msg != nil {
+		// 	close(b.Opts.Msg)
+		// 	b.Opts.Msg = nil
+		// }
 	}
 	if b.Opts.Pc != nil {
 		b.Opts.Pc.Close(false)

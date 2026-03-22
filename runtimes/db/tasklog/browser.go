@@ -44,7 +44,7 @@ func (tr *TaskRunner) callweb(ctx context.Context) error {
 	// }
 	tr.SetMsg("任务开始,获取信息中...")
 
-	bss.Opts.Msg = make(chan string)
+	// bss.Opts.Msg = make(chan string)
 	tr.Bss = bss
 
 	if err := tr.Bss.OpenBrowser(); err != nil {
@@ -55,10 +55,10 @@ func (tr *TaskRunner) callweb(ctx context.Context) error {
 	ctxx := tr.Runner.GetCtx()
 	for {
 		select {
-		case msg := <-bss.Opts.Msg:
-			if err := tr.callBack(msg, tr); err != nil {
-				return err
-			}
+		// case msg := <-bss.Opts.Msg:
+		// 	if err := tr.callBack(msg, tr); err != nil {
+		// 		return err
+		// 	}
 		case <-ctxx.Done():
 			if errors.Is(ctxx.Err(), context.DeadlineExceeded) {
 				return fmt.Errorf("超时退出")

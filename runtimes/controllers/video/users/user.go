@@ -337,7 +337,7 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 						opt.Url = v
 						r, err := runner.GetRunner(0, opt)
 						if err == nil {
-							r.Start(time.Second*60, func(s string) error {
+							r.Start(time.Second*60, func(msg, s string) error {
 								gs := gjson.Parse(s)
 
 								mu := new(medias.MediaUser)
@@ -383,7 +383,7 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 								fmt.Println("返回的数据: ", s)
 								errored++
 								return errors.New("找不到数据!")
-							})
+							}, func(msg string) {}, func(msg string) {})
 						} else {
 							errored++
 						}

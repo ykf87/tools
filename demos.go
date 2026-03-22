@@ -186,12 +186,12 @@ func testBrowser() {
 					x := gs.Get("x").Float()
 					y := gs.Get("y").Float()
 					b.Click(x, y)
-					if b.Opts.Msg != nil {
-						select {
-						case b.Opts.Msg <- "点击按钮":
-						case <-b.Opts.Ctx.Done():
-						}
-					}
+					// if b.Opts.Msg != nil {
+					// 	select {
+					// 	case b.Opts.Msg <- "点击按钮":
+					// 	case <-b.Opts.Ctx.Done():
+					// 	}
+					// }
 				case "success":
 					fmt.Println("执行完成!")
 					b.Close()

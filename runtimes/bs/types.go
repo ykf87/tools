@@ -683,23 +683,26 @@ type VirtualBrowserConfig struct {
 
 // 执行打开浏览器的参数
 type Options struct {
-	ID        int64
-	ExecPath  string
-	UserDir   string
-	Url       string
-	UserAgent string
-	Timezone  string
-	Language  string
-	Show      bool
-	Width     int
-	Height    int
-	Timeout   time.Duration
-	Temp      bool // 是否临时浏览器
-	JsStr     string
-	Msg       chan string
-	Ctx       context.Context
-	Pc        *proxy.ProxyConfig
-	proxy     string
+	ID          int64
+	ExecPath    string
+	UserDir     string
+	Url         string
+	UserAgent   string
+	Timezone    string
+	Language    string
+	Show        bool
+	Width       int
+	Height      int
+	Timeout     time.Duration
+	Temp        bool // 是否临时浏览器
+	JsStr       string
+	Msg         chan string
+	Ctx         context.Context
+	Pc          *proxy.ProxyConfig
+	proxy       string
+	Callback    func(message, data string) error
+	ErrCallback func(msg string)
+	MsgCallback func(msg string)
 }
 
 // 浏览器

@@ -140,9 +140,9 @@ func (t *Task) callback(v *TaskClients) error {
 	if err != nil {
 		return err
 	}
-	return r.Start(time.Duration(t.Timeout), func(s string) error {
+	return r.Start(time.Duration(t.Timeout), func(msg, s string) error {
 		return nil
-	})
+	}, func(msg string) {}, func(msg string) {})
 }
 
 // 生成runner的配置

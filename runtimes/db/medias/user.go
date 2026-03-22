@@ -256,33 +256,29 @@ func (mu *MediaUser) GetCanUseClient() (int, int64) {
 }
 
 // 获取用户的主页url和执行js
-func (mu *MediaUser) GetJsAndUrl() (string, string, error) {
+func (mu *MediaUser) GetInfoJsAndUrl(page int) (string, string, error) {
 	var jscode string
 	var runurl string
 	switch mu.Platform {
 	case "douyin":
-		jscode = "douyin-info"
 		runurl = fmt.Sprintf("https://www.douyin.com/user/%s", mu.Uuid)
 	default:
 		err := fmt.Errorf("暂时不支持 %s 获取获取信息", mu.Platform)
 		return "", "", err
 	}
+	jscode = fmt.Sprintf("%s-info", mu.Platform)
+	fmt.Println(jscode)
 
 	js := jses.GetJsByCode(jscode)
 	if js == nil || js.ID < 1 {
-		err := fmt.Errorf("获取账号信息脚本不存在")
+		err := fmt.Errorf("脚本不存在: %s", jscode)
 		return "", "", err
 	}
-	return runurl, js.GetContent(nil), nil
+	return runurl, js.GetContent(map[string]any{"page": page}), nil
 }
 
-// 获取用户代理
-func (mu *MediaUser) GetMyProxy() {
-
-}
-
-func (mu *MediaUser) GenBrowserOpt(id int64) (*bs.Options, error) {
-	gotourl, jsstr, err := mu.GetJsAndUrl()
+func (mu *MediaUser) GenBrowserOpt(id int64, page int) (*bs.Options, error) {
+	gotourl, jsstr, err := mu.GetInfoJsAndUrl(page)
 	if err != nil {
 		return nil, err
 	}
@@ -340,7 +336,7 @@ func (mu *MediaUser) GetInfoFromPlatform(ch chan byte) error {
 	var r runner.Runner
 	switch tp {
 	case 0:
-		bopt, err := mu.GenBrowserOpt(id)
+		bopt, err := mu.GenBrowserOpt(id, 1)
 		if err != nil {
 			return err
 		}
@@ -356,7 +352,14 @@ func (mu *MediaUser) GetInfoFromPlatform(ch chan byte) error {
 		return err
 	}
 	getInfoLimit.Submit(func(ctx context.Context) {
-		r.Start(time.Second*30, mu.ParseUserInfoData)
+		r.Start(time.Second*30, func(msg, data string) error {
+			return mu.ParseUserInfoData(data)
+		}, func(msg string) {
+			r.Msg(msg)
+			r.Stop()
+		}, func(msg string) {
+			r.Msg(msg)
+		})
 		eventbus.Bus.Publish("media_user_info", mu)
 	})
 	return nil

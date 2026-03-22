@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"tools/runtimes/db/messages"
 
 	rt "github.com/chromedp/cdproto/runtime"
 	"github.com/tidwall/gjson"
@@ -107,38 +106,42 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 	b.onURLChange.Store(func(url string) {
 		b.RunJs(b.Opts.JsStr)
 	})
-	fmt.Println("添加console----")
 	b.onConsole.Store(func(args []*rt.RemoteObject) {
-		fmt.Println("console----")
 		for _, arg := range args {
 			if arg.Value != nil {
 				gs := gjson.Parse(gjson.Parse(arg.Value.String()).String())
-
-				fmt.Println("得到字符串:", arg.Value.String())
-				if gs.Get("version").String() == "" {
+				if gs.Get("_version").String() == "" {
 					continue
 				}
-				switch gs.Get("type").String() {
+
+				tp := gs.Get("type").String()
+				data := gs.Get("data").String()
+				// if msg != "" && b.Opts.Msg != nil {
+				// 	for {
+				// 		select {
+				// 		case b.Opts.Msg <- msg:
+				// 		case <-b.ctx.Done():
+				// 		}
+				// 	}
+				// }
+				// fmt.Println(data, "aaaa")
+				switch tp {
 				case "success":
-					if gs.Get("msg").String() != "" {
-						messages.SuccessMsg(gs.Get("msg").String())
-					}
-					if b.Opts.Msg != nil {
-						select {
-						case b.Opts.Msg <- gs.Get("data").String():
-						case <-b.ctx.Done():
-						}
+					msg := gs.Get("msg").String()
+					if b.Opts.Callback != nil {
+						b.Opts.Callback(msg, data)
 					}
 					b.Close()
 				case "fail":
-					messages.ErrorMsg(gs.Get("msg").String())
+					msg := gs.Get("msg").String()
+					if b.Opts.ErrCallback != nil {
+						b.Opts.ErrCallback(msg)
+					}
 					b.Close()
 				case "notify":
-					if b.Opts.Msg != nil {
-						select {
-						case b.Opts.Msg <- gs.Get("data").String():
-						case <-b.ctx.Done():
-						}
+					msg := gs.Get("msg").String()
+					if b.Opts.MsgCallback != nil {
+						b.Opts.MsgCallback(msg)
 					}
 				case "upload": // 调用系统的上传功能
 					var fls []string
@@ -146,30 +149,12 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 						fls = append(fls, v.String())
 					}
 					b.Upload(fls, gs.Get("data.node").String(), gs.Get("data.upnode").String())
-					if b.Opts.Msg != nil {
-						select {
-						case b.Opts.Msg <- "上传文件":
-						case <-b.ctx.Done():
-						}
-					}
 				case "input": // 输入
 					b.InputTxt(gs.Get("data.text").String(), gs.Get("data.node").String())
-					if b.Opts.Msg != nil {
-						select {
-						case b.Opts.Msg <- "输入数据":
-						case <-b.ctx.Done():
-						}
-					}
 				case "click": // 点击
 					x := gs.Get("x").Float()
 					y := gs.Get("y").Float()
 					b.Click(x, y)
-					if b.Opts.Msg != nil {
-						select {
-						case b.Opts.Msg <- "点击按钮":
-						case <-b.ctx.Done():
-						}
-					}
 				}
 			}
 		}

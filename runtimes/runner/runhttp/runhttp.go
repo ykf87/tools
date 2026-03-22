@@ -2,6 +2,7 @@ package runhttp
 
 import (
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -22,8 +23,17 @@ func New(opt any) (*Httpp, error) {
 }
 
 // 启动
-func (p *Httpp) Start(timeout time.Duration, callback func(str string) error) error {
+func (p *Httpp) Start(
+	timeout time.Duration,
+	callback func(msg, data string) error,
+	errcallback func(msg string),
+	msgcallback func(msg string),
+) error {
 	return nil
+}
+
+func (p *Httpp) Msg(msg string) {
+	fmt.Println(msg)
 }
 
 // 停止

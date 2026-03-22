@@ -100,10 +100,14 @@ func (opt *Options) Start(downloads bool) error {
 		return err
 	}
 
-	err = r.Start(opt.Timeout, func(str string) error {
-		r.Stop()
+	err = r.Start(opt.Timeout, func(msg, data string) error {
 		opt.tr.SentMsg("信息获取成功,正在解析...", 0, false)
-		return opt.ParseInfos(str, downloads)
+		r.Stop()
+		return opt.ParseInfos(data, downloads)
+	}, func(msg string) {
+		r.Stop()
+	}, func(msg string) {
+		r.Msg(msg)
 	})
 	return err
 }

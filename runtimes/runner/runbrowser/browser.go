@@ -16,6 +16,7 @@ type RunBrowser struct {
 }
 
 func New(opt any, wait bool) (*RunBrowser, error) {
+
 	myopt, ok := opt.(*bs.Options)
 	if !ok {
 		return nil, errors.New("浏览器opt配置错误")
@@ -24,32 +25,42 @@ func New(opt any, wait bool) (*RunBrowser, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("构建browser")
 
 	return &RunBrowser{
 		Browser: bbs,
 	}, nil
 }
 
-func (r *RunBrowser) Start(timeout time.Duration, callback func(str string) error) error {
+func (r *RunBrowser) Start(
+	timeout time.Duration,
+	callback func(msg, data string) error,
+	errcallback func(msg string),
+	msgcallback func(msg string),
+) error {
+	if callback == nil {
+		return errors.New("未设置回调函数")
+	}
+	r.Browser.Opts.Callback = callback
+	if errcallback != nil {
+		r.Browser.Opts.ErrCallback = errcallback
+	}
+	if msgcallback != nil {
+		r.Browser.Opts.MsgCallback = msgcallback
+	}
 	if r.Browser.Opts.Ctx == nil {
 		r.ctx, r.cancle = context.WithTimeout(mainsignal.MainCtx, timeout)
 		r.Browser.Opts.Ctx = r.ctx
 	} else {
 		r.ctx, r.cancle = context.WithTimeout(r.Browser.Opts.Ctx, timeout)
 	}
-	fmt.Println("开启浏览器")
-
-	// if r.Browser.Opts.Proxy == "" && r.Browser.Opts.Pc != nil {
-	// 	if _, err := r.Browser.Opts.Pc.Run(false); err == nil {
-	// 		r.Browser.Opts.Proxy = r.Browser.Opts.Pc.Listened()
-	// 	}
-	// }
 
 	if err := r.Browser.OpenBrowser(); err != nil {
 		return fmt.Errorf("浏览器打开失败: %s", err.Error())
 	}
-	r.Browser.Opts.Msg = make(chan string)
+	// r.Browser.Opts.Msg = make(chan string)
+	// if r.Browser.Opts.Msg == nil {
+	// 	r.Browser.Opts.Msg = make(chan string)
+	// }
 
 	// var idx int
 	bbctx := r.Browser.GetCtx()
@@ -62,26 +73,12 @@ func (r *RunBrowser) Start(timeout time.Duration, callback func(str string) erro
 		select {
 		case <-r.ctx.Done():
 			return nil
-		case msg := <-r.Browser.Opts.Msg:
-			if callback != nil {
-				err := callback(msg)
-				return err
-			} else {
-				return errors.New("未设置回调函数...")
-			}
+		// case msg := <-r.Browser.Opts.Msg:
+		// 	r.Msg(msg)
 		case <-bbctx.Done():
 			if errors.Is(bbctx.Err(), context.DeadlineExceeded) {
 				return errors.New("浏览器超时")
 			}
-		}
-	}
-}
-
-func (r *RunBrowser) sendMsg(str string) {
-	if r.Browser.Opts.Msg != nil {
-		select {
-		case r.Browser.Opts.Msg <- str:
-		case <-r.Browser.GetCtx().Done():
 		}
 	}
 }
@@ -92,4 +89,8 @@ func (r *RunBrowser) Stop() {
 
 func IsRuning(id int64) bool {
 	return bs.BsManager.IsArride(id)
+}
+
+func (r *RunBrowser) Msg(msg string) {
+
 }

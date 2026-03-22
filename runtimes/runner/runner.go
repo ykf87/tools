@@ -14,8 +14,14 @@ import (
 )
 
 type Runner interface {
-	Start(time.Duration, func(string) error) error
+	Start(
+		timeout time.Duration,
+		callback func(msg, data string) error,
+		errCallback func(msg string),
+		msgCallback func(msg string),
+	) error
 	Stop()
+	Msg(msg string)
 }
 
 // 生成浏览器的配置,目的是为了配置的一致性
@@ -64,6 +70,7 @@ func GenWebOpt(
 		Ctx:      ctx,
 		Timeout:  timeout,
 		Pc:       proxyConfig,
+		Msg:      make(chan string),
 	}
 	return opt
 }
