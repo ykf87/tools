@@ -5,18 +5,80 @@ import (
 	"fmt"
 	"time"
 	"tools/runtimes/bs"
+	"tools/runtimes/db/audios"
 	"tools/runtimes/db/jses"
 	"tools/runtimes/db/medias"
 	"tools/runtimes/db/proxys"
 	"tools/runtimes/downloader"
+	"tools/runtimes/ffmpeg"
 	"tools/runtimes/funcs"
 	"tools/runtimes/mainsignal"
 	"tools/runtimes/proxy"
 	"tools/runtimes/sch"
+	"tools/runtimes/storage"
+	"tools/runtimes/videoproc"
 
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/tidwall/gjson"
 )
+
+func init() {
+	// testBrowser()
+	// download()
+	// fmt.Println(config.Storages.Load("").PutStr(config.FullPath("44.mp4")))
+	// u := "https://v9-cold1.douyinvod.com/cbef1952f7728d765445ce59d9ed49e8/69af9393/video/tos/cn/tos-cn-ve-15/o8xNppKJEmBRAFgZbgDQfgAzAZ6TBEDoAI8f9F/?a=1128&br=1829&bt=1829&btag=c0010e000a8000&cd=0%7C0%7C0%7C0&ch=0&cquery=100y&cr=0&cs=0&cv=1&dr=0&ds=4&dy_q=1773110527&dy_va_biz_cert=&feature_id=0ea98fd3bdc3c6c14a3d0804cc272721&ft=BaXAWVVywfyRF38Pmo~pK7pswApzZh-_vrKnZwocdo0g3cI&l=202603101042078FEA6334B58181FCF44E&mime_type=video_mp4&qs=0&rc=OjVmZTkzZWk7ZGY8N2hlZ0BpMzU1PG45cnBrODMzNGkzM0BfMy8yLmIvX2MxMjA0MzA0YSNlb18vMmRjaDNhLS1kLTBzcw%3D%3D"
+	// n, e := storage.Load("minio").Download(mainsignal.MainCtx, u, &downloader.DownloadOption{
+	// 	Callback: func(total, downloaded, speed, workers int64) {
+	// 		fmt.Printf(
+	// 			"\r%.2f%% %s/s workers:%d %s",
+	// 			float64(downloaded)/float64(total)*100,
+	// 			funcs.FormatFileSize(speed, "1", ""),
+	// 			workers,
+	// 			funcs.FormatFileSize(total, "1", ""),
+	// 		)
+	// 	},
+	// })
+	// fmt.Println(n, e)
+	// getdouytest()
+	//
+	// medias.MKDBNameID("dfgdfgaaa", 0)
+	// runffmpeg()
+	// go func() {
+	// 	time.Sleep(time.Second * 3)
+	// 	revideo()
+	// }()
+
+}
+
+// 视频去重
+func revideo() {
+	cfg := videoproc.VideoConfig{
+		Input:  "./data/2.mp4",
+		Output: "./data/output5.mp4",
+		CRF:    18,
+		Preset: "slow",
+		Audio:  storage.Load("minio").URL("67/9d/679d7ff70e994465e338ff60231759945bd5be66be0992da032ac294a44b7d6b.mp3"),
+	}
+
+	err := videoproc.ProcessVideo(cfg)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// ffmpeg
+func runffmpeg() {
+	rr, err := ffmpeg.GetAudioInfo("./data/2.mp4")
+	fmt.Println(*rr, err)
+
+	r, err := storage.Load("minio").PutStr("./data/f.mp3")
+	fmt.Println(r, err)
+
+	// u := storage.Load("minio").URL("9e/7a/9e7aa05f1ed0ecbdc386fe4c549ac3d37e2e443891123facddfb2b08a453d650.mp3")
+
+	cc, err := audios.AddAudio("df/2b/df2baf0d9268ec62d9f1ab207cc8cec562a9b74aae7d1a665408d139ccc303ec.mp4", "aaa")
+	fmt.Println(cc, err)
+}
 
 //	func init() {
 //		s := scheduler.New(mainsignal.MainCtx)
@@ -58,42 +120,6 @@ import (
 //	})
 //
 // }
-func init() {
-	// testBrowser()
-	// download()
-	// fmt.Println(config.Storages.Load("").PutStr(config.FullPath("44.mp4")))
-	// u := "https://v9-cold1.douyinvod.com/cbef1952f7728d765445ce59d9ed49e8/69af9393/video/tos/cn/tos-cn-ve-15/o8xNppKJEmBRAFgZbgDQfgAzAZ6TBEDoAI8f9F/?a=1128&br=1829&bt=1829&btag=c0010e000a8000&cd=0%7C0%7C0%7C0&ch=0&cquery=100y&cr=0&cs=0&cv=1&dr=0&ds=4&dy_q=1773110527&dy_va_biz_cert=&feature_id=0ea98fd3bdc3c6c14a3d0804cc272721&ft=BaXAWVVywfyRF38Pmo~pK7pswApzZh-_vrKnZwocdo0g3cI&l=202603101042078FEA6334B58181FCF44E&mime_type=video_mp4&qs=0&rc=OjVmZTkzZWk7ZGY8N2hlZ0BpMzU1PG45cnBrODMzNGkzM0BfMy8yLmIvX2MxMjA0MzA0YSNlb18vMmRjaDNhLS1kLTBzcw%3D%3D"
-	// n, e := storage.Load("minio").Download(mainsignal.MainCtx, u, &downloader.DownloadOption{
-	// 	Callback: func(total, downloaded, speed, workers int64) {
-	// 		fmt.Printf(
-	// 			"\r%.2f%% %s/s workers:%d %s",
-	// 			float64(downloaded)/float64(total)*100,
-	// 			funcs.FormatFileSize(speed, "1", ""),
-	// 			workers,
-	// 			funcs.FormatFileSize(total, "1", ""),
-	// 		)
-	// 	},
-	// })
-	// fmt.Println(n, e)
-	// getdouytest()
-	//
-	// medias.MKDBNameID("dfgdfgaaa", 0)
-	runffmpeg()
-}
-
-// ffmpeg
-func runffmpeg() {
-	// rr, err := ffmpeg.GetAudioInfo("./data/2.mp4")
-	// fmt.Println(*rr, err)
-	//
-	// r, err := storage.Load("minio").PutStr("./data/f.mp3")
-	// fmt.Println(r, err)
-	//
-	// u := storage.Load("minio").URL("9e/7a/9e7aa05f1ed0ecbdc386fe4c549ac3d37e2e443891123facddfb2b08a453d650.mp3")
-
-	// cc, err := audios.AddAudio("df/2b/df2baf0d9268ec62d9f1ab207cc8cec562a9b74aae7d1a665408d139ccc303ec.mp4", "aaa")
-	// fmt.Println(cc, err)
-}
 
 func getdouytest() {
 	urlstr := `7.17 pDH:/ 06/28 A@T.lC 刘备遇到水镜，经意外得到神级军师 # 水镜先生 # 刘备 # 徐庶走马荐诸葛 # # 徐庶 # 新三国解说  https://v.douyin.com/4f_EMBbDKdk/ 复制此链接，打开Dou音搜索，直接观看视频！

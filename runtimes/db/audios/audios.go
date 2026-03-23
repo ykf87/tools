@@ -83,7 +83,6 @@ func detectMimeFromURL(url string) (string, error) {
 // 添加音频到数据库
 func AddAudio(src, title string) (*Audio, error) {
 	src = storage.Load("").URL(src)
-
 	var mimeType string
 	if strings.HasPrefix(src, "http") {
 		s, err := detectMimeFromURL(src)
@@ -99,7 +98,7 @@ func AddAudio(src, title string) (*Audio, error) {
 		mimeType = s
 	}
 
-	if strings.Contains(mimeType, "video") { // 如果是视频,则分离音频
+	if strings.Contains(mimeType, "video") { //如果是视频,则分离音频
 		audioSrc := config.FullPath(config.MEDIAROOT, filepath.Base(src)+".mp3")
 		if _, err := os.Stat(audioSrc); err != nil {
 			if err := ffmpeg.SeparateAudio(src, audioSrc); err != nil {
@@ -111,12 +110,21 @@ func AddAudio(src, title string) (*Audio, error) {
 			return nil, err
 		}
 		src = storage.Load("").URL(s)
+	} else {
+		s, err := storage.Load("").PutStr(src)
+		if err != nil {
+			return nil, err
+		}
+		src = storage.Load("").URL(s)
 	}
 
 	info, err := ffmpeg.GetAudioInfo(src)
 	if err != nil {
 		return nil, err
 	}
+
+	// fmt.Println(src, "-----", info.Duration)
+	// return nil, errors.New("dfsdfsdf")
 
 	name := storage.Load("").Base(src)
 	audio := new(Audio)

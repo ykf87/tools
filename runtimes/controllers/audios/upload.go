@@ -1,6 +1,7 @@
 package audios
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -44,6 +45,7 @@ func Uploads(c *gin.Context) {
 		response.Error(c, 400, "保存文件失败", nil)
 		return
 	}
+	fmt.Println(tmpFile, "----tmp")
 	_, err = io.Copy(out, file)
 	if err != nil {
 		out.Close()
