@@ -150,6 +150,7 @@ func router() {
 			spiderAudioGroup.POST("tags/batchadd", audios.BatchAdd)
 			spiderAudioGroup.POST("tags/remove", audios.RemoveTag)
 			spiderAudioGroup.POST("delete", audios.Delete)
+			spiderAudioGroup.POST("cut", audios.Cut)
 		}
 	}
 

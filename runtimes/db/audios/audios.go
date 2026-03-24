@@ -33,6 +33,7 @@ type Audio struct {
 	Removed      int         `json:"-" gorm:"index;default:0"`                   // 软删除标记
 	RemoveTime   int64       `json:"-" gorm:"index;default:0"`                   // 软删除时间
 	Language     string      `json:"language" gorm:"index"`                      // 语音
+	Origin       string      `json:"origin"`                                     // 语音裁剪之前的音频
 	Tags         []*AudioTag `json:"tags" gorm:"many2many:audio_tag_relations;"` // 标签列表
 	db.BaseModel `json:"-" gorm:"-"`
 }
@@ -78,6 +79,12 @@ func detectMimeFromURL(url string) (string, error) {
 	n, _ := resp.Body.Read(buf)
 
 	return http.DetectContentType(buf[:n]), nil
+}
+
+func GetRow(id any) *Audio {
+	row := new(Audio)
+	Dbs.DB().Model(&Audio{}).Where("id = ?", id).First(row)
+	return row
 }
 
 // 添加音频到数据库
