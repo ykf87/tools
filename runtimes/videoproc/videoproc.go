@@ -164,8 +164,8 @@ func ProcessVideo(cfg VideoConfig) error {
 		fps = "29.97"
 	}
 
-	// creation_time 随机（最近7天）
-	ct := time.Now().Add(-time.Duration(randInt(0, 7)) * 24 * time.Hour).UTC().Format(time.RFC3339)
+	// creation_time 随机（最近3天）
+	ct := time.Now().Add(-time.Duration(randInt(0, 3)) * 24 * time.Hour).UTC().Format(time.RFC3339)
 
 	// var args []string
 	args := []string{

@@ -153,8 +153,8 @@ func (this *Browser) packagingJs(js string) string {
 }
 
 // 从chromedp上传
-func (this *Browser) Upload(fls []string, clickNode, fileNode string) error {
-	if clickNode == "" || fileNode == "" {
+func (this *Browser) Upload(fls []string, fileNode string) error {
+	if fileNode == "" {
 		return errors.New(i18n.T("上传数据不足"))
 	}
 
@@ -170,7 +170,7 @@ func (this *Browser) Upload(fls []string, clickNode, fileNode string) error {
 	}
 
 	err := this.Run(
-		chromedp.Click(clickNode),
+		// chromedp.Click(clickNode),
 		chromedp.Sleep(1*time.Second),
 		chromedp.SetUploadFiles(fileNode, fls),
 	)
@@ -183,16 +183,24 @@ func (this *Browser) InputTxt(text, clickNode string) error {
 		return errors.New(i18n.T("输入数据不足"))
 	}
 
+	var oriText string
+	this.Run(
+		chromedp.Text(clickNode, &oriText, chromedp.BySearch),
+	)
+
 	var backs []chromedp.Action
-	for i := len(text); i > 0; i-- {
+	for i := len(oriText); i > 0; i-- {
 		backs = append(backs, chromedp.SendKeys(clickNode, "\b"))
 	}
 
 	this.Run(
-		chromedp.Click(clickNode),
+		chromedp.Focus(clickNode),
 		chromedp.Sleep(time.Second*2),
 	)
-	this.Run(backs...)
+	if len(backs) > 0 {
+		this.Run(backs...)
+	}
+
 	return this.Run(
 		chromedp.Sleep(time.Second*1),
 		chromedp.SendKeys(clickNode, text, chromedp.NodeVisible),

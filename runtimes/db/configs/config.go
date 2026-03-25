@@ -2,6 +2,7 @@ package configs
 
 import (
 	"sync"
+	"tools/runtimes/config"
 	"tools/runtimes/db"
 
 	"gorm.io/gorm"
@@ -51,6 +52,7 @@ func init() {
 			}
 		}
 	}
+	config.BrowserReportJs, _ = GetValue("prevjs")
 }
 
 // func (this *Config) Save(tx *db.SQLiteWriter) error {

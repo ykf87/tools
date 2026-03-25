@@ -11,6 +11,7 @@ import (
 	"tools/runtimes/config"
 	"tools/runtimes/db"
 	"tools/runtimes/db/admins"
+	"tools/runtimes/db/audios"
 	"tools/runtimes/db/clients/browserdb"
 	"tools/runtimes/db/jses"
 	"tools/runtimes/db/medias"
@@ -28,6 +29,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var BathTask *task.Task
@@ -98,6 +100,7 @@ func Editer(c *gin.Context) {
 		return
 	}
 
+	tgs := medias.AddMUTagsBySlice(mu.Tags)
 	if err := medias.GetDb().Write(func(tx *gorm.DB) error {
 		if err := mmu.EmptyClient(tx); err != nil {
 			return err
@@ -141,7 +144,6 @@ func Editer(c *gin.Context) {
 		}
 
 		if len(mu.Tags) > 0 {
-			tgs := medias.AddMUTagsBySlice(mu.Tags)
 			var mutt []*medias.MediaUserToTag
 			for _, v := range tgs {
 				mutt = append(mutt, &medias.MediaUserToTag{
@@ -491,6 +493,67 @@ func mkssr(req *BatchAddReq, adminid int64, tr *task.TaskRun) {
 	if BathTask != nil {
 		BathTask.Stop(tr.RunID)
 	}
+}
+
+// 批量添加标签,仅添加不影响之前的，并且自动去重
+func BatchAddTag(c *gin.Context) {
+	type tmp struct {
+		UIDs []int64  `json:"uids"`
+		Tags []string `json:"tags"`
+	}
+
+	var req tmp
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	if len(req.UIDs) < 1 || len(req.Tags) < 1 {
+		response.Error(c, http.StatusBadRequest, "未找到添加的内容", nil)
+		return
+	}
+
+	var uds []*medias.MediaUser
+	audios.Dbs.DB().Model(&medias.MediaUser{}).Where("id in ?", req.UIDs).Find(&uds)
+
+	if len(uds) < 1 {
+		response.Error(c, http.StatusBadRequest, "未找到添加的内容", nil)
+		return
+	}
+
+	tags := medias.AddMUTagsBySlice(req.Tags)
+
+	if len(tags) > 0 {
+		var mlds []*medias.MediaUserToTag
+		for _, v := range tags {
+			for _, j := range req.UIDs {
+				mlds = append(mlds, &medias.MediaUserToTag{
+					UserID: j,
+					TagID:  v.ID,
+				})
+			}
+		}
+		if err := medias.GetDb().Write(func(tx *gorm.DB) error {
+			return tx.Clauses(clause.OnConflict{
+				DoNothing: true,
+			}).Create(&mlds).Error
+		}); err != nil {
+			response.Error(c, http.StatusBadRequest, err.Error(), nil)
+			return
+		}
+	}
+	// if err := audios.Dbs.Write(func(tx *gorm.DB) error {
+	// 	for _, audio := range uds {
+	// 		if err := tx.Model(audio).Association("Tags").Append(tags); err != nil {
+	// 			return err
+	// 		}
+	// 	}
+	// 	return nil
+	// }); err != nil {
+	// 	response.Error(c, http.StatusBadRequest, err.Error(), nil)
+	// 	return
+	// }
+	response.Success(c, nil, "")
 }
 
 // 查看本地视频

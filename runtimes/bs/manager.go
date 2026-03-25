@@ -148,9 +148,10 @@ func (m *Manager) New(id int64, opt *Options, wait bool) (*Browser, error) {
 					for _, v := range gs.Get("data.files").Array() {
 						fls = append(fls, v.String())
 					}
-					b.Upload(fls, gs.Get("data.node").String(), gs.Get("data.upnode").String())
+					b.Upload(fls, gs.Get("data.upnode").String())
 				case "input": // 输入
 					b.InputTxt(gs.Get("data.text").String(), gs.Get("data.node").String())
+					// fmt.Println("文本输入:", err, gs.Get("data.text").String(), gs.Get("data.node").String())
 				case "click": // 点击
 					x := gs.Get("x").Float()
 					y := gs.Get("y").Float()
