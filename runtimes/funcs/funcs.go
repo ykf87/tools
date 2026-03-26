@@ -155,7 +155,7 @@ func RunCommandWithENV(wait bool, cmdName string, fun func(*exec.Cmd), args ...s
 		var out, stderr bytes.Buffer
 		cmd.Stdout = &out
 		cmd.Stderr = &stderr
-		// fmt.Println(cmd.String(), "---")
+		fmt.Println(cmd.String(), "---")
 		err := cmd.Run()
 		if err != nil {
 			return stderr.String(), nil, fmt.Errorf("执行失败: %v", err)
