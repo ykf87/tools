@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"syscall"
 	"time"
 	"tools/runtimes/bs"
+	"tools/runtimes/config"
 	"tools/runtimes/db/audios"
 	"tools/runtimes/db/jses"
 	"tools/runtimes/db/medias"
@@ -17,6 +19,7 @@ import (
 	"tools/runtimes/sch"
 	"tools/runtimes/storage"
 	"tools/runtimes/videoproc"
+	"unsafe"
 
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/tidwall/gjson"
@@ -47,7 +50,12 @@ func init() {
 	// 	time.Sleep(time.Second * 3)
 	// 	revideo()
 	// }()
+	kernel32 := syscall.NewLazyDLL("kernel32.dll")
 
+	setDllDir := kernel32.NewProc("SetDllDirectoryW")
+
+	dir, _ := syscall.UTF16PtrFromString(config.FullPath(config.SYSROOT, "vips", "bin"))
+	setDllDir.Call(uintptr(unsafe.Pointer(dir)))
 }
 
 // 视频去重

@@ -46,6 +46,8 @@ import (
 	_ "tools/runtimes/db"
 	"tools/runtimes/db/tasks"
 	_ "tools/runtimes/ffmpeg"
+	"tools/runtimes/funcs"
+	"tools/runtimes/hideconsole"
 	"tools/runtimes/i18n"
 	"tools/runtimes/listens/web"
 	"tools/runtimes/mainsignal"
@@ -54,6 +56,8 @@ import (
 	_ "tools/runtimes/subscribes/submqs"
 	_ "tools/runtimes/subscribes/subws"
 	"tools/runtimes/syncuuid"
+
+	"github.com/getlantern/systray"
 	// "tools/runtimes/mq"
 )
 
@@ -63,11 +67,19 @@ func main() {
 		return
 	}
 
+	// data, err := os.ReadFile("./data/logout.ico")
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// fmt.Println(data)
+	// panic("---")
 	// port := 19998
 
 	fmt.Println("\n感谢使用小卡卡辅助工具.有任何问题可以随时在系统内联系开发者或者前往官网留言.祝您使用愉快!")
 	fmt.Println("系统UUID:", syncuuid.MachineUUID())
 	go web.Start()
+	hideAndAddMenu()
 	<-mainsignal.MainCtx.Done()
 	mainsignal.MainStop()
 	fmt.Println("\n系统准备关闭,释放内存中,请稍后...")
@@ -86,6 +98,21 @@ func checkLocal() error {
 		return fmt.Errorf("error")
 	}
 	return nil
+}
+
+func hideAndAddMenu() {
+	hideconsole.HideMe()
+	hideconsole.Build("小卡卡矩阵", "小卡卡矩阵", config.LOGOICON)
+	hideconsole.AddItem("打开控制台", "打开控制台", config.CONSOLEICON, func(mi *systray.MenuItem) {
+		// fmt.Println("点击了")
+		funcs.OpenDir(web.WebUrl)
+	})
+	hideconsole.AddItem("退出", "退出", config.LOGOUTICON, func(mi *systray.MenuItem) {
+		mainsignal.MainStop()
+	})
+	hideconsole.Run(func() {
+		mainsignal.MainStop()
+	})
 }
 
 func flush() {
