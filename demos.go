@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"syscall"
 	"time"
 	"tools/runtimes/bs"
+	"tools/runtimes/clearer"
 	"tools/runtimes/config"
 	"tools/runtimes/db/audios"
 	"tools/runtimes/db/jses"
@@ -14,12 +14,12 @@ import (
 	"tools/runtimes/downloader"
 	"tools/runtimes/ffmpeg"
 	"tools/runtimes/funcs"
+	"tools/runtimes/imager"
 	"tools/runtimes/mainsignal"
 	"tools/runtimes/proxy"
 	"tools/runtimes/sch"
 	"tools/runtimes/storage"
 	"tools/runtimes/videoproc"
-	"unsafe"
 
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/tidwall/gjson"
@@ -50,12 +50,22 @@ func init() {
 	// 	time.Sleep(time.Second * 3)
 	// 	revideo()
 	// }()
-	kernel32 := syscall.NewLazyDLL("kernel32.dll")
+	imgmk()
+}
 
-	setDllDir := kernel32.NewProc("SetDllDirectoryW")
+// 图片修改
+func imgmk() {
+	img := imager.NewImager(config.FullPath(config.DATAROOT, "121.jpg"), config.FullPath(config.DATAROOT, "121---out.jpg"))
+	img.Gamma = &imager.Gamma{
+		Value: 2.5,
+	}
+	fmt.Println(img.Output())
+}
 
-	dir, _ := syscall.UTF16PtrFromString(config.FullPath(config.SYSROOT, "vips", "bin"))
-	setDllDir.Call(uintptr(unsafe.Pointer(dir)))
+// 图片变清晰
+func cleare() {
+	clearer.Init()
+	clearer.Clearers(config.FullPath(config.DATAROOT, "bt.png"), config.FullPath(config.DATAROOT, "bt-output.jpg"), "")
 }
 
 // 视频去重
