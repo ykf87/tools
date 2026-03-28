@@ -1,6 +1,10 @@
 package imager
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
+	"tools/runtimes/funcs"
 	"tools/runtimes/libvips"
 	// "github.com/davidbyttow/govips/v2/vips"
 	// "github.com/h2non/bimg"
@@ -11,10 +15,19 @@ func init() {
 }
 
 // 如果输出是空的，则覆盖原图
-func NewImager(src string) *Image {
-	return &Image{
-		Src: src,
+func NewImager(src string) (*Image, error) {
+	if _, err := os.Stat(src); err != nil {
+		return nil, err
 	}
+	dir := filepath.Dir(src)
+	nsrc := strings.ReplaceAll(filepath.Base(src), ".", "__src.")
+	newFileName := filepath.Join(dir, nsrc)
+
+	funcs.CopyFile(src, newFileName)
+	return &Image{
+		origin: src,
+		Src:    newFileName,
+	}, nil
 }
 
 func (img *Image) Output(output string) (err error) {
@@ -22,11 +35,18 @@ func (img *Image) Output(output string) (err error) {
 	// 按顺序执行（顺序很重要）
 	steps := img.buildpip()
 
+	dir := filepath.Dir(output)
+	nsrc := strings.ReplaceAll(filepath.Base(output), ".", "__outtmp.")
+	outtmp := filepath.Join(dir, nsrc)
+
 	for _, step := range steps {
-		if err = step.output(img.Src, output); err != nil {
+		if err = step.output(img.Src, outtmp); err != nil {
 			return err
 		}
+		os.Rename(outtmp, img.Src)
 	}
+
+	os.Rename(img.Src, output)
 	return
 
 	// if img.Crop != nil {

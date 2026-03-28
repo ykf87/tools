@@ -75,6 +75,7 @@ type Gaussblur struct {
 }
 
 type Image struct {
+	origin     string      `json:"-"`          // 缓存原文件名
 	Src        string      `json:"src"`        // 图片地址
 	Crop       *Crop       `json:"crop"`       // 裁剪,上右下左各裁了多少,最终应该是按百分比计算
 	Flip       *Flip       `json:"flip"`       // 翻转,水平和垂直
