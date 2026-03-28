@@ -36,11 +36,12 @@ func (img *Image) Output(output string) (err error) {
 	steps := img.buildpip()
 
 	dir := filepath.Dir(output)
-	nsrc := strings.ReplaceAll(filepath.Base(output), ".", "__outtmp.")
+	nsrc := strings.ReplaceAll(filepath.Base(output), ".", "__tmp.")
 	outtmp := filepath.Join(dir, nsrc)
 
 	for _, step := range steps {
 		if err = step.output(img.Src, outtmp); err != nil {
+			os.Remove(img.Src)
 			return err
 		}
 		os.Rename(outtmp, img.Src)

@@ -60,8 +60,8 @@ func imgmk() {
 	// 	Value: 2.5,
 	// }
 	img.Linear = &imager.Linear{
-		Brightness: 1.5,
-		Contrast:   1.8,
+		Brightness: 20,
+		Contrast:   0,
 	}
 	fmt.Println(img.Output(config.FullPath(config.DATAROOT, "121---out.jpg")))
 }

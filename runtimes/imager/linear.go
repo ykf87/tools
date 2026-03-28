@@ -5,12 +5,20 @@ import (
 )
 
 func (l *Linear) output(i, o string) (err error) {
-	if l.Brightness == 0 {
-		l.Brightness = 1.0
+	if l.Brightness < -100 {
+		l.Brightness = -100
+	} else if l.Brightness > 100 {
+		l.Brightness = 100
 	}
-	if l.Contrast == 0 {
-		l.Contrast = 1.0
+	if l.Contrast < 0.5 {
+		l.Contrast = 1
+	} else if l.Contrast > 2 {
+		l.Contrast = 2
 	}
-	_, err = runVips("linear", i, o, strconv.FormatFloat(l.Brightness, 'f', -1, 64), strconv.FormatFloat(l.Contrast, 'f', -1, 64))
+
+	bt := strconv.FormatFloat(l.Contrast, 'f', -1, 64)
+	ct := strconv.FormatFloat(l.Brightness, 'f', -1, 64)
+
+	_, err = runVips("linear", i, o, "--", bt, ct)
 	return
 }
