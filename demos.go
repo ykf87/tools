@@ -55,11 +55,15 @@ func init() {
 
 // 图片修改
 func imgmk() {
-	img := imager.NewImager(config.FullPath(config.DATAROOT, "121.jpg"), config.FullPath(config.DATAROOT, "121---out.jpg"))
-	img.Gamma = &imager.Gamma{
-		Value: 2.5,
+	img := imager.NewImager(config.FullPath(config.DATAROOT, "121.jpg"))
+	// img.Gamma = &imager.Gamma{
+	// 	Value: 2.5,
+	// }
+	img.Linear = &imager.Linear{
+		Brightness: 1,
+		Contrast:   1,
 	}
-	fmt.Println(img.Output())
+	fmt.Println(img.Output(config.FullPath(config.DATAROOT, "121---out---pp.jpg")))
 }
 
 // 图片变清晰

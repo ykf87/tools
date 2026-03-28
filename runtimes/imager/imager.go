@@ -2,6 +2,7 @@ package imager
 
 import (
 	"tools/runtimes/libvips"
+	// "github.com/davidbyttow/govips/v2/vips"
 	// "github.com/h2non/bimg"
 )
 
@@ -10,29 +11,23 @@ func init() {
 }
 
 // 如果输出是空的，则覆盖原图
-func NewImager(src, output string) *Image {
-	if output == "" {
-		output = src
-	}
+func NewImager(src string) *Image {
 	return &Image{
-		Src:       src,
-		OutputSrc: output,
+		Src: src,
 	}
 }
 
-func (img *Image) Output() (src string, err error) {
-	if img.OutputSrc == "" {
-		img.OutputSrc = img.Src
-	}
-
+func (img *Image) Output(output string) (err error) {
+	// vips.Startup(nil)
 	// 按顺序执行（顺序很重要）
 	steps := img.buildpip()
 
 	for _, step := range steps {
-		if err = step.output(img.Src, img.OutputSrc); err != nil {
-			return "", err
+		if err = step.output(img.Src, output); err != nil {
+			return err
 		}
 	}
+	return
 
 	// if img.Crop != nil {
 	// 	if err = img.Crop.apply(img.Src, img.OutputSrc); err != nil {
@@ -42,7 +37,7 @@ func (img *Image) Output() (src string, err error) {
 	// if img.Gamma != nil {
 	// 	img.Gamma.apply(img.Src, img.OutputSrc)
 	// }
-	return
+	// return
 	// i := vipscli.NewImage(img.Src)
 	// i.SetBinary(libvips.Bin())
 
@@ -66,10 +61,7 @@ func (img *Image) Output() (src string, err error) {
 	// 	return err
 	// }
 
-	// if img.OutputSrc == "" {
-	// 	img.OutputSrc = img.Src
-	// }
-	// return bimg.Write(img.OutputSrc, newImage)
+	// return bimg.Write(output, newImage)
 	// return nil
 }
 
@@ -93,11 +85,8 @@ func (img *Image) buildpip() []Processor {
 	if img.Rotation != nil {
 		steps = append(steps, img.Rotation)
 	}
-	if img.Brightness != nil {
-		steps = append(steps, img.Brightness)
-	}
-	if img.Contrast != nil {
-		steps = append(steps, img.Contrast)
+	if img.Linear != nil {
+		steps = append(steps, img.Linear)
 	}
 	if img.Saturation != nil {
 		steps = append(steps, img.Saturation)
@@ -107,6 +96,9 @@ func (img *Image) buildpip() []Processor {
 	}
 	if img.Sharpen != nil {
 		steps = append(steps, img.Sharpen)
+	}
+	if img.Gaussblur != nil {
+		steps = append(steps, img.Gaussblur)
 	}
 	return steps
 }

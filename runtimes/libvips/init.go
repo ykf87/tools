@@ -23,6 +23,9 @@ func Init() {
 		downloadvips(VIPROOT)
 	}
 
+	// 调用 Windows API 设置 DLL 搜索路径
+	// syscall.NewLazyDLL("kernel32.dll").NewProc("SetDllDirectoryW").Call(uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(VIPBIN))))
+
 	// 	pkgconfigDir := config.FullPath(config.SYSROOT, "pkgconfig")
 	// 	if _, err := os.Stat(pkgconfigDir); err != nil {
 	// 		os.MkdirAll(pkgconfigDir, os.ModePerm)
@@ -46,7 +49,7 @@ func Init() {
 
 	// 	os.Setenv("PKG_CONFIG", config.FullPath(config.SYSROOT, "pkg-config.exe"))
 	// 	os.Setenv("PKG_CONFIG_PATH", pkgconfigDir)
-
+	//
 	// kernel32 := syscall.NewLazyDLL("kernel32.dll")
 	// setDllDir := kernel32.NewProc("SetDllDirectoryW")
 

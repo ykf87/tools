@@ -10,7 +10,7 @@ set VIPS=%ROOT%\vips
 REM =========================
 REM 2. 生成 vips.pc（你已有）
 REM =========================
-go run gen_pc.go
+REM ========== go run gen_pc.go
 
 REM =========================
 REM 3. 关键环境变量（核心）

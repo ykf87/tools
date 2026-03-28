@@ -39,15 +39,20 @@ type Rotation struct {
 	Angle float64 `json:"angle"`
 }
 
-// 调节亮度
-type Brightness struct {
-	Value float64 `json:"value"` // -100 ~ 100
+type Linear struct {
+	Brightness float64 `json:"brightness"` // 调节亮度 -100 ~ 100
+	Contrast   float64 `json:"contrast"`   // 调节对比度 0.5 ~ 2
 }
 
-// 调节对比度
-type Contrast struct {
-	Value float64 `json:"value"` // 0.5 ~ 2
-}
+// // 调节亮度
+// type Brightness struct {
+// 	Value float64 `json:"value"` // -100 ~ 100
+// }
+
+// // 调节对比度
+// type Contrast struct {
+// 	Value float64 `json:"value"` // 0.5 ~ 2
+// }
 
 // 调节饱和度
 type Saturation struct {
@@ -64,20 +69,24 @@ type Sharpen struct {
 	Value float64 `json:"value"` // 0.1 ~ 10
 }
 
+// 高斯模糊
+type Gaussblur struct {
+	Value float64 `json:"value"`
+}
+
 type Image struct {
 	Src        string      `json:"src"`        // 图片地址
-	OutputSrc  string      `json:"output_src"` // 输出地址
 	Crop       *Crop       `json:"crop"`       // 裁剪,上右下左各裁了多少,最终应该是按百分比计算
 	Flip       *Flip       `json:"flip"`       // 翻转,水平和垂直
 	Affine     *Affine     `json:"affine"`     // 仿射变换
 	Mapim      *Mapim      `json:"mapim"`      // 透视变换
 	Resize     *Resize     `json:"resize"`     // 缩放,从中心点按倍数缩放
 	Rotation   *Rotation   `json:"rotation"`   // 旋转,按角度
-	Brightness *Brightness `json:"brightness"` // 亮度调节
-	Contrast   *Contrast   `json:"contrast"`   // 对比度
+	Linear     *Linear     `json:"linear"`     // 亮度调节
 	Saturation *Saturation `json:"saturation"` // 饱和度
 	Gamma      *Gamma      `json:"gamma"`      // Gamma校正
 	Sharpen    *Sharpen    `json:"sharpen"`    // 锐化
+	Gaussblur  *Gaussblur  `json:"gaussblur"`  // 高斯模糊
 }
 
 type ImageMeta struct {
