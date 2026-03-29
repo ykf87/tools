@@ -74,9 +74,20 @@ type Gaussblur struct {
 	Value float64 `json:"value"`
 }
 
+// ai变清晰
+type Clearer bool
+
+// 保持原有宽度和高度
+type KeepWH bool
+
 type Image struct {
 	origin     string      `json:"-"`          // 缓存原文件名
+	outtemp    string      `json:"-"`          // 临时输出文件地址
+	w          int         `json:"-"`          // 图片原始宽度
+	h          int         `json:"-"`          // 图片原始高度
 	Src        string      `json:"src"`        // 图片地址
+	Width      int         `json:"width"`      // 目标图片宽度
+	Height     int         `json:"height"`     // 目标图片高度
 	Crop       *Crop       `json:"crop"`       // 裁剪,上右下左各裁了多少,最终应该是按百分比计算
 	Flip       *Flip       `json:"flip"`       // 翻转,水平和垂直
 	Affine     *Affine     `json:"affine"`     // 仿射变换
@@ -88,6 +99,8 @@ type Image struct {
 	Gamma      *Gamma      `json:"gamma"`      // Gamma校正
 	Sharpen    *Sharpen    `json:"sharpen"`    // 锐化
 	Gaussblur  *Gaussblur  `json:"gaussblur"`  // 高斯模糊
+	Clearer    *Clearer    `json:"clearer"`    // AI清晰
+	KeepWH     *KeepWH     `json:"keep"`       // 是否保持原有的宽度和高度
 }
 
 type ImageMeta struct {
@@ -96,7 +109,7 @@ type ImageMeta struct {
 }
 
 type Processor interface {
-	output(input, output string) error
+	output(img *Image) error
 }
 
 func vipsheader(path string) (*ImageMeta, error) {

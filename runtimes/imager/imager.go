@@ -19,32 +19,50 @@ func NewImager(src string) (*Image, error) {
 	if _, err := os.Stat(src); err != nil {
 		return nil, err
 	}
-	dir := filepath.Dir(src)
-	nsrc := strings.ReplaceAll(filepath.Base(src), ".", "__src.")
-	newFileName := filepath.Join(dir, nsrc)
-
-	funcs.CopyFile(src, newFileName)
 	return &Image{
-		origin: src,
-		Src:    newFileName,
+		Src: src,
 	}, nil
 }
 
+func (img *Image) copySrc() error {
+	newFileName := filepath.Join(filepath.Dir(img.Src), strings.ReplaceAll(filepath.Base(img.Src), ".", "_maker."))
+
+	if err := funcs.CopyFile(img.Src, newFileName); err != nil {
+		return err
+	}
+	img.origin = img.Src
+	img.Src = newFileName
+	return nil
+}
+
 func (img *Image) Output(output string) (err error) {
+	if err = img.copySrc(); err != nil {
+		return
+	}
+	meta, err := vipsheader(img.Src) // 你自己实现获取宽高
+	if err != nil {
+		return err
+	}
+	img.w, img.h = meta.Width, meta.Height
+	if img.Width <= 0 {
+		img.Width = img.w
+	}
+	if img.Height <= 0 {
+		img.Height = img.h
+	}
+
 	// vips.Startup(nil)
 	// 按顺序执行（顺序很重要）
 	steps := img.buildpip()
 
-	dir := filepath.Dir(output)
-	nsrc := strings.ReplaceAll(filepath.Base(output), ".", "__tmp.")
-	outtmp := filepath.Join(dir, nsrc)
+	img.outtemp = filepath.Join(filepath.Dir(output), strings.ReplaceAll(filepath.Base(output), ".", "__outer."))
 
 	for _, step := range steps {
-		if err = step.output(img.Src, outtmp); err != nil {
+		if err = step.output(img); err != nil {
 			os.Remove(img.Src)
-			return err
+			return
 		}
-		os.Rename(outtmp, img.Src)
+		os.Rename(img.outtemp, img.Src)
 	}
 
 	os.Rename(img.Src, output)
@@ -120,6 +138,12 @@ func (img *Image) buildpip() []Processor {
 	}
 	if img.Gaussblur != nil {
 		steps = append(steps, img.Gaussblur)
+	}
+	if img.KeepWH != nil {
+		steps = append(steps, img.KeepWH)
+	}
+	if img.Clearer != nil {
+		steps = append(steps, img.Clearer)
 	}
 	return steps
 }

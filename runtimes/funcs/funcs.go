@@ -686,7 +686,6 @@ func CopyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
 
 	// 复制内容
 	_, err = io.Copy(destFile, sourceFile)
@@ -694,6 +693,10 @@ func CopyFile(src, dst string) error {
 		return err
 	}
 
-	// 刷新写入磁盘
-	return destFile.Sync()
+	// 刷新到磁盘
+	if err := destFile.Sync(); err != nil {
+		destFile.Close()
+		return err
+	}
+	return destFile.Close()
 }

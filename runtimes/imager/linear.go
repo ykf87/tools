@@ -4,7 +4,7 @@ import (
 	"strconv"
 )
 
-func (l *Linear) output(i, o string) (err error) {
+func (l *Linear) output(img *Image) (err error) {
 	if l.Brightness < -100 {
 		l.Brightness = -100
 	} else if l.Brightness > 100 {
@@ -19,6 +19,6 @@ func (l *Linear) output(i, o string) (err error) {
 	bt := strconv.FormatFloat(l.Contrast, 'f', -1, 64)
 	ct := strconv.FormatFloat(l.Brightness, 'f', -1, 64)
 
-	_, err = runVips("linear", i, o, "--", bt, ct)
+	_, err = runVips("linear", img.Src, img.outtemp, "--", bt, ct)
 	return
 }

@@ -56,13 +56,34 @@ func init() {
 // 图片修改
 func imgmk() {
 	img, _ := imager.NewImager(config.FullPath(config.DATAROOT, "121.jpg"))
-	// img.Gamma = &imager.Gamma{
-	// 	Value: 2.5,
-	// }
-	img.Linear = &imager.Linear{
-		Brightness: 20,
-		Contrast:   0,
+	img.Gamma = &imager.Gamma{
+		Value: 1.12,
 	}
+	// img.Linear = &imager.Linear{
+	// 	Brightness: 20,
+	// 	Contrast:   2,
+	// }
+	// img.Crop = &imager.Crop{
+	// 	Left:   0.1,
+	// 	Top:    0.2,
+	// 	Right:  0.4,
+	// 	Bottom: 0.6,
+	// }
+	// img.Rotation = &imager.Rotation{
+	// 	Angle: -36,
+	// }
+	// img.Gaussblur = &imager.Gaussblur{
+	// 	Value: 3.5,
+	// }
+	// img.Sharpen = &imager.Sharpen{// 锐化不支持
+	// 	Value: 3,
+	// }
+	//
+	// img.Resize = &imager.Resize{
+	// 	Scale: 1.6,
+	// }
+	// kwh := imager.KeepWH(true)
+	// img.KeepWH = &kwh
 	fmt.Println(img.Output(config.FullPath(config.DATAROOT, "121---out.jpg")))
 }
 

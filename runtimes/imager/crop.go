@@ -5,23 +5,23 @@ import (
 	"strconv"
 )
 
-func (c *Crop) output(input, output string) error {
-	meta, _ := vipsheader(input) // 你自己实现获取宽高
-	w, h := meta.Width, meta.Height
+// 按百分比裁剪,必须是小于1的数
+func (c *Crop) output(img *Image) error {
+	left := int(float64(img.w) * c.Left)
+	top := int(float64(img.h) * c.Top)
+	right := int(float64(img.w) * c.Right)
+	bottom := int(float64(img.h) * c.Bottom)
 
-	left := int(float64(w) * c.Left)
-	top := int(float64(h) * c.Top)
-	right := int(float64(w) * c.Right)
-	bottom := int(float64(h) * c.Bottom)
-
-	width := w - left - right
-	height := h - top - bottom
+	width := img.w - left - right
+	height := img.h - top - bottom
 
 	if width <= 0 || height <= 0 {
 		return fmt.Errorf("invalid crop")
 	}
+	img.w = width
+	img.h = height
 
-	_, err := runVips("crop", input, output,
+	_, err := runVips("crop", img.Src, img.outtemp,
 		strconv.Itoa(left),
 		strconv.Itoa(top),
 		strconv.Itoa(width),

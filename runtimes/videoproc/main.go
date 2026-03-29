@@ -1,6 +1,8 @@
 package videoproc
 
-import "tools/runtimes/mainsignal"
+import (
+	"tools/runtimes/mainsignal"
+)
 
 var limit = make(chan byte, 1)
 
@@ -15,4 +17,12 @@ func init() {
 			}
 		}
 	}()
+}
+
+func SecMaker(videos, audios []string) (*Maker, error) {
+	mk := new(Maker)
+	mk.Srcs = videos
+	mk.Audios = audios
+	mk.Factory = new(Factory)
+	return mk, nil
 }

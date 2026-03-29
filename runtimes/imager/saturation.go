@@ -1,5 +1,5 @@
 package imager
 
-func (s *Saturation) output(i, o string) (err error) {
+func (s *Saturation) output(img *Image) (err error) {
 	return
 }
