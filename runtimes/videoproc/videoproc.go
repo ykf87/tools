@@ -93,9 +93,9 @@ drawtext=text='%d':x=%d:y=%d:fontsize=24:fontcolor=white@0.15
 
 func BuildFilter1(width, height int) string {
 
-	brightness := randFloat(-0.02, 0.02)
-	contrast := randFloat(0.98, 1.05)
-	saturation := randFloat(0.98, 1.08)
+	brightness := randFloat(-0.02, 0.02) //亮度
+	contrast := randFloat(0.98, 1.05)    //对比度
+	saturation := randFloat(0.98, 1.08)  //饱和度
 
 	speed := randFloat(0.98, 1.02)
 

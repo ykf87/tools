@@ -50,7 +50,32 @@ func init() {
 	// 	time.Sleep(time.Second * 3)
 	// 	revideo()
 	// }()
-	imgmk()
+
+	// imgmk()
+	mkvideo()
+}
+
+func mkvideo() {
+	n1, _ := videoproc.SecMaker([]string{
+		storage.Load("").URL("12/39/123948ebf304edb9b5d72733673244bf1acbd50f98ea2f9efec7ba7cc5336c10.mp4"),
+		storage.Load("").URL("82/7b/827b26cf31580022db6d481bc7a7cfb19a4f473ab03182c5df037347ee68f663.mp4"),
+	}, nil) //
+	// n1.AmixAudio = &videoproc.AudioInpter{
+	// 	Url: storage.Load("").URL("81/b7/81b7b7a8d017fef834ca41b71d9027e5246239f58b232bc27a645254a724ca39.mp3"),
+	// }
+
+	go func() {
+		time.Sleep(time.Second * 2)
+		n1.Factory.Linear = &imager.Linear{
+			Brightness: 3,
+			Contrast:   1.2,
+		}
+		// n1.Factory.Mirror = 1
+
+		// n1.Factory.Clearer = true
+		err := n1.Output(mainsignal.MainCtx, config.FullPath(config.MEDIAROOT, ".tmp", "20260330.mp4"))
+		fmt.Println(err, "----")
+	}()
 }
 
 // 图片修改
@@ -84,7 +109,7 @@ func imgmk() {
 	// }
 	// kwh := imager.KeepWH(true)
 	// img.KeepWH = &kwh
-	fmt.Println(img.Output(config.FullPath(config.DATAROOT, "121---out.jpg")))
+	// fmt.Println(img.Output(config.FullPath(config.DATAROOT, "121---out.jpg"), 1))
 }
 
 // 图片变清晰

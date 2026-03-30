@@ -1,10 +1,8 @@
 package imager
 
 import (
+	"errors"
 	"os"
-	"path/filepath"
-	"strings"
-	"tools/runtimes/funcs"
 	"tools/runtimes/libvips"
 	// "github.com/davidbyttow/govips/v2/vips"
 	// "github.com/h2non/bimg"
@@ -25,17 +23,46 @@ func NewImager(src string) (*Image, error) {
 }
 
 func (img *Image) copySrc() error {
-	newFileName := filepath.Join(filepath.Dir(img.Src), strings.ReplaceAll(filepath.Base(img.Src), ".", "_maker."))
+	newFileName := img.Src + "-inputer.v" //filepath.Join(filepath.Dir(img.Src), strings.ReplaceAll(filepath.Base(img.Src), ".", "_maker."))
 
-	if err := funcs.CopyFile(img.Src, newFileName); err != nil {
+	_, err := runVips("copy", img.Src, newFileName)
+	if err != nil {
 		return err
 	}
+	// if err := funcs.CopyFile(img.Src, newFileName); err != nil {
+	// 	return err
+	// }
 	img.origin = img.Src
 	img.Src = newFileName
 	return nil
 }
 
-func (img *Image) Output(output string) (err error) {
+func (img *Image) Output(output string, maxtry int) (err error) {
+	if maxtry < 1 {
+		maxtry = 1
+	}
+	for {
+		if err := img.run(output); err != nil {
+			maxtry--
+			if maxtry < 1 {
+				return err
+			}
+			continue
+		}
+		return nil
+	}
+}
+
+func (img *Image) run(output string) (err error) {
+	if output != "" {
+		img.OutFile = output
+	}
+
+	if img.OutFile == "" {
+		err = errors.New("输出文件夹是空的")
+		return
+	}
+
 	if err = img.copySrc(); err != nil {
 		return
 	}
@@ -51,11 +78,10 @@ func (img *Image) Output(output string) (err error) {
 		img.Height = img.h
 	}
 
-	// vips.Startup(nil)
 	// 按顺序执行（顺序很重要）
 	steps := img.buildpip()
 
-	img.outtemp = filepath.Join(filepath.Dir(output), strings.ReplaceAll(filepath.Base(output), ".", "__outer."))
+	img.outtemp = img.OutFile + "-output.v" //filepath.Join(filepath.Dir(output), strings.ReplaceAll(filepath.Base(output), ".", "__outer."))
 
 	for _, step := range steps {
 		if err = step.output(img); err != nil {
@@ -65,43 +91,12 @@ func (img *Image) Output(output string) (err error) {
 		os.Rename(img.outtemp, img.Src)
 	}
 
-	os.Rename(img.Src, output)
+	if _, err := runVips("copy", img.Src, img.OutFile); err != nil {
+		return err
+	}
+	os.Remove(img.Src)
+	img.Src = img.origin
 	return
-
-	// if img.Crop != nil {
-	// 	if err = img.Crop.apply(img.Src, img.OutputSrc); err != nil {
-	// 		return
-	// 	}
-	// }
-	// if img.Gamma != nil {
-	// 	img.Gamma.apply(img.Src, img.OutputSrc)
-	// }
-	// return
-	// i := vipscli.NewImage(img.Src)
-	// i.SetBinary(libvips.Bin())
-
-	// out, err := i.Process(vipscli.Options{
-	// 	Gamma: 1.8,
-	// })
-	// if err != nil {
-	// 	fmt.Println(string(out))
-	// 	return err
-	// }
-
-	// return os.WriteFile(img.OutputSrc, out, 0644)
-	// buffer, err := bimg.Read(img.Src)
-	// if err != nil {
-	// 	return err
-	// }
-	// newImage, err := bimg.NewImage(buffer).Process(bimg.Options{
-	// 	Gamma: 1.3,
-	// })
-	// if err != nil {
-	// 	return err
-	// }
-
-	// return bimg.Write(output, newImage)
-	// return nil
 }
 
 func (img *Image) buildpip() []Processor {
@@ -142,8 +137,8 @@ func (img *Image) buildpip() []Processor {
 	if img.KeepWH != nil {
 		steps = append(steps, img.KeepWH)
 	}
-	if img.Clearer != nil {
-		steps = append(steps, img.Clearer)
-	}
+	// if img.Clearer != nil {
+	// 	steps = append(steps, img.Clearer)
+	// }
 	return steps
 }

@@ -75,7 +75,7 @@ type Gaussblur struct {
 }
 
 // ai变清晰
-type Clearer bool
+// type Clearer bool
 
 // 保持原有宽度和高度
 type KeepWH bool
@@ -85,6 +85,7 @@ type Image struct {
 	outtemp    string      `json:"-"`          // 临时输出文件地址
 	w          int         `json:"-"`          // 图片原始宽度
 	h          int         `json:"-"`          // 图片原始高度
+	OutFile    string      `json:"out_file"`   // 输出的文件名
 	Src        string      `json:"src"`        // 图片地址
 	Width      int         `json:"width"`      // 目标图片宽度
 	Height     int         `json:"height"`     // 目标图片高度
@@ -99,8 +100,9 @@ type Image struct {
 	Gamma      *Gamma      `json:"gamma"`      // Gamma校正
 	Sharpen    *Sharpen    `json:"sharpen"`    // 锐化
 	Gaussblur  *Gaussblur  `json:"gaussblur"`  // 高斯模糊
-	Clearer    *Clearer    `json:"clearer"`    // AI清晰
+	Clearer    bool    `json:"clearer"`    // AI清晰
 	KeepWH     *KeepWH     `json:"keep"`       // 是否保持原有的宽度和高度
+
 }
 
 type ImageMeta struct {
@@ -137,4 +139,9 @@ func vipsheader(path string) (*ImageMeta, error) {
 func runVips(args ...string) (str string, err error) {
 	str, _, err = funcs.RunCommand(true, libvips.Bin(), args...)
 	return
+}
+
+func RunBin(args ...string) error {
+	_, _, err := funcs.RunCommand(true, libvips.Bin(), args...)
+	return err
 }

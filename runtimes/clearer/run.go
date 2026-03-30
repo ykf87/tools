@@ -16,6 +16,6 @@ func Clearers(src, output, modules string) (str string, err error) {
 		"-o", output,
 		"-n", modules,
 	)
-	log.Println("执行完成")
+	log.Println("执行完成", err)
 	return
 }
