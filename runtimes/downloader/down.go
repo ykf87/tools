@@ -359,7 +359,15 @@ func df(ctx context.Context, opt *DownloadOption) (*DownLoadFileInfo, error) {
 	if opt.Dir == "" {
 		return nil, errors.New("保存目录不能为空!")
 	}
-	ctx, cancel := context.WithCancel(ctx)
+
+	var ictx context.Context
+	var cancel context.CancelFunc
+	if opt.Timeout > 0 {
+		ictx, cancel = context.WithTimeout(ctx, opt.Timeout)
+	} else {
+		ictx, cancel = context.WithCancel(ctx)
+	}
+
 	defer cancel()
 	if opt.Threads <= 0 {
 		opt.Threads = 4
@@ -376,13 +384,13 @@ func df(ctx context.Context, opt *DownloadOption) (*DownLoadFileInfo, error) {
 		client.Jar.SetCookies(u, cookies)
 	}
 	size, name, err := func() (int64, string, error) {
-		size, err := getFileSize(ctx, client, opt.URL, opt.Headers)
+		size, err := getFileSize(ictx, client, opt.URL, opt.Headers)
 		if err != nil || size <= 0 {
 			return 0, "", fmt.Errorf("invalid file size: %v", err)
 		}
 
 		// 获取文件名
-		req, _ := http.NewRequestWithContext(ctx, "GET", opt.URL, nil)
+		req, _ := http.NewRequestWithContext(ictx, "GET", opt.URL, nil)
 		applyHeaders(req, opt.Headers)
 		resp, err := client.Do(req)
 		if err != nil {
@@ -453,7 +461,7 @@ func df(ctx context.Context, opt *DownloadOption) (*DownLoadFileInfo, error) {
 	writeCh := make(chan writeTask, 1024)
 	var writerWG sync.WaitGroup
 	writerWG.Add(1)
-	go writer(ctx, file, writeCh, &writerWG)
+	go writer(ictx, file, writeCh, &writerWG)
 
 	var progress int64
 	var active int64
@@ -464,7 +472,7 @@ func df(ctx context.Context, opt *DownloadOption) (*DownLoadFileInfo, error) {
 	for i := 0; i < opt.Threads; i++ {
 		go func() {
 			defer workerWG.Done()
-			worker(ctx, client, opt.URL, opt.Headers, chunkQ, writeCh, &progress, &active)
+			worker(ictx, client, opt.URL, opt.Headers, chunkQ, writeCh, &progress, &active)
 		}()
 	}
 
@@ -475,15 +483,15 @@ func df(ctx context.Context, opt *DownloadOption) (*DownLoadFileInfo, error) {
 	}()
 
 	// 启动速度监控
-	go speedMonitor(ctx, size, &progress, &active, opt.Callback)
+	go speedMonitor(ictx, size, &progress, &active, opt.Callback)
 
 	// 等待下载完成或 ctx 取消
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
+		case <-ictx.Done():
+			return nil, ictx.Err()
 		case <-ticker.C:
 			if atomic.LoadInt64(&progress) >= size {
 				writerWG.Wait()

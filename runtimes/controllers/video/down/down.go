@@ -198,12 +198,12 @@ func Download(c *gin.Context) {
 			proxysC = append(proxysC, pc)
 		}
 	}
-	errs := medias.GetPlatformVideos(dt.Urls, proxysC, dt.Path, user.Id, "", false, false)
-	var errmsg []string
-	for _, err := range errs {
-		errmsg = append(errmsg, err.Error())
-	}
-	response.Success(c, nil, strings.Join(errmsg, "\n"))
+	go medias.GetPlatformVideos(dt.Urls, proxysC, dt.Path, user.Id, "", false, false)
+	// var errmsg []string
+	// for _, err := range errs {
+	// 	errmsg = append(errmsg, err.Error())
+	// }
+	response.Success(c, nil, "")
 }
 
 func ReDownload(c *gin.Context) {

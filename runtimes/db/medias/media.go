@@ -8,10 +8,11 @@ import (
 	"net/url"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
+	"tools/runtimes/db/messages"
+	"tools/runtimes/db/notifies"
 	"tools/runtimes/downloader"
 	"tools/runtimes/funcs"
 	"tools/runtimes/mainsignal"
@@ -155,120 +156,160 @@ func GetPlatformVideos(urls string, pxys []*proxy.ProxyConfig, path string, admi
 		systype = config.DefStorage
 	}
 	urlSplit := funcs.ExtractURLs(urls)
+	urlsptlen := len(urlSplit)
 
 	var errs []error
-	if len(urlSplit) > 0 {
-		mediaMap := getNeedDownUrls(urlSplit, redown)
-		var wg sync.WaitGroup
+	if urlsptlen > 0 {
+		mediaMap, total := getNeedDownUrls(urlSplit, redown)
+		messages.SuccessMsg(fmt.Sprintf("待下载视频数: %d, 总数: %d", total, urlsptlen))
+		// var wg sync.WaitGroup
+		var idx int
 		for _, md := range mediaMap {
-			wg.Go(func() {
-				t, proxy, pc, _ := getTransport(pxys)
-				if pc != nil {
-					defer pc.Close(false)
-				}
-				info, err := parser.ParseVideoShareUrlByRegexp(md.Url, t)
-				if err != nil {
-					errs = append(errs, errors.New(md.Url+" 下载错误:"+err.Error()))
-					fmt.Println("视频解析错误:", err)
-					return
-				}
+			if idx > 0 {
+				// 为防止获取过快ip被禁止,随机休眠
+				time.Sleep(time.Duration(funcs.RandomNumber(5, 30)) * time.Second)
+			}
+			idx++
+			if err := md.downByShareLink(adminID, pxys, path, systype, userDir); err != nil {
+				errs = append(errs, err)
+			}
 
-				if md.Id < 1 {
-					mmd := new(Media)
-					dbs.DB().Model(&Media{}).Where("video_id = ?", info.VideoID).Find(mmd)
-					if mmd.Id > 0 {
-						md = mmd
-					}
-				}
+		}
+		errl := len(errs)
+		// messages.SuccessMsg(fmt.Sprintf("本次视频下载完成!成功: %d, 失败: %d", (total - errl), errl))
+		nty := notifies.NewNotify()
+		nty.AdminID = adminID
+		nty.Done = true
+		nty.Title = "下载完成"
+		nty.Description = fmt.Sprintf("您提交的 %d 个下载", urlsptlen)
+		nty.Content = fmt.Sprintf("本次视频下载完成!成功: %d, 失败: %d", (total - errl), errl)
+		nty.Meta = time.Now().Format("2006-01-02 15:04:05")
+		nty.Type = "success"
+		nty.Send()
+	} else {
+		nty := notifies.NewNotify()
+		nty.AdminID = adminID
+		nty.Done = true
+		nty.Type = "error"
+		nty.Title = "本次提交下载失败!"
+		// messages.ErrorMsg("找不到下载链接")
+		nty.Send()
+		errs = append(errs, errors.New("找不到下载连接"))
+	}
+	return errs
+}
 
-				// 解析完成后需要先获取平台用户
-				var mediaUser *MediaUser
-				if info.Author.Uid != "" {
-					mu := mediaUserGetter(
-						info.Author.Uid,
-						info.Author.Name,
-						info.Author.Avatar,
-						info.Author.SearchID,
-						info.Platform,
-						proxy,
-						adminID,
-					)
-					mediaUser = mu
-					if userDir == true {
-						path = fmt.Sprintf("%s/%s/%s", path, info.Platform, info.Author.Name)
-					}
-				}
+func (md *Media) downByShareLink(adminID int64, pxys []*proxy.ProxyConfig, path, systype string, userDir bool) error {
+	t, proxy, pc, _ := getTransport(pxys)
+	if pc != nil {
+		defer pc.Close(false)
+	}
+	info, err := parser.ParseVideoShareUrlByRegexp(md.Url, t)
 
-				mp, _ := MKDBNameID(path, adminID)
-				// fmt.Println(err, "---", mp)
-				// panic("----")
+	if err != nil {
+		// errs = append(errs, errors.New(md.Url+" 下载错误:"+err.Error()))
+		fmt.Println("视频解析错误:", err)
+		return err
+	}
 
-				if info.CoverUrl != "" {
-					if coverStr, _, _, _, err := storage.Load(systype).Download(mainsignal.MainCtx, info.CoverUrl, &downloader.DownloadOption{
-						Proxy: proxy,
-					}); err == nil {
-						md.Cover = coverStr
-						md.CoverStorage = systype
-					}
-				}
+	if md.Id < 1 {
+		mmd := new(Media)
+		dbs.DB().Model(&Media{}).Where("video_id = ? and platform = ?", info.VideoID, info.Platform).Find(mmd)
+		if mmd.Id > 0 {
+			mmd.Url = md.Url
+			mmd.UrlMd5 = md.UrlMd5
+			md = mmd
+		}
+	}
 
-				md.Title = info.Title
-				md.VideoID = info.VideoID
-				md.UserId = mediaUser.Id
-				md.Platform = info.Platform
-				md.AdminID = adminID
-				md.Sizes = 0
-				md.Numbers = 0
-				md.User = mediaUser
-				if mp != nil {
-					md.PathID = mp.ID
-				}
-				md.Path = path
+	// 解析完成后需要先获取平台用户
+	var mediaUser *MediaUser
+	if info.Author.Uid != "" {
+		mu := mediaUserGetter(
+			info.Author.Uid,
+			info.Author.Name,
+			info.Author.Avatar,
+			info.Author.SearchID,
+			info.Platform,
+			proxy,
+			adminID,
+		)
+		mediaUser = mu
+		if userDir == true {
+			path = fmt.Sprintf("%s/%s/%s", path, info.Platform, info.Author.Name)
+		}
+	}
 
-				var downUrls []string
+	mp, _ := MKDBNameID(path, adminID)
+	// fmt.Println(err, "---", mp)
+	// panic("----")
 
-				if info.VideoUrl != "" {
-					downUrls = []string{info.VideoUrl}
-				} else if len(info.Images) > 0 {
-					for _, v := range info.Images {
-						downUrls = append(downUrls, v.Url)
-					}
-				} else {
-					// fmt.Println("找不到任何可下载内容...")
-					errs = append(errs, errors.New(md.Url+" 找不到可下载内容!"))
-					return
-				}
+	if info.CoverUrl != "" {
+		if coverStr, _, _, _, err := storage.Load(systype).Download(mainsignal.MainCtx, info.CoverUrl, &downloader.DownloadOption{
+			Proxy: proxy,
+		}); err == nil {
+			md.Cover = coverStr
+			md.CoverStorage = systype
+		}
+	}
 
-				if err := md.Save(); err != nil {
-					errs = append(errs, errors.New(md.Url+" 媒体文件保存失败:"+err.Error()))
-					// fmt.Println(err, "media保存错误!", md.Id)
-					return
-				}
+	md.Title = info.Title
+	md.VideoID = info.VideoID
+	md.UserId = mediaUser.Id
+	md.Platform = info.Platform
+	md.AdminID = adminID
+	md.Sizes = 0
+	md.Numbers = 0
+	md.User = mediaUser
+	if mp != nil {
+		md.PathID = mp.ID
+	}
+	md.Path = path
 
-				fls := len(downUrls)
+	var downUrls []string
 
-				if fls > 0 {
-					var ccv string
-					if md.Cover != "" {
-						ccv = storage.Load(systype).URL(md.Cover)
-					} else {
-						ccv = info.CoverUrl
-					}
-					msg := md.Message(fls, ccv, md.PathID)
-					msg.Sent("开始下载...", 0)
-					go func() {
-						_, err := md.DownMediaFiles(downUrls, proxy, msg)
-						if err != nil {
-							errs = append(errs, errors.New(md.Url+" 文件下载失败:"+err.Error()))
-						}
+	if info.VideoUrl != "" {
+		downUrls = []string{info.VideoUrl}
+	} else if len(info.Images) > 0 {
+		for _, v := range info.Images {
+			downUrls = append(downUrls, v.Url)
+		}
+	} else {
+		// fmt.Println("找不到任何可下载内容...")
+		// errs = append(errs, errors.New(md.Url+" 找不到可下载内容!"))
+		return errors.New(md.Url + " 找不到可下载内容!")
+	}
 
-						var estrs []string
-						for _, v := range errs {
-							estrs = append(estrs, v.Error())
-						}
+	if err := md.Save(); err != nil {
+		// errs = append(errs, errors.New(md.Url+" 媒体文件保存失败:"+err.Error()))
+		// fmt.Println(err, "media保存错误!", md.Id)
+		return errors.New(md.Url + " 媒体文件保存失败:" + err.Error())
+	}
 
-						err = dbs.Write(func(tx *gorm.DB) error {
-							return tx.Exec(`
+	fls := len(downUrls)
+
+	if fls > 0 {
+		var ccv string
+		if md.Cover != "" {
+			ccv = storage.Load(systype).URL(md.Cover)
+		} else {
+			ccv = info.CoverUrl
+		}
+		msg := md.Message(fls, ccv, md.PathID)
+		msg.Sent("开始下载...", 0)
+		// go func() {
+		_, err := md.DownMediaFiles(downUrls, proxy, msg)
+		if err != nil {
+			return errors.New(md.Url + " 文件下载失败:" + err.Error())
+		}
+
+		// var estrs []string
+		// for _, v := range errs {
+		// 	estrs = append(estrs, v.Error())
+		// }
+
+		err = dbs.Write(func(tx *gorm.DB) error {
+			return tx.Exec(`
 UPDATE media
 SET
     sizes = (
@@ -283,29 +324,27 @@ SET
     )
 WHERE media.id = ?
 `, md.Id).Error
-						})
+		})
 
-						if mediaUser != nil {
-							if err := dbs.DB().Model(&Media{}).
-								Select("count(*)").
-								Where("user_id = ? and removed = 0", mediaUser.Id).
-								Scan(&mediaUser.Videos).Error; err == nil {
-								dbs.Write(func(tx *gorm.DB) error {
-									return tx.Model(&MediaUser{}).Where("id = ?", mediaUser.Id).Update("videos", mediaUser.Videos).Error
-								})
-							}
-						}
-						msg.Done(strings.Join(estrs, "\n"))
-					}()
-				}
-			})
-			wg.Wait()
-
+		if mediaUser != nil {
+			if err := dbs.DB().Model(&Media{}).
+				Select("count(*)").
+				Where("user_id = ? and removed = 0", mediaUser.Id).
+				Scan(&mediaUser.Videos).Error; err == nil {
+				dbs.Write(func(tx *gorm.DB) error {
+					return tx.Model(&MediaUser{}).Where("id = ?", mediaUser.Id).Update("videos", mediaUser.Videos).Error
+				})
+			}
 		}
-	} else {
-		errs = append(errs, errors.New("找不到下载连接"))
+
+		if bt, err := config.Json.Marshal(md); err == nil {
+			msg.Done(string(bt))
+		} else {
+			msg.Done("")
+		}
+		// }()
 	}
-	return errs
+	return nil
 }
 
 // 查找或创建媒体用户
@@ -368,8 +407,10 @@ func getTransport(pxs []*proxy.ProxyConfig) (*http.Transport, string, *proxy.Pro
 }
 
 // 去重等待下载的url, 返回 md5 => urlstring
-func getNeedDownUrls(urls []string, reget bool) map[string]*Media {
+func getNeedDownUrls(urls []string, reget bool) (map[string]*Media, int) {
 	var md5s []string
+	var total int
+	total = len(urls)
 	md5map := make(map[string]*Media)
 	for _, v := range urls {
 		md5str := funcs.Md5String(v)
@@ -386,6 +427,7 @@ func getNeedDownUrls(urls []string, reget bool) map[string]*Media {
 	for _, v := range exists {
 		if reget != true && len(v.Files) > 0 {
 			delete(md5map, v.UrlMd5)
+			total--
 			v.Removed = 0
 			v.Save()
 		} else if _, ok := md5map[v.UrlMd5]; ok {
@@ -393,7 +435,7 @@ func getNeedDownUrls(urls []string, reget bool) map[string]*Media {
 		}
 	}
 
-	return md5map
+	return md5map, total
 }
 
 func (m *Media) ReDown(pcs []*proxy.ProxyConfig, adminID int64) (errs []error) {
@@ -502,7 +544,8 @@ func (m *Media) DownMediaFiles(fls []string, proxy string, msg *MediaResponseMes
 			mainsignal.MainCtx,
 			v,
 			&downloader.DownloadOption{
-				Proxy: proxy,
+				Proxy:   proxy,
+				Timeout: time.Second * 30,
 				Callback: func(total, downloaded, speed, workers int64) {
 					msgstr := fmt.Sprintf(
 						"%.2f%% %s/s %s",

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"tools/runtimes/clearer"
 	"tools/runtimes/config"
 	"tools/runtimes/ffmpeg"
@@ -43,16 +44,15 @@ func (m *Maker) Output(ctx context.Context, output string) error {
 		return err
 	}
 
-	// defer func() {
-	// 	if strings.Contains(m.tempdir, ".tmp") {
-	// 		fmt.Println(os.RemoveAll(m.tempdir), "删除临时目录")
-	// 	}
-	// }()
+	defer func() {
+		if strings.Contains(m.tempdir, ".tmp") {
+			fmt.Println(os.RemoveAll(m.tempdir), "删除临时目录")
+		}
+	}()
 
 	if err := m.splitVideoToImg(); err != nil {
 		return err
 	}
-	// panic("----")
 	if err := m.mkimgs(); err != nil {
 		return err
 	}

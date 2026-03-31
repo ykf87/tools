@@ -52,7 +52,7 @@ func init() {
 	// }()
 
 	// imgmk()
-	mkvideo()
+	// mkvideo()
 }
 
 func mkvideo() {

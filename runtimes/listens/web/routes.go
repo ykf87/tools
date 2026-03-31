@@ -126,6 +126,7 @@ func router() {
 			spiderVideoGroup.POST("open", down.OpenDir)
 			spiderVideoGroup.POST("remove", video.RemoveVideo)
 			spiderVideoGroup.POST("audio/uploads", audios.Uploads)
+			spiderVideoGroup.GET("secmk", video.SecmkData)
 		}
 		spiderUserGroup := spiderGroup.Group("user")
 		{
