@@ -166,7 +166,7 @@ func (t *Task) genrunner(v *TaskClients) (runner.Runner, error) {
 					pc = pcc
 				}
 			} else if bs.ProxyConfig != "" {
-				if pcc, err := proxy.Client(bs.ProxyConfig, "", 0); err == nil {
+				if pcc, err := proxy.Client(bs.ProxyConfig, "", 0, ""); err == nil {
 					pc = pcc
 				}
 			}

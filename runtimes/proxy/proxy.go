@@ -33,7 +33,7 @@ type ProxyConfig struct {
 	Network    string
 	Path       string
 	Extra      map[string]any
-	Transfers  []string
+	Transfers  string
 	ConfMd5    string
 	server     *core.Instance
 	Guard      bool // 是否是进程守护,也就是和程序一起运行,不执行关闭操作
@@ -56,7 +56,7 @@ func IsRuning(configStr string) *ProxyConfig {
 }
 
 // 获取用于启动的结构体,内部会解析出outbound
-func Client(configStr, addr string, port int, transfers ...string) (*ProxyConfig, error) {
+func Client(configStr, addr string, port int, transfers string) (*ProxyConfig, error) {
 	confMd5 := funcs.Md5String(configStr)
 	if p, ok := proxysMap.Load(confMd5); ok { // 如果已经启动则直接返回
 		pc := p.(*ProxyConfig)
@@ -131,7 +131,7 @@ func (this *ProxyConfig) Run(guard bool) (*ProxyConfig, error) {
 	}
 	this.Guard = guard
 
-	configJSON, err := this.GenerateXrayConfig(this.Transfers...)
+	configJSON, err := this.GenerateXrayConfig(this.Transfers)
 	if err != nil {
 		return nil, err
 	}
@@ -144,6 +144,7 @@ func (this *ProxyConfig) Run(guard bool) (*ProxyConfig, error) {
 		return nil, errors.New(i18n.T("Proxy created error"))
 	}
 
+	// fmt.Println("启动代理:", configJSON)
 	if err := server.Start(); err != nil {
 		return nil, err
 	}
@@ -178,36 +179,43 @@ func (this *ProxyConfig) Close(enforce bool) error {
 	return nil
 }
 
-// 手动构造xray的启动配置
-func (this *ProxyConfig) GenerateXrayConfig(transfers ...string) (*core.Config, error) {
+// 手动构造xray的启动配置,其实中转仅需一个，无需多个
+func (this *ProxyConfig) GenerateXrayConfig(transfers string) (*core.Config, error) {
 	inbound, err := BuildInbound(this.ListenAddr, this.ListenPort)
 	if err != nil {
 		return nil, err
 	}
 
-	outbound, err := this.GetOutbound()
+	outbound, err := this.GetOutbound(transfers)
 	if err != nil {
 		return nil, err
 	}
 
-	var outs []*Outbound
+	outs := []*Outbound{outbound}
+
+	if transfers != "" {
+		nextProxy, _ := ParseProxy(transfers)
+		nextOut, _ := nextProxy.GetOutbound("")
+
+		outs = append(outs, nextOut)
+	}
 
 	// 转接的代理配置
-	for _, v := range transfers {
-		cli, err := Client(v, "", 0)
-		if err != nil {
-			continue
-		}
-		pcs, err := cli.Run(false)
-		if err == nil {
-			o, err := pcs.GetOutbound()
-			if err == nil {
-				outs = append(outs, o)
-			}
-		}
-
-	}
-	outs = append(outs, outbound)
+	// for _, v := range transfers {
+	// 	cli, err := Client(v, "", 0)
+	// 	if err != nil {
+	// 		continue
+	// 	}
+	// 	pcs, err := cli.Run(false)
+	// 	if err == nil {
+	// 		o, err := pcs.GetOutbound()
+	// 		fmt.Println(err, "构建outbound结果")
+	// 		if err == nil {
+	// 			outs = append(outs, o)
+	// 		}
+	// 	}
+	// }
+	// outs = append(outs, outbound)
 
 	configMap := map[string]any{
 		"inbounds":  []any{inbound},
@@ -215,6 +223,9 @@ func (this *ProxyConfig) GenerateXrayConfig(transfers ...string) (*core.Config, 
 	}
 
 	data, err := json.Marshal(configMap)
+
+	// fmt.Println(string(data), "----配置信息 io-bound")
+
 	if err != nil {
 		return nil, err
 	}
@@ -274,12 +285,12 @@ func (this *ProxyConfig) Delay(urls []string) (map[string]int64, error) {
 }
 
 // 获取ip所在国家iso
-func GetLocal(configStr string, transfers ...string) (*ipinfos.Ipinfo, error) {
+func GetLocal(configStr string, transfers string) (*ipinfos.Ipinfo, error) {
 	confMd5 := funcs.Md5String(configStr)
 	var pc *ProxyConfig
 	pcm, ok := proxysMap.Load(confMd5)
 	if !ok {
-		cli, err := Client(configStr, "", 0, transfers...)
+		cli, err := Client(configStr, "", 0, transfers)
 		if err != nil {
 			return nil, err
 		}

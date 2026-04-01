@@ -44,6 +44,7 @@ type Media struct {
 	Files        []*MediaFile `json:"files" gorm:"foreignKey:MID;constraint:OnDelete:CASCADE"` // 文件列表
 	User         *MediaUser   `json:"user" gorm:"foreignKey:UserId;references:Id"`             // 用户
 	Used         int          `json:"used" gorm:"default:0;index"`                             // 是否通过获取接口使用过
+	SecMaker     int          `json:"sec_maker" gorm:"index;default:0"`                        // 被二创创作过几次
 	// TempFile   string      `json:"temp_file"`                                          // 删除后的文件路径
 	// RemoveTime int64       `json:"remove_time" gorm:"default:0;index"`                 // 删除时间
 	// Filetime   int64       `json:"filetime" gorm:"index;default:0" form:"filetime"`    // 文件最后修改日期

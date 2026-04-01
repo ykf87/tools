@@ -15,8 +15,14 @@ import (
 )
 
 type Outbound struct {
-	Protocol string         `json:"protocol"`
-	Settings map[string]any `json:"settings"`
+	// Protocol       string         `json:"protocol"`
+	// Settings       map[string]any `json:"settings"`
+	// StreamSettings map[string]any `json:"streamSettings,omitempty"`
+	Tag            string         `json:"tag,omitempty"`
+	Protocol       string         `json:"protocol"`
+	Settings       map[string]any `json:"settings"`
+	StreamSettings map[string]any `json:"streamSettings,omitempty"`
+	ProxySettings  map[string]any `json:"proxySettings,omitempty"`
 }
 
 func ParseProxy(raw string) (*ProxyConfig, error) {
@@ -40,63 +46,138 @@ func ParseProxy(raw string) (*ProxyConfig, error) {
 	}
 }
 
-func (this *ProxyConfig) GetOutbound() (*Outbound, error) {
+func (this *ProxyConfig) GetOutbound(transfers string) (*Outbound, error) {
+
 	outbound := &Outbound{
 		Protocol: this.Protocol,
 		Settings: map[string]any{},
 	}
 
+	// ✅ 唯一 tag（避免冲突）
+	outbound.Tag = fmt.Sprintf("out-%s-%d", this.RemoteAddr, this.RemotePort)
+
 	switch this.Protocol {
+
 	case "ss", "shadowsocks":
-		// SS 协议的 Settings 通常包含：
-		// "servers": [{ "address": ..., "port": ..., "method": ..., "password": ... }]
 		outbound.Protocol = "shadowsocks"
-		servers := []map[string]any{
+		outbound.Settings["servers"] = []map[string]any{
 			{
 				"address":  this.RemoteAddr,
 				"port":     this.RemotePort,
-				"method":   this.Security, // method 对应 Security 字段
+				"method":   this.Security,
 				"password": this.Password,
 			},
 		}
-		outbound.Settings["servers"] = servers
+
 	case "socks":
-		outbound.Settings["servers"] = []map[string]any{
-			{"address": this.RemoteAddr, "port": this.RemotePort, "user": this.Username, "pass": this.Password},
+		outbound.Protocol = "socks"
+		server := map[string]any{
+			"address": this.RemoteAddr,
+			"port":    this.RemotePort,
 		}
+
+		// ✅ 只有有账号时才加 users
+		if this.Username != "" && this.Password != "" {
+			server["users"] = []map[string]any{
+				{
+					"user": this.Username,
+					"pass": this.Password,
+				},
+			}
+		}
+
+		outbound.Settings["servers"] = []map[string]any{server}
+
 	case "vmess":
+		outbound.Protocol = "vmess"
 		outbound.Settings["vnext"] = []map[string]any{
 			{
 				"address": this.RemoteAddr,
 				"port":    this.RemotePort,
 				"users": []map[string]any{
-					{"id": this.UUID, "alterId": 0, "security": this.Security},
+					{
+						"id":       this.UUID,
+						"alterId":  0,
+						"security": this.Security,
+					},
 				},
 			},
 		}
+
 	case "vless":
+		outbound.Protocol = "vless"
 		outbound.Settings["vnext"] = []map[string]any{
-			{"address": this.RemoteAddr, "port": this.RemotePort, "users": []map[string]any{{"id": this.UUID}}},
+			{
+				"address": this.RemoteAddr,
+				"port":    this.RemotePort,
+				"users": []map[string]any{
+					{"id": this.UUID},
+				},
+			},
 		}
+
 	case "trojan":
+		outbound.Protocol = "trojan"
 		outbound.Settings["servers"] = []map[string]any{
-			{"address": this.RemoteAddr, "port": this.RemotePort, "password": this.Password},
+			{
+				"address":  this.RemoteAddr,
+				"port":     this.RemotePort,
+				"password": this.Password,
+			},
 		}
+
 	case "http", "https":
-		mmsfd := make(map[string]any)
-		mmsfd["address"] = this.RemoteAddr
-		mmsfd["port"] = this.RemotePort
+		server := map[string]any{
+			"address": this.RemoteAddr,
+			"port":    this.RemotePort,
+		}
+
 		if this.Username != "" && this.Password != "" {
-			mmsfd["users"] = []map[string]any{{
-				"user": this.Username,
-				"pass": this.Password,
-			}}
+			server["users"] = []map[string]any{
+				{
+					"user": this.Username,
+					"pass": this.Password,
+				},
+			}
 		}
-		outbound.Settings["servers"] = []map[string]any{
-			mmsfd,
+
+		outbound.Settings["servers"] = []map[string]any{server}
+
+		// https → http + tls
+		if this.Protocol == "https" {
+			outbound.Protocol = "http"
+			outbound.StreamSettings = map[string]any{
+				"security": "tls",
+			}
+		} else {
+			outbound.Protocol = "http"
 		}
+
 	default:
 		return nil, fmt.Errorf("unsupported protocol: %s", this.Protocol)
+	}
+
+	// =========================
+	// ✅ 核心：处理 transfers（中转）
+	// =========================
+	if transfers != "" {
+
+		// 1️⃣ 解析 transfers（必须是你已有的 ParseProxy）
+		nextProxy, err := ParseProxy(transfers)
+		if err != nil {
+			return nil, fmt.Errorf("parse transfer failed: %w", err)
+		}
+
+		// 2️⃣ 构建“下游 outbound”（这里只是拿 tag）
+		nextOutbound, err := nextProxy.GetOutbound("")
+		if err != nil {
+			return nil, fmt.Errorf("build transfer outbound failed: %w", err)
+		}
+
+		// 3️⃣ 关键：挂 proxySettings
+		outbound.ProxySettings = map[string]any{
+			"tag": nextOutbound.Tag,
+		}
 	}
 
 	return outbound, nil
@@ -416,6 +497,7 @@ func parseHttps(row string) (*ProxyConfig, error) {
 	cfg.RemotePort = port
 	cfg.Username = username
 	cfg.Password = pwd
+	fmt.Println(*cfg, "配置")
 
 	return cfg, nil
 }

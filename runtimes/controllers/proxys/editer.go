@@ -2,6 +2,7 @@ package proxys
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -117,15 +118,17 @@ func Editer(c *gin.Context) {
 		}
 
 		if needGetLocal == true {
-			if loc, err := proxy.GetLocal(px.GetConfig(), px.GetTransfer()); err == nil {
-				px.Local = loc.Iso
-				px.Lang = loc.Lang
-				px.Timezone = loc.Timezone
-				px.Ip = loc.Ip
-				if err := px.Save(px, tx); err != nil {
-					return err
+			go func() {
+				if loc, err := proxy.GetLocal(px.GetConfig(), px.GetTransfer()); err == nil {
+					px.Local = loc.Iso
+					px.Lang = loc.Lang
+					px.Timezone = loc.Timezone
+					px.Ip = loc.Ip
+					if err := px.Save(px, tx); err != nil {
+						return
+					}
 				}
-			}
+			}()
 		}
 		return nil
 	}); err != nil {
@@ -151,7 +154,7 @@ func Remove(c *gin.Context) {
 	id := c.Param("id")
 	pc := proxys.GetById(id)
 	if pc != nil && pc.Id > 0 {
-		if client, err := proxy.Client(pc.GetConfig(), "", 0); err == nil {
+		if client, err := proxy.Client(pc.GetConfig(), "", 0, ""); err == nil {
 			if client != nil && client.IsRuning() {
 				client.Close(true)
 			}
@@ -243,7 +246,7 @@ func BatchAdd(c *gin.Context) {
 			continue
 		}
 
-		ot, err := proxy.Client(v, "", 0)
+		ot, err := proxy.Client(v, "", 0, "")
 		if err != nil || ot == nil {
 			continue
 		}
@@ -331,11 +334,13 @@ func Ping(c *gin.Context) {
 	for _, id := range strings.Split(ids, ",") {
 		pc := proxys.GetById(id)
 		if pc != nil && pc.Id > 0 {
-			pxc, err := proxy.Client(pc.GetConfig(), "", 0)
+			pxc, err := proxy.Client(pc.GetConfig(), "", 0, "")
 			if err != nil {
-				response.Error(c, http.StatusBadRequest, i18n.T("Error"), nil)
+				response.Error(c, http.StatusBadRequest, err.Error(), nil)
 				return
 			}
+			pxc.Transfers = pc.Transfer
+			fmt.Println(pxc.Listened(), "-----监听地址")
 
 			go func(uid, pid int64) {
 				// proxy-ping

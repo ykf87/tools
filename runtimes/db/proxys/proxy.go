@@ -168,7 +168,7 @@ func GetProxyConfigByID(id int64) (*proxy.ProxyConfig, error) {
 // 停止配置的代理
 // enforce 是否强制关闭
 func (this *Proxy) Stop(enforce bool) error {
-	pc, err := proxy.Client(this.GetConfig(), "", 0)
+	pc, err := proxy.Client(this.GetConfig(), "", 0, "")
 	if err != nil {
 		return err
 	}

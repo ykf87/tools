@@ -109,7 +109,7 @@ func (this *Browser) Open(opt *bs.Options) error {
 				}
 			}
 		} else if this.ProxyConfig != "" {
-			if pc, err := proxy.Client(this.ProxyConfig, "", 0); err == nil {
+			if pc, err := proxy.Client(this.ProxyConfig, "", 0, ""); err == nil {
 				if _, err := pc.Run(false); err == nil {
 					opt.Pc = pc
 				}
@@ -234,7 +234,7 @@ func (this *Browser) GenProxyConfig() (*proxy.ProxyConfig, error) {
 	if this.Proxy > 0 {
 		return proxys.GetProxyConfigByID(this.Proxy)
 	} else if this.ProxyConfig != "" {
-		return proxy.Client(this.ProxyConfig, "", 0)
+		return proxy.Client(this.ProxyConfig, "", 0, "")
 	}
 	return nil, errors.New("No Proxy")
 }
@@ -286,7 +286,7 @@ func GenBrowserOpt(id int64, isshow bool) *bs.Options {
 			}()
 		}
 	} else if row.ProxyConfig != "" {
-		if ppp, err := proxy.Client(row.ProxyConfig, "", 0); err != nil {
+		if ppp, err := proxy.Client(row.ProxyConfig, "", 0, ""); err != nil {
 			opt.Pc = ppp
 		}
 	}

@@ -13,6 +13,7 @@ import (
 	"tools/runtimes/logs"
 	"tools/runtimes/mainsignal"
 
+	"github.com/chromedp/cdproto/emulation"
 	"github.com/chromedp/chromedp"
 	jsoniter "github.com/json-iterator/go"
 )
@@ -93,6 +94,14 @@ func (b *Browser) OpenBrowser() error {
 	if b.Opts.Url != "" {
 		url = b.Opts.Url
 	}
+
+	// 设置时区
+	if b.Opts.Timezone != "" {
+		chromedp.Run(ctx,
+			emulation.SetTimezoneOverride(b.Opts.Timezone),
+		)
+	}
+
 	b.GoToUrl(url)
 
 	b.watchClose()

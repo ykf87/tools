@@ -43,3 +43,9 @@ func AddMUTagsBySlice(tagNames []string) []*MediaUserTag {
 	}
 	return nil
 }
+
+func GetMUIDsByTagIDs(tagIDs []int64) []int64 {
+	var uids []int64
+	dbs.DB().Model(&MediaUserToTag{}).Select("user_id").Where("tag_id in ?", tagIDs).Scan(&uids)
+	return uids
+}

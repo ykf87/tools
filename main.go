@@ -62,10 +62,10 @@ import (
 )
 
 func main() {
-	if checkLocal() != nil {
-		time.Sleep(time.Second * 10)
-		return
-	}
+	// if checkLocal() != nil {
+	// 	time.Sleep(time.Second * 10)
+	// 	return
+	// }
 
 	// data, err := os.ReadFile("./data/logout.ico")
 	// if err != nil {

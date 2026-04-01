@@ -203,7 +203,7 @@ func Editer(c *gin.Context) {
 	}
 	if phoneObj.ProxyConfig != l.ProxyConfig {
 		if phoneObj.Proxy < 1 {
-			loc, err := proxy.GetLocal(l.ProxyConfig)
+			loc, err := proxy.GetLocal(l.ProxyConfig, "")
 			if err != nil {
 				response.Error(c, http.StatusNotFound, err.Error(), nil)
 				return

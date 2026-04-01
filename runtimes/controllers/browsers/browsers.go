@@ -215,7 +215,7 @@ func Editer(c *gin.Context) {
 	}
 	if browserObj.ProxyConfig != l.ProxyConfig {
 		if browserObj.Proxy < 1 {
-			loc, err := proxy.GetLocal(l.ProxyConfig)
+			loc, err := proxy.GetLocal(l.ProxyConfig, "")
 			if err != nil {
 				response.Error(c, http.StatusNotFound, err.Error(), nil)
 				return

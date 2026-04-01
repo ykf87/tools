@@ -56,10 +56,13 @@ func init() {
 }
 
 func mkvideo() {
+	audio := &videoproc.AudioInpter{
+		Url: storage.Load("").URL("81/b7/81b7b7a8d017fef834ca41b71d9027e5246239f58b232bc27a645254a724ca39.mp3"),
+	}
 	n1, _ := videoproc.SecMaker([]string{
-		storage.Load("").URL("12/39/123948ebf304edb9b5d72733673244bf1acbd50f98ea2f9efec7ba7cc5336c10.mp4"),
-		storage.Load("").URL("82/7b/827b26cf31580022db6d481bc7a7cfb19a4f473ab03182c5df037347ee68f663.mp4"),
-	}, nil) //
+		storage.Load("").URL("e6/b6/e6b64f9efa9749dbedce693a11d335acbc8ed5aaa810bc4e0e35566328e15ac4.mp4"),
+		// storage.Load("").URL("82/7b/827b26cf31580022db6d481bc7a7cfb19a4f473ab03182c5df037347ee68f663.mp4"),
+	}, audio)
 	// n1.AmixAudio = &videoproc.AudioInpter{
 	// 	Url: storage.Load("").URL("81/b7/81b7b7a8d017fef834ca41b71d9027e5246239f58b232bc27a645254a724ca39.mp3"),
 	// }
