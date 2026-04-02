@@ -497,7 +497,7 @@ func parseHttps(row string) (*ProxyConfig, error) {
 	cfg.RemotePort = port
 	cfg.Username = username
 	cfg.Password = pwd
-	fmt.Println(*cfg, "配置")
+	// fmt.Println(*cfg, "配置")
 
 	return cfg, nil
 }

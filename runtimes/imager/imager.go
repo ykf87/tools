@@ -101,6 +101,9 @@ func (img *Image) run(output string) (err error) {
 
 func (img *Image) buildpip() []Processor {
 	var steps []Processor
+	if img.Rotation != nil {
+		steps = append(steps, img.Rotation)
+	}
 	if img.Crop != nil {
 		steps = append(steps, img.Crop)
 	}
@@ -115,9 +118,6 @@ func (img *Image) buildpip() []Processor {
 	}
 	if img.Resize != nil {
 		steps = append(steps, img.Resize)
-	}
-	if img.Rotation != nil {
-		steps = append(steps, img.Rotation)
 	}
 	if img.Linear != nil {
 		steps = append(steps, img.Linear)

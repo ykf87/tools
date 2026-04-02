@@ -7,7 +7,7 @@ import (
 	"tools/runtimes/ffmpeg"
 )
 
-func probeMedia(path string) (*MediaInfo, error) {
+func ProbeMedia(path string) (*MediaInfo, error) {
 	out, _, err := ffmpeg.RunFfporbe(true,
 		"-v", "quiet",
 		"-print_format", "json",

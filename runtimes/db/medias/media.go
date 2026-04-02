@@ -604,19 +604,20 @@ func (m *Media) Save() error {
 	return dbs.Write(func(tx *gorm.DB) error {
 		if m.Id > 0 {
 			if err := tx.Model(&Media{}).Where("id = ?", m.Id).Updates(map[string]any{
-				"path_id":  m.PathID,
-				"path":     m.Path,
-				"title":    m.Title,
-				"platform": m.Platform,
-				"removed":  m.Removed,
-				"url":      m.Url,
-				"url_md5":  m.UrlMd5,
-				"user_id":  m.UserId,
-				"video_id": m.VideoID,
-				"sizes":    m.Sizes,
-				"numbers":  m.Numbers,
-				"admin_id": m.AdminID,
-				"cover":    m.Cover,
+				"path_id":   m.PathID,
+				"path":      m.Path,
+				"title":     m.Title,
+				"platform":  m.Platform,
+				"removed":   m.Removed,
+				"url":       m.Url,
+				"url_md5":   m.UrlMd5,
+				"user_id":   m.UserId,
+				"video_id":  m.VideoID,
+				"sizes":     m.Sizes,
+				"numbers":   m.Numbers,
+				"admin_id":  m.AdminID,
+				"cover":     m.Cover,
+				"sec_maker": m.SecMaker,
 			}).Error; err != nil {
 				fmt.Println("media 更新失败:", err)
 				return err

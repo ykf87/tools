@@ -158,3 +158,30 @@ func AddAudio(src, title string) (*Audio, error) {
 
 	return audio, nil
 }
+
+// 获取audio id 列表 或者 audio tag列表
+func GetByIDsOrTagIDs(aids, atagids []int64) []*Audio {
+	var ads []*Audio
+	if len(aids) > 0 || len(atagids) > 0 {
+		query := Dbs.DB().Model(&Audio{}).
+			Select("DISTINCT audios.*").
+			Joins("LEFT JOIN audio_tag_relations atr ON atr.audio_id = audios.id")
+
+		switch {
+		case len(aids) > 0 && len(atagids) > 0:
+			query = query.Where(
+				Dbs.DB().Where("audios.id IN ?", aids).
+					Or("atr.audio_tag_id IN ?", atagids),
+			)
+
+		case len(aids) > 0:
+			query = query.Where("audios.id IN ?", aids)
+
+		case len(atagids) > 0:
+			query = query.Where("atr.audio_tag_id IN ?", atagids)
+		}
+
+		query.Find(&ads)
+	}
+	return ads
+}

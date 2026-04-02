@@ -4,6 +4,7 @@ import (
 	"tools/runtimes/controllers/audios"
 	"tools/runtimes/controllers/browsers"
 	"tools/runtimes/controllers/infor"
+	"tools/runtimes/controllers/ipchecker"
 	"tools/runtimes/controllers/js"
 	"tools/runtimes/controllers/mediasec"
 	"tools/runtimes/controllers/phones"
@@ -161,6 +162,11 @@ func router() {
 	suggGroup := AuthRoutes.Group("sugg")
 	{
 		suggGroup.POST("add", suggs.AddSuggestion)
+	}
+
+	toolsGroup := AuthRoutes.Group("tools")
+	{
+		toolsGroup.POST("ipcheck", ipchecker.IpCheck)
 	}
 
 	// 消息通知

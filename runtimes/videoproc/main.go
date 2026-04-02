@@ -12,30 +12,33 @@ import (
 	"tools/runtimes/config"
 	"tools/runtimes/ffmpeg"
 	"tools/runtimes/imager"
+	"tools/runtimes/obschan"
 )
 
-type limits struct {
-	Queue chan byte
-	// Done
-}
-
-var limit *limits
+var limit *obschan.ObservableChan
 
 func init() {
-	limit = new(limits)
-	limit.Queue = make(chan byte, 1)
+	limit = obschan.NewObservableChan(3)
 }
 
-func SecMaker(videos []string, audio *AudioInpter) (*Maker, error) {
+func GetStatus() (int, int) {
+	return limit.Len(), limit.WaitingSend()
+}
+
+func SecMaker(videos []string, factory *Factory, ctx context.Context, callback func(int, int)) (*Maker, error) {
 	mk := new(Maker)
 	mk.Srcs = videos
-	mk.Audio = audio
-	mk.Factory = new(Factory)
+	// mk.Audio = audio
+	mk.Factory = factory
+	mk.ctx = ctx
+	mk.Callback = callback
 	return mk, nil
 }
 
-func (m *Maker) Output(ctx context.Context, output string) error {
-	m.ctx = ctx
+func (m *Maker) Output(output string) error {
+	limit.SendContext(m.ctx, 1)
+	defer limit.RecvContext(m.ctx)
+
 	if err := m.buildTempDir(); err != nil {
 		return err
 	}
@@ -46,7 +49,8 @@ func (m *Maker) Output(ctx context.Context, output string) error {
 
 	defer func() {
 		if strings.Contains(m.tempdir, ".tmp") {
-			fmt.Println(os.RemoveAll(m.tempdir), "删除临时目录")
+			// fmt.Println(os.RemoveAll(m.tempdir), "删除临时目录")
+			os.RemoveAll(m.tempdir)
 		}
 	}()
 
@@ -81,6 +85,10 @@ func (m *Maker) merge(output string) error {
 		return errors.New("缺少音频文件")
 	}
 
+	if output == "" {
+		output = filepath.Join(m.tempdir, "output.mp4")
+	}
+
 	if _, _, err := ffmpeg.RunFfmpeg(true,
 		"-framerate", strconv.FormatFloat(m.srcs[0].Video.FPS, 'f', -1, 64),
 		"-i", iip,
@@ -106,6 +114,8 @@ func (m *Maker) mkimgs() error {
 		if err != nil {
 			return err
 		}
+		total := len(fls)
+		var idx int
 		for _, f := range fls {
 			task = append(task, func(ctx context.Context) error {
 				select {
@@ -136,7 +146,15 @@ func (m *Maker) mkimgs() error {
 
 				kwh := imager.KeepWH(true)
 				img.KeepWH = &kwh
-				return img.Output(f, 3)
+				err := img.Output(f, 3)
+				idx++
+				if m.Callback != nil {
+					m.Callback(idx, total)
+					// m.ch <- fmt.Sprintf("%d/%d", idx, total)
+				}
+				// fmt.Printf("\r进度: %d/%d", idx, total)
+				return err
+				// return img.Output(f, 3)
 			})
 
 			if m.Factory.Clearer == true { // 变清晰和一般处理需要分开处理
@@ -155,7 +173,7 @@ func (m *Maker) mkimgs() error {
 		}
 	}
 
-	if err := RunWithCancel(m.ctx, 4, task); err != nil {
+	if err := RunWithCancel(m.ctx, 8, task); err != nil {
 		return err
 	}
 	if len(clearCleear) > 0 {
@@ -184,7 +202,7 @@ func (m *Maker) splitVideoToImg() error {
 
 // 构建临时处理目录
 func (m *Maker) buildTempDir() error {
-	m.tempdir = config.FullPath(config.MEDIAROOT, ".tmp", filepath.Base(m.Srcs[0]))
+	m.tempdir = config.FullPath(config.MEDIAROOT, ".tmp", strings.ReplaceAll(filepath.Base(m.Srcs[0]), ".", ""))
 	m.framesDir = filepath.Join(m.tempdir, IMGDIR)
 	if _, err := os.Stat(m.framesDir); err != nil {
 		if err := os.MkdirAll(m.framesDir, os.ModePerm); err != nil {
@@ -197,7 +215,7 @@ func (m *Maker) buildTempDir() error {
 // 先将传入的信息解析
 func (m *Maker) parseInfo() error {
 	for k, v := range m.Srcs {
-		mf, err := probeMedia(v)
+		mf, err := ProbeMedia(v)
 		if err != nil {
 			return err
 		}
@@ -223,7 +241,7 @@ func (m *Maker) parseInfo() error {
 			VideoAudioSrc,
 		)
 		if err == nil {
-			if amf, err := probeMedia(VideoAudioSrc); err == nil {
+			if amf, err := ProbeMedia(VideoAudioSrc); err == nil {
 				mf.Audio = amf.Audio
 				// v.Audio = mf.Audio
 			}
@@ -245,7 +263,7 @@ func (m *Maker) parseInfo() error {
 			m.Audio.Volume = 1
 		}
 
-		mf, err := probeMedia(m.Audio.Url)
+		mf, err := ProbeMedia(m.Audio.Url)
 		if err != nil {
 			return err
 		}
@@ -275,7 +293,7 @@ func (m *Maker) parseInfo() error {
 				return err
 			}
 			os.Remove(aduioname)
-			amf, err := probeMedia(outname)
+			amf, err := ProbeMedia(outname)
 			if err != nil {
 				return err
 			}
@@ -287,7 +305,7 @@ func (m *Maker) parseInfo() error {
 	if m.AmixAudio != nil && m.AmixAudio.Url != "" {
 		outname := filepath.Join(m.tempdir, "amxiAudio.aac")
 		if err := audioAmix([]*AudioInpter{&AudioInpter{Url: m.audio.Audio.Url, Volume: 1.0}, m.AmixAudio}, outname); err == nil {
-			if amf, err := probeMedia(outname); err == nil {
+			if amf, err := ProbeMedia(outname); err == nil {
 				os.Remove(m.audio.Audio.Url)
 				m.audio = amf
 			}

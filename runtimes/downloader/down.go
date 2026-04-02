@@ -90,7 +90,7 @@ var bufPool = sync.Pool{
 	New: func() any { return make([]byte, 128*1024) },
 }
 
-func newClient(proxy string, timeout time.Duration) *http.Client {
+func newClient(proxy string) *http.Client {
 	tr := &http.Transport{
 		MaxIdleConns:        200,
 		MaxIdleConnsPerHost: 200,
@@ -101,14 +101,9 @@ func newClient(proxy string, timeout time.Duration) *http.Client {
 	}
 	jar, _ := cookiejar.New(nil)
 
-	if timeout < 1 {
-		timeout = time.Second * 120
-	}
-
 	return &http.Client{
 		Transport: tr,
 		Jar:       jar,
-		Timeout:   timeout,
 	}
 }
 
@@ -267,10 +262,20 @@ func worker(ctx context.Context, client *http.Client, url string, headers map[st
 }
 
 // 速度监控 goroutine
-func speedMonitor(ctx context.Context, total int64, progress *int64, active *int64, cb Callback) {
+func speedMonitor(
+	ctx context.Context,
+	total int64,
+	progress *int64,
+	active *int64,
+	cb Callback,
+	cancel context.CancelFunc, // 🔥 用于终止下载
+	timeout time.Duration, // 🔥 超时时间
+) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	var last int64
+	var zeroStart time.Time
+	var zeroing bool
 	for {
 		select {
 		case <-ctx.Done():
@@ -282,6 +287,33 @@ func speedMonitor(ctx context.Context, total int64, progress *int64, active *int
 			cur := atomic.LoadInt64(progress)
 			spd := cur - last
 			last = cur
+
+			if timeout > 0 {
+				now := time.Now()
+				// =========================
+				// 🚨 卡死检测核心逻辑
+				// =========================
+				if spd == 0 {
+					if !zeroing {
+						// 第一次进入0速度
+						zeroStart = now
+						zeroing = true
+					} else {
+						// 已经在0速度状态
+						if now.Sub(zeroStart) >= timeout {
+							// 超时 → 终止下载
+							if cancel != nil {
+								cancel()
+							}
+							return
+						}
+					}
+				} else {
+					// 恢复速度 → 重置
+					zeroing = false
+				}
+			}
+
 			if cb != nil {
 				go cb(total, cur, spd, atomic.LoadInt64(active))
 			}
@@ -362,18 +394,19 @@ func df(ctx context.Context, opt *DownloadOption) (*DownLoadFileInfo, error) {
 
 	var ictx context.Context
 	var cancel context.CancelFunc
-	if opt.Timeout > 0 {
-		ictx, cancel = context.WithTimeout(ctx, opt.Timeout)
-	} else {
-		ictx, cancel = context.WithCancel(ctx)
-	}
+	ictx, cancel = context.WithCancel(ctx)
+	// if opt.Timeout > 0 {
+	// 	ictx, cancel = context.WithTimeout(ctx, opt.Timeout)
+	// } else {
+	// 	ictx, cancel = context.WithCancel(ctx)
+	// }
 
 	defer cancel()
 	if opt.Threads <= 0 {
 		opt.Threads = 4
 	}
 
-	client := newClient(opt.Proxy, opt.Timeout)
+	client := newClient(opt.Proxy)
 
 	if len(opt.Cookies) > 0 {
 		u, _ := url.Parse(opt.URL)
@@ -483,7 +516,7 @@ func df(ctx context.Context, opt *DownloadOption) (*DownLoadFileInfo, error) {
 	}()
 
 	// 启动速度监控
-	go speedMonitor(ictx, size, &progress, &active, opt.Callback)
+	go speedMonitor(ictx, size, &progress, &active, opt.Callback, cancel, opt.Timeout)
 
 	// 等待下载完成或 ctx 取消
 	ticker := time.NewTicker(100 * time.Millisecond)

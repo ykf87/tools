@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 	"tools/runtimes/bs"
 	"tools/runtimes/clearer"
@@ -15,7 +16,9 @@ import (
 	"tools/runtimes/ffmpeg"
 	"tools/runtimes/funcs"
 	"tools/runtimes/imager"
+	"tools/runtimes/ipquality"
 	"tools/runtimes/mainsignal"
+	"tools/runtimes/obschan"
 	"tools/runtimes/proxy"
 	"tools/runtimes/sch"
 	"tools/runtimes/storage"
@@ -53,6 +56,52 @@ func init() {
 
 	// imgmk()
 	// mkvideo()
+	// checkip()
+	// textobcshan()
+}
+
+func textobcshan() {
+	ch := obschan.NewObservableChan(1)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// 阻塞发送测试
+	var wg sync.WaitGroup
+	for range 10 {
+		wg.Go(func() {
+			err := ch.SendContext(ctx, 42)
+			defer ch.RecvContext(ctx)
+			time.Sleep(time.Second * 5)
+			if err != nil {
+				fmt.Println("send canceled")
+			} else {
+				fmt.Println("send ok")
+			}
+
+			fmt.Println("Len:", ch.Len())
+			fmt.Println("WaitingSend:", ch.WaitingSend())
+			fmt.Println("WaitingRecv:", ch.WaitingRecv())
+		})
+	}
+	wg.Wait()
+
+	// 主线程等待
+	// time.Sleep(2 * time.Second)
+
+	// fmt.Println("Len:", ch.Len())
+	// fmt.Println("WaitingSend:", ch.WaitingSend())
+	// fmt.Println("WaitingRecv:", ch.WaitingRecv())
+}
+
+func checkip() {
+	geo, _ := ipquality.NewGeoIP(config.FullPath(config.SYSROOT, "GeoLite2-City.mmdb"), config.FullPath(config.SYSROOT, "GeoLite2-ASN.mmdb"))
+	ipdb, _ := ipquality.NewIPInfoMMDB(config.FullPath(config.SYSROOT, "ipinfo_lite_sample.mmdb"))
+	sql, _ := ipquality.NewSQLiteCache(config.FullPath(config.SYSROOT, "ipquality.db"))
+	client := ipquality.NewClient(geo, ipdb, sql)
+	res, _ := client.Check("161.77.203.158") //161.77.219.175
+
+	fmt.Println(res.Allow, res.Score, res.Type, res.Reason)
 }
 
 func mkvideo() {
@@ -62,7 +111,8 @@ func mkvideo() {
 	n1, _ := videoproc.SecMaker([]string{
 		storage.Load("").URL("e6/b6/e6b64f9efa9749dbedce693a11d335acbc8ed5aaa810bc4e0e35566328e15ac4.mp4"),
 		// storage.Load("").URL("82/7b/827b26cf31580022db6d481bc7a7cfb19a4f473ab03182c5df037347ee68f663.mp4"),
-	}, audio)
+	}, nil, mainsignal.MainCtx, nil)
+	n1.Audio = audio
 	// n1.AmixAudio = &videoproc.AudioInpter{
 	// 	Url: storage.Load("").URL("81/b7/81b7b7a8d017fef834ca41b71d9027e5246239f58b232bc27a645254a724ca39.mp3"),
 	// }
@@ -76,7 +126,7 @@ func mkvideo() {
 		// n1.Factory.Mirror = 1
 
 		// n1.Factory.Clearer = true
-		err := n1.Output(mainsignal.MainCtx, config.FullPath(config.MEDIAROOT, ".tmp", "20260330.mp4"))
+		err := n1.Output(config.FullPath(config.MEDIAROOT, ".tmp", "20260330.mp4"))
 		fmt.Println(err, "----")
 	}()
 }

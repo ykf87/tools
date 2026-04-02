@@ -89,7 +89,8 @@ type Maker struct {
 	Height    int          `json:"height"`                  // 输出高度
 
 	srcs      []*MediaInfo
-	audio     *MediaInfo // 最终替换到视频的音频
-	tempdir   string     // 临时目录,包含分离的音频, 视频帧目录等
-	framesDir string     // 视频帧存储目录
+	audio     *MediaInfo     // 最终替换到视频的音频
+	tempdir   string         // 临时目录,包含分离的音频, 视频帧目录等
+	framesDir string         // 视频帧存储目录
+	Callback  func(int, int) // 进度回调
 }
