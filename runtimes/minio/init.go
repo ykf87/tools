@@ -22,6 +22,7 @@ const (
 )
 
 var runcmd *exec.Cmd
+var LanIp string
 
 func init() {
 	fn := fullName()
@@ -30,6 +31,7 @@ func init() {
 			panic(err)
 		}
 	}
+	LanIp, _ = funcs.GetLocalIP(true)
 
 	start(fn)
 }
@@ -40,12 +42,26 @@ func Flush() {
 	}
 }
 
-func ControlUrl() string {
-	return fmt.Sprintf("127.0.0.1:%d", config.MINIPORT)
+func ControlUrl(tp string) string {
+	ipaddr := "0.0.0.0"
+	switch tp {
+	case "nat":
+		ipaddr = LanIp
+	case "local":
+		ipaddr = "127.0.0.1"
+	}
+	return fmt.Sprintf("%s:%d", ipaddr, config.MINIPORT)
 }
 
-func ApiUrl() string {
-	return fmt.Sprintf("127.0.0.1:%d", config.MINIAPIPORT)
+func ApiUrl(tp string) string {
+	ipaddr := "0.0.0.0"
+	switch tp {
+	case "nat":
+		ipaddr = LanIp
+	case "local":
+		ipaddr = "127.0.0.1"
+	}
+	return fmt.Sprintf("%s:%d", ipaddr, config.MINIAPIPORT)
 }
 
 func start(fn string) {
@@ -58,8 +74,8 @@ func start(fn string) {
 			)
 		}, "server",
 		config.FullPath(config.MINISAVE),
-		"--console-address", ControlUrl(),
-		"--address", ApiUrl(),
+		"--console-address", ControlUrl(""),
+		"--address", ApiUrl(""),
 	)
 	if err != nil {
 		panic(err)

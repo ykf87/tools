@@ -63,7 +63,7 @@ func Cut(c *gin.Context) {
 	var creater []*audios.Audio
 	for k, v := range req.Cuts {
 		tmpname := filepath.Join(tempPath, fmt.Sprintf("%s-%d.%s", justName, (k+1), ext))
-		fmt.Println(tmpname, "----")
+		// fmt.Println(tmpname, "----")
 		_, _, err := ffmpeg.RunFfmpeg(true,
 			"-i", req.Src,
 			"-ss", fmt.Sprintf("%f", v.Start),
@@ -72,7 +72,7 @@ func Cut(c *gin.Context) {
 			tmpname,
 			"-y",
 		)
-		fmt.Println("11111")
+		// fmt.Println("11111")
 		if err != nil {
 			fmt.Println("生成失败")
 			response.Error(c, http.StatusBadRequest, err.Error(), nil)
@@ -99,7 +99,7 @@ func Cut(c *gin.Context) {
 		creater = append(creater, ad)
 	}
 	if len(creater) > 0 {
-		fmt.Println("33333")
+		// fmt.Println("33333")
 		if err := audios.Dbs.Write(func(tx *gorm.DB) error {
 			return tx.Create(creater).Error
 		}); err != nil {

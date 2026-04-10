@@ -15,6 +15,7 @@ import (
 	"strings"
 	"tools/runtimes/config"
 	"tools/runtimes/downloader"
+	"tools/runtimes/minio"
 
 	"github.com/google/uuid"
 )
@@ -97,9 +98,9 @@ func init() {
 		AccessKey: config.ACCESSKEY,
 		SecretKey: config.SECRETKEY,
 		Bucket:    config.BUCKET,
-		Endpoint:  fmt.Sprintf("127.0.0.1:%d", config.MINIAPIPORT),
+		Endpoint:  minio.ApiUrl("nat"),
 		UseSSL:    config.USESSL,
-		URL:       fmt.Sprintf("http://127.0.0.1:%d", config.MINIPORT),
+		URL:       fmt.Sprintf("http://%s", minio.ControlUrl("nat")),
 	}); err == nil {
 		Storages["minio"] = s
 	}

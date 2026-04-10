@@ -3,6 +3,7 @@ package web
 import (
 	"tools/runtimes/controllers/audios"
 	"tools/runtimes/controllers/browsers"
+	"tools/runtimes/controllers/coins"
 	"tools/runtimes/controllers/infor"
 	"tools/runtimes/controllers/ipchecker"
 	"tools/runtimes/controllers/js"
@@ -126,6 +127,7 @@ func router() {
 			spiderVideoGroup.POST("mkdir", down.Mkdir)
 			spiderVideoGroup.POST("open", down.OpenDir)
 			spiderVideoGroup.POST("remove", video.RemoveVideo)
+			spiderVideoGroup.POST("donevideo", video.GetDoneVideo)
 			spiderVideoGroup.GET("secmk", video.SecmkData)
 			spiderVideoGroup.POST("searchmedias", video.SearchMedias)
 			spiderVideoGroup.POST("mkvideo", video.MakerVideos)
@@ -196,5 +198,14 @@ func router() {
 		jsGroup.POST("delete", js.Delete)
 		jsGroup.POST("ae", js.AddOrEdit)
 		jsGroup.GET("params", js.Params)
+	}
+
+	// 虚拟币
+	cointGroup := AuthRoutes.Group("coins")
+	{
+		cointGroup.GET("same", coins.AllCanUse)
+		cointGroup.POST("add", coins.AddCoin)
+		cointGroup.POST("stop/:name", coins.StopCoin)
+		cointGroup.POST("stop", coins.StopAll)
 	}
 }

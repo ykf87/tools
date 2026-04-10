@@ -32,7 +32,6 @@ func GetList(s *db.ListFinder) (total int64, lists []*Audio) {
 						}
 					}
 				}
-				fmt.Println(tagIdArr, len(tagIdArr))
 				if len(tagIdArr) > 0 {
 					// model = model.Preload("Tags", func(db *gorm.DB) *gorm.DB {
 					// 	return db.Where("id IN ?", tagIdArr)

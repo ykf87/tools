@@ -86,6 +86,8 @@ func init() {
 	dbs.DB().AutoMigrate(&MediaUserProxy{})
 	dbs.DB().AutoMigrate(&MediaUserDay{})
 	dbs.DB().AutoMigrate(&MediaPath{})
+	dbs.DB().AutoMigrate(&DoneVideo{})
+	dbs.DB().AutoMigrate(&DoneVideoTag{})
 
 	go runstart()
 

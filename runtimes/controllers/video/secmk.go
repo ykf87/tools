@@ -12,7 +12,6 @@ import (
 	"tools/runtimes/config"
 	"tools/runtimes/db"
 	"tools/runtimes/db/audios"
-	"tools/runtimes/db/donevideo"
 	"tools/runtimes/db/medias"
 	"tools/runtimes/funcs"
 	"tools/runtimes/i18n"
@@ -261,7 +260,7 @@ func MakerVideos(c *gin.Context) {
 					mk.Errs = append(mk.Errs, err.Error())
 				}
 				if md, err := videoproc.ProbeMedia(storage.Load("").URL(fn)); err == nil {
-					donevideo.AddRow(fn, v.Cover, md, v.UserId)
+					medias.AddRow(fn, videos[0], v.Cover, v.Title, md, v.UserId)
 				}
 				v.SecMaker++
 				v.Save()
@@ -306,4 +305,57 @@ func (f *factory) build() (*videoproc.Factory, []*videoproc.AudioInpter, []*vide
 		})
 	}
 	return fac, ais, axis, nil
+}
+
+func GetDoneVideo(c *gin.Context) {
+	var req db.ListFinder
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadGateway, err.Error(), nil)
+		return
+	}
+
+	model := medias.GetDb().DB().
+		Model(&medias.DoneVideo{}).
+		Where("removed = 0").
+		Preload("DoneVideoTag").Preload("MediaUserTag")
+	if req.Q != "" {
+		model = model.Where("title like ?", fmt.Sprintf("%%%s%%", req.Q))
+	}
+
+	if req.Filters != nil {
+		for name, val := range req.Filters {
+			switch name {
+			case "tags":
+				var tagIdArr []int64
+				if tags, ok := val.([]any); ok {
+					for _, tagID := range tags {
+						if idf, ok := tagID.(float64); ok {
+							tagIdArr = append(tagIdArr, int64(idf))
+						}
+					}
+				}
+				if len(tagIdArr) > 0 {
+					model = model.Joins("JOIN done_video_tag_relations atr ON atr.donevideo_id = donevideos.id").
+						Where("atr.donevideo_tag_id IN ?", tagIdArr).Distinct()
+				}
+			}
+		}
+	}
+
+	if req.Page < 1 {
+		req.Page = 1
+	}
+	if req.Limit < 1 {
+		req.Limit = 20
+	}
+	var total int64
+	var lists []*medias.DoneVideo
+	model.Count(&total)
+
+	model.Order("id DESC").Offset((req.Page - 1) * req.Limit).Limit(req.Limit).Find(&lists)
+	response.Success(c, gin.H{
+		"lists": lists,
+		"total": total,
+	}, "")
 }

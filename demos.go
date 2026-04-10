@@ -22,6 +22,7 @@ import (
 	"tools/runtimes/proxy"
 	"tools/runtimes/sch"
 	"tools/runtimes/storage"
+	"tools/runtimes/trade/do"
 	"tools/runtimes/videoproc"
 
 	"github.com/chromedp/cdproto/runtime"
@@ -58,6 +59,36 @@ func init() {
 	// mkvideo()
 	// checkip()
 	// textobcshan()
+
+	// traded()
+}
+
+func traded() {
+	// trade.AddRow("gate", &trade.Api{
+	// 	Key:    "8a0546c1c81e09a72bd9832e50865eb1",
+	// 	Secret: "0ffe575d1d460b730eca122132d125d2787243cd689fbfd163207e4de8ad1ed5",
+	// })
+	// trade.AddRow("okx", &trade.Api{
+	// 	Key:      "cdde4726-62c0-4347-9d99-e04a4db6941c",
+	// 	Secret:   "3FC57FA5534F7BE28345E55BF1090E44",
+	// 	Password: "Abcd@1234",
+	// })
+	// err := trade.SaveConfig()
+	// fmt.Println(err)
+	// return
+
+	go func() {
+		time.Sleep(time.Second * 3)
+		mps, err := do.GetSameID("")
+		if err == nil {
+			for id, vv := range mps {
+				fmt.Println(id, vv.ID, "---")
+			}
+		} else {
+			fmt.Println(err)
+		}
+	}()
+
 }
 
 func textobcshan() {
@@ -99,7 +130,7 @@ func checkip() {
 	ipdb, _ := ipquality.NewIPInfoMMDB(config.FullPath(config.SYSROOT, "ipinfo_lite_sample.mmdb"))
 	sql, _ := ipquality.NewSQLiteCache(config.FullPath(config.SYSROOT, "ipquality.db"))
 	client := ipquality.NewClient(geo, ipdb, sql)
-	res, _ := client.Check("161.77.203.158") //161.77.219.175
+	res, _ := client.Check("81.181.237.241") //161.77.219.175
 
 	fmt.Println(res.Allow, res.Score, res.Type, res.Reason)
 }
