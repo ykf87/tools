@@ -9,6 +9,7 @@ import (
 	"tools/runtimes/controllers/js"
 	"tools/runtimes/controllers/mediasec"
 	"tools/runtimes/controllers/phones"
+	"tools/runtimes/controllers/product"
 	"tools/runtimes/controllers/proxys"
 	"tools/runtimes/controllers/public"
 	"tools/runtimes/controllers/suggs"
@@ -36,6 +37,8 @@ func router() {
 	ROUTER.POST("browser/download", browsers.Download)
 	ROUTER.GET("client/ws", phones.Ws)   // app 的ws连接
 	ROUTER.GET("client/api", phones.Api) // app 的api连接
+
+	ROUTER.GET("proxy/clash/:id", proxys.Clash)
 
 	ROUTER.POST("/video", mediasec.GetVideos)
 	AuthRoutes := ROUTER
@@ -131,6 +134,7 @@ func router() {
 			spiderVideoGroup.GET("secmk", video.SecmkData)
 			spiderVideoGroup.POST("searchmedias", video.SearchMedias)
 			spiderVideoGroup.POST("mkvideo", video.MakerVideos)
+			spiderVideoGroup.POST("secmk/remove", video.DelSec)
 		}
 		spiderUserGroup := spiderGroup.Group("user")
 		{
@@ -207,5 +211,14 @@ func router() {
 		cointGroup.POST("add", coins.AddCoin)
 		cointGroup.POST("stop/:name", coins.StopCoin)
 		cointGroup.POST("stop", coins.StopAll)
+	}
+
+	// 产品
+	productGroup := AuthRoutes.Group("product")
+	{
+		productGroup.POST("", product.GetList)
+		productGroup.POST("attrs", product.GetProductAttrs)
+		// productGroup.POST("attrs/remove", product.GetProductAttrs)
+		productGroup.POST("upsert-attrs", product.UpsertAttributes)
 	}
 }

@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"tools/runtimes/config"
 	"tools/runtimes/db"
 	"tools/runtimes/db/proxys"
+	"tools/runtimes/funcs"
 	"tools/runtimes/i18n"
 	"tools/runtimes/parses"
 	"tools/runtimes/response"
@@ -87,7 +89,7 @@ func GetList(c *gin.Context) {
 	}
 
 	var ps []*proxys.Proxy
-	model.Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Find(&ps)
+	model.Order("pin DESC").Order(fmt.Sprintf("%s %s", sortCol, sortBy)).Find(&ps)
 
 	// 处理代理标签
 	if len(ps) > 0 {
@@ -100,7 +102,9 @@ func GetList(c *gin.Context) {
 		}
 	}
 
-	rs := gin.H{"list": ps, "total": total}
+	ip, _ := funcs.GetLocalIP(true)
+
+	rs := gin.H{"list": ps, "total": total, "netip": fmt.Sprintf("http://%s:%d", ip, config.ApiPort)}
 	rsp, _ := parses.Marshal(rs, c)
 	response.Success(c, rsp, "")
 }

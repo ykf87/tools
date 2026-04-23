@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 	"tools/runtimes/config"
 	"tools/runtimes/db"
@@ -22,6 +23,7 @@ import (
 	"tools/runtimes/videoproc"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // 二创的数据
@@ -87,6 +89,7 @@ type factory struct {
 	Resize       float64        `json:"resize"`
 	Rotation     float64        `json:"rotation"`
 	Width        float64        `json:"width"`
+	WMImage      string         `json:"wm_image"`
 }
 type minmax struct {
 	Min int `json:"min"`
@@ -215,7 +218,7 @@ func MakerVideos(c *gin.Context) {
 
 			var videos []string
 			for _, row := range v.Files {
-				videos = append(videos, storage.Load("").URL(row.FileName))
+				videos = append(videos, strings.ReplaceAll(storage.Load(row.FileSystem).URL(row.FileName), "\\", "/"))
 			}
 
 			mker, err := videoproc.SecMaker(videos, fac, ctx, func(idx, itotal int) {
@@ -252,7 +255,7 @@ func MakerVideos(c *gin.Context) {
 				outfile := config.FullPath(config.MEDIAROOT, ".tmp", filepath.Base(videos[0]))
 				err := mker.Output(outfile)
 				if err != nil {
-					// fmt.Println("生成失败:", err)
+					fmt.Println("\n生成失败:", err)
 					mk.Errs = append(mk.Errs, err.Error())
 				}
 				fn, err := storage.Load("").PutStr(outfile)
@@ -280,6 +283,7 @@ func (f *factory) build() (*videoproc.Factory, []*videoproc.AudioInpter, []*vide
 	fac.Mirror = f.Flip
 	fac.Resize = &imager.Resize{Scale: f.Resize}
 	fac.Rotation = &imager.Rotation{Angle: f.Rotation}
+	fac.WMImage = f.WMImage
 
 	if f.AudioVolume <= 0 {
 		f.AudioVolume = 1
@@ -358,4 +362,35 @@ func GetDoneVideo(c *gin.Context) {
 		"lists": lists,
 		"total": total,
 	}, "")
+}
+
+func DelSec(c *gin.Context) {
+	type idss struct {
+		IDs []int64 `json:"ids"`
+	}
+
+	var ids idss
+	if err := c.ShouldBindJSON(&ids); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+	if len(ids.IDs) < 1 {
+		response.Success(c, nil, "内容为空")
+		return
+	}
+
+	var has []*medias.DoneVideo
+	medias.GetDb().DB().Where("id in ?", ids.IDs).Find(&has)
+
+	if err := audios.Dbs.Write(func(tx *gorm.DB) error {
+		return tx.Where("id in ?", ids.IDs).Delete(&medias.DoneVideo{}).Error
+	}); err != nil {
+		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	for _, v := range has {
+		storage.Load("").Delete(v.Filename)
+	}
+	response.Success(c, nil, "")
 }

@@ -174,10 +174,10 @@ func Removes(c *gin.Context) {
 	if err := c.ShouldBind(ids); err == nil {
 		// tx := db.DB.Begin()
 		if err := db.DB.Write(func(tx *gorm.DB) error {
-			if err := tx.Where("id in ?", ids.Ids).Delete(&proxys.Proxy{}).Error; err != nil {
+			if err := tx.Debug().Where("id in ?", ids.Ids).Delete(&proxys.Proxy{}).Error; err != nil {
 				return err
 			}
-			if err := tx.Where("proxy_id in ?", ids.Ids).Delete(&proxys.ProxyTag{}).Error; err != nil {
+			if err := tx.Debug().Where("proxy_id in ?", ids.Ids).Delete(&proxys.ProxyTag{}).Error; err != nil {
 				// tx.Rollback()
 				// response.Error(c, http.StatusBadGateway, "", nil)
 				return err

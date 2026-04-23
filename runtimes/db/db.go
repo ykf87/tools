@@ -22,17 +22,21 @@ var MEDIADB *SQLiteWriter
 var TaskDB *SQLiteWriter
 var AppTask *SQLiteWriter
 var TaskLogDB *SQLiteWriter
+var PRODUCTDB *SQLiteWriter
 
 type ListFinder struct {
-	Page    int            `json:"page" form:"page"`
-	Limit   int            `json:"limit" form:"limit"`
-	Q       string         `json:"q" form:"q"`
-	Scol    string         `json:"scol" form:"scol"`
-	By      string         `json:"by" form:"by"`
-	Tags    []int64        `json:"tags" form:"tags"`
-	Types   []int64        `json:"types" form:"types"`
-	IDs     []int64        `json:"ids" form:"ids"`
-	Filters map[string]any `json:"filters" form:"filters"`
+	Page       int            `json:"page" form:"page"`
+	Limit      int            `json:"limit" form:"limit"`
+	Q          string         `json:"q" form:"q"`
+	Scol       string         `json:"scol" form:"scol"`
+	By         string         `json:"by" form:"by"`
+	Tags       []int64        `json:"tags" form:"tags"`
+	Types      []int64        `json:"types" form:"types"`
+	IDs        []int64        `json:"ids" form:"ids"`
+	Filters    map[string]any `json:"filters" form:"filters"`
+	Type       int            `json:"type" form:"type"`
+	WithValues bool           `json:"with_values" form:"with_values"`
+	Lang       string         `json:"lang" form:"lang"`
 }
 
 var DBINIT = map[string]**SQLiteWriter{
@@ -42,6 +46,7 @@ var DBINIT = map[string]**SQLiteWriter{
 	"task.db":     &TaskDB,
 	"apptask.db":  &AppTask,
 	"tasklog.db":  &TaskLogDB,
+	"product.db":  &PRODUCTDB,
 }
 
 func init() {

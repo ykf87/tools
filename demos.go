@@ -25,6 +25,7 @@ import (
 	"tools/runtimes/trade/do"
 	"tools/runtimes/videoproc"
 
+	"github.com/allanpk716/blind-watermark-go/watermark"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/tidwall/gjson"
 )
@@ -61,6 +62,36 @@ func init() {
 	// textobcshan()
 
 	// traded()
+	// waterImage()
+}
+
+func waterImage() {
+	img, err := watermark.LoadImage("data/0_000034.bmp")
+	if err != nil {
+		panic(err)
+	}
+	// result, err := watermark.EmbedText(img, "hello world", watermark.ModeFast, 0)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// if err := imgutil.WritePNG("data/121-wmout.png", result, 0); err != nil {
+	// 	panic(err)
+	// }
+
+	// 计算提取所需的比特长度
+	wmLen, err := watermark.TextBitLen("sdfdff")
+	if err != nil {
+		panic(err)
+	}
+	// fmt.Println(wmLen)
+
+	// 从含水印图片提取文本
+	text, err := watermark.ExtractText(img, wmLen, watermark.ModeFast, 0)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(text) // 输出: hello world
+	// wmimage.MKWaterImage("data/121.jpg", "data/121wm.jpg")
 }
 
 func traded() {

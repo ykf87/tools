@@ -79,6 +79,7 @@ type Gaussblur struct {
 
 // 保持原有宽度和高度
 type KeepWH bool
+type WMImage bool
 
 type Image struct {
 	origin     string      `json:"-"`          // 缓存原文件名
@@ -100,8 +101,9 @@ type Image struct {
 	Gamma      *Gamma      `json:"gamma"`      // Gamma校正
 	Sharpen    *Sharpen    `json:"sharpen"`    // 锐化
 	Gaussblur  *Gaussblur  `json:"gaussblur"`  // 高斯模糊
-	Clearer    bool    `json:"clearer"`    // AI清晰
+	Clearer    bool        `json:"clearer"`    // AI清晰
 	KeepWH     *KeepWH     `json:"keep"`       // 是否保持原有的宽度和高度
+	WMImage    *WMImage    `json:"wm_image"`   // 盲水印
 
 }
 

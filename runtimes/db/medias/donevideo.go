@@ -52,6 +52,7 @@ func (m DoneVideo) MarshalJSON() ([]byte, error) {
 }
 
 func AddRow(src, origin, cover, title string, mif *videoproc.MediaInfo, userID int64) (*DoneVideo, error) {
+	origin = storage.Load("").Base(origin)
 	dv := &DoneVideo{
 		UserID:   userID,
 		Filename: src,

@@ -13,6 +13,7 @@ import (
 	"tools/runtimes/ffmpeg"
 	"tools/runtimes/imager"
 	"tools/runtimes/obschan"
+	"tools/runtimes/wmimage"
 )
 
 var limit *obschan.ObservableChan
@@ -47,6 +48,10 @@ func (m *Maker) Output(output string) error {
 		return err
 	}
 
+	if m.audio == nil || m.audio.Audio == nil {
+		return errors.New("缺少音频文件")
+	}
+
 	defer func() {
 		if strings.Contains(m.tempdir, ".tmp") {
 			// fmt.Println(os.RemoveAll(m.tempdir), "删除临时目录")
@@ -62,9 +67,10 @@ func (m *Maker) Output(output string) error {
 	}
 
 	if err := m.merge(output); err != nil {
+		fmt.Println("合并图片失败!")
 		return err
 	}
-
+	fmt.Println("\n二创完成!")
 	return nil
 }
 
@@ -108,7 +114,7 @@ func (m *Maker) merge(output string) error {
 // (图片)帧处理
 func (m *Maker) mkimgs() error {
 	var task []Task
-	var clearCleear []Task
+	chs := 6
 	if m.Factory != nil {
 		fls, err := filepath.Glob(filepath.Join(m.framesDir, fmt.Sprintf("*%s", IMGTYPE)))
 		if err != nil {
@@ -123,6 +129,28 @@ func (m *Maker) mkimgs() error {
 					return ctx.Err()
 				default:
 				}
+
+				if m.Factory.WMImage != "" {
+					if err := wmimage.WMImage(f, m.Factory.WMImage); err != nil {
+						return err
+					}
+				}
+
+				if m.Factory.Clearer == true { // 变清晰和一般处理需要分开处理
+					outname := f + ".png"
+					chs = 2
+					if _, err := clearer.Clearers(f, outname, ""); err != nil {
+						return err
+					}
+					// panic("----")
+					defer func() {
+						os.Remove(outname)
+					}()
+					if err := imager.RunBin("resize", outname, f, strconv.FormatFloat(0.25, 'f', -1, 64)); err != nil {
+						return err
+					}
+				}
+
 				img, _ := imager.NewImager(f)
 				if m.Factory.Mirror == 1 || m.Factory.Mirror == 2 {
 					img.Flip = &imager.Flip{
@@ -144,9 +172,17 @@ func (m *Maker) mkimgs() error {
 				img.Width = m.Width
 				img.Height = m.Height
 
+				// if m.Factory.WMImage == true {
+				// 	wmimg := imager.WMImage(true)
+				// 	img.WMImage = &wmimg
+				// }
+
 				kwh := imager.KeepWH(true)
 				img.KeepWH = &kwh
-				err := img.Output(f, 3)
+				if err := img.Output(f, 3); err != nil {
+					return err
+				}
+
 				idx++
 				if m.Callback != nil {
 					m.Callback(idx, total)
@@ -154,31 +190,23 @@ func (m *Maker) mkimgs() error {
 				}
 				// fmt.Printf("\r进度: %d/%d", idx, total)
 				return err
-				// return img.Output(f, 3)
 			})
-
-			if m.Factory.Clearer == true { // 变清晰和一般处理需要分开处理
-				clearCleear = append(clearCleear, func(ctx context.Context) error {
-					outname := f + ".png"
-					if _, err := clearer.Clearers(f, outname, ""); err != nil {
-						return err
-					}
-					defer func() {
-						os.Remove(outname)
-					}()
-
-					return imager.RunBin("resize", outname, f, strconv.FormatFloat(0.25, 'f', -1, 64))
-				})
-			}
 		}
 	}
 
-	if err := RunWithCancel(m.ctx, 8, task); err != nil {
+	ctx1, cancel1 := context.WithCancel(m.ctx)
+	defer cancel1()
+	// fmt.Println("盲水印队列:", len(waterImage))
+	if err := RunWithCancel(ctx1, chs, task); err != nil {
 		return err
 	}
-	if len(clearCleear) > 0 {
-		RunWithCancel(m.ctx, 2, clearCleear)
-	}
+	// if len(clearCleear) > 0 {
+	// 	RunWithCancel(ctx1, 2, clearCleear)
+	// }
+	// if len(waterImage) > 0 {
+	// 	fmt.Println("\n开始处理盲水印")
+	// 	RunWithCancel(ctx1, 2, waterImage)
+	// }
 	return nil
 
 	// fmt.Println(len(files), int(m.srcs[0].Video.FPS*m.srcs[0].Video.Duration))

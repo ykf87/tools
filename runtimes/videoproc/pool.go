@@ -8,7 +8,7 @@ import (
 type Task func(ctx context.Context) error
 
 func RunWithCancel(ctx context.Context, concurrency int, tasks []Task) error {
-	ctx, cancel := context.WithCancel(ctx)
+	nctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	var wg sync.WaitGroup
@@ -20,13 +20,13 @@ func RunWithCancel(ctx context.Context, concurrency int, tasks []Task) error {
 		wg.Go(func() {
 			for {
 				select {
-				case <-ctx.Done():
+				case <-nctx.Done():
 					return
 				case t, ok := <-taskCh:
 					if !ok {
 						return
 					}
-					if err := t(ctx); err != nil {
+					if err := t(nctx); err != nil {
 						select {
 						case errCh <- err:
 						default:
@@ -39,17 +39,17 @@ func RunWithCancel(ctx context.Context, concurrency int, tasks []Task) error {
 		})
 	}
 
-	// producer
-	go func() {
+	// producer（纳入 wg！）
+	wg.Go(func() {
 		defer close(taskCh)
 		for _, t := range tasks {
 			select {
-			case <-ctx.Done():
+			case <-nctx.Done():
 				return
 			case taskCh <- t:
 			}
 		}
-	}()
+	})
 
 	wg.Wait()
 

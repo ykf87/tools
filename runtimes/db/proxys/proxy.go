@@ -37,6 +37,7 @@ type Proxy struct { // 如果有修改字段,需要更新Save方法
 	Private    int      `json:"private" gorm:"index;default:0;type:tinyint(1)"`     // 是否是私有的
 	Deleted    int      `json:"deleted" gorm:"index;type:tinyint(1);default:0"`     // 是否无效
 	Addtime    int64    `json:"addtime" gorm:"index;default:0"`                     // 添加事件
+	Pin        int      `json:"pin" gorm:"type:tinyint(1);default:0;index"`         // 置顶
 	Tags       []string `json:"tags" gorm:"-" form:"tags"`                          // 标签列表,不写入数据库,仅在添加和修改时使用
 	IsRuning   int      `json:"is_runing" gorm:"-" form:"-"`                        // 是否启动
 	ListerAddr string   `json:"lister_addr" gorm:"-" form:"-"`                      // 监听地址

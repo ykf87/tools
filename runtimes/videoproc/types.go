@@ -17,6 +17,7 @@ type Factory struct {
 	Rotation *imager.Rotation `json:"rotation"` // 旋转
 	Resize   *imager.Resize   `json:"resize"`   // 调整大小
 	Clearer  bool             `json:"clearer"`  // ai变清晰
+	WMImage  string           `json:"wm_image"` // 盲水印,目前没办法生产盲水印,仅做干扰
 }
 
 type Audio struct {
