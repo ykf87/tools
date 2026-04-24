@@ -8,4 +8,5 @@ type Tag struct {
 type TagLang struct {
 	TagID int64  `json:"tag_id" gorm:"primaryKey;not null"`
 	Lang  string `json:"lang" gorm:"primaryKey;size:10"`
+	Name  string `json:"name" gorm:"index;not null"`
 }

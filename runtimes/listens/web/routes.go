@@ -220,5 +220,6 @@ func router() {
 		productGroup.POST("attrs", product.GetProductAttrs)
 		// productGroup.POST("attrs/remove", product.GetProductAttrs)
 		productGroup.POST("upsert-attrs", product.UpsertAttributes)
+		productGroup.POST("/tags", product.Tag)
 	}
 }

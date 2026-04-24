@@ -132,16 +132,22 @@ func List(c *gin.Context) {
 	if dirlen < limit {
 		var mds []medias.Media
 		mlimit := limit - dirlen
-		model := medias.GetDb().DB().Model(&medias.Media{}).
+		model := medias.GetDb().DB().Debug().Model(&medias.Media{}).
 			Where("removed = 0 and path_id = ?", ddt.PathID)
 		if ddt.Search != "" {
 			model = model.Where("title like ?", fmt.Sprintf("%%%s%%", ddt.Search))
 		}
 
 		model.Count(&flen)
+
+		if ddt.Mime != "" {
+			model = model.Preload("Files", "mime_type like ?", fmt.Sprintf("%s%%", ddt.Mime))
+		} else {
+			model = model.Preload("Files")
+		}
+		model = model.Preload("user")
 		total = total + flen
 		model.Order("media.id DESC").
-			Preload("User").Preload("Files").
 			Offset((page - 1) * mlimit).Limit(mlimit).
 			Find(&mds)
 
