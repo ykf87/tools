@@ -58,6 +58,7 @@ type ListDataStruct struct {
 	Ext    string `json:"ext"`
 	Mime   string `json:"mime"`
 	Search string `json:"search"`
+	IDs    []any  `json:"ids"`
 }
 
 type Pms struct {
@@ -102,9 +103,15 @@ func List(c *gin.Context) {
 	}
 
 	var lists []*medias.MediaResponseMessage
+	var dirlen int
+	var total int64
+	var mps []*medias.MediaPath
 
-	mps, total := medias.GetChilds(ddt.PathID, page, limit, ddt.Search)
-	dirlen := len(mps)
+	if len(ddt.IDs) == 0 {
+		mps, total = medias.GetChilds(ddt.PathID, page, limit, ddt.Search)
+		dirlen = len(mps)
+	}
+
 	var flen int64
 
 	if dirlen > 0 {
@@ -133,20 +140,35 @@ func List(c *gin.Context) {
 		var mds []medias.Media
 		mlimit := limit - dirlen
 		model := medias.GetDb().DB().Debug().Model(&medias.Media{}).
-			Where("removed = 0 and path_id = ?", ddt.PathID)
+			Where("removed = 0")
+		if len(ddt.IDs) > 0 {
+			model = model.Where("id in ?", ddt.IDs)
+		} else {
+			model = model.Where("path_id = ?", ddt.PathID)
+		}
+
 		if ddt.Search != "" {
 			model = model.Where("title like ?", fmt.Sprintf("%%%s%%", ddt.Search))
 		}
 
-		model.Count(&flen)
-
 		if ddt.Mime != "" {
-			model = model.Preload("Files", "mime_type like ?", fmt.Sprintf("%s%%", ddt.Mime))
+			// 如果传入了 Mime 类型，进行过滤
+			model = model.Preload("Files", func(db *gorm.DB) *gorm.DB {
+				return db.Where("mime_type LIKE ?", fmt.Sprintf("%s%%", ddt.Mime))
+			})
 		} else {
+			// 否则，不加任何过滤，直接加载所有文件
 			model = model.Preload("Files")
 		}
+		// 加载 user 关联
 		model = model.Preload("user")
+
+		// 先获取总数
+		model.Count(&flen)
+
 		total = total + flen
+
+		// 执行分页查询
 		model.Order("media.id DESC").
 			Offset((page - 1) * mlimit).Limit(mlimit).
 			Find(&mds)
