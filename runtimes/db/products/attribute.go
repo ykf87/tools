@@ -6,7 +6,6 @@ import (
 	"tools/runtimes/db"
 
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 // 属性表
@@ -46,14 +45,17 @@ type AttributeValueLang struct {
 
 // 产品属性表
 type ProductAttribute struct {
-	ID          int64 `gorm:"primaryKey"`
-	ProductID   int64 `gorm:"uniqueIndex:idx_product_attr"`
-	AttributeID int64 `gorm:"uniqueIndex:idx_product_attr"`
-	// 属性信息（方便 preload）
-	Attribute Attribute `gorm:"foreignKey:AttributeID"`
-	// 选中的值
-	Values []ProductAttributeValue `gorm:"foreignKey:ProductAttributeID;constraint:OnDelete:CASCADE"`
+	ID int64 `json:"id" gorm:"primaryKey"`
+
+	ProductID   int64 `json:"product_id" gorm:"not null;index:idx_product_attr,priority:1"`
+	AttributeID int64 `json:"attribute_id" gorm:"not null;index:idx_product_attr,priority:2"`
+
+	IsSKU int8 `json:"is_sku" gorm:"default:0;index"`
+
+	// 👉 防止重复绑定
+	_ struct{} `gorm:"uniqueIndex:uk_product_attr,priority:1"`
 }
+
 type ProductAttributeValue struct {
 	ID                 int64 `gorm:"primaryKey"`
 	ProductAttributeID int64 `gorm:"uniqueIndex:idx_pa_value"`
@@ -82,82 +84,82 @@ type AttributeValDTO struct {
 }
 
 // 更新商品属性（推荐统一入口）
-func UpdateProductAttributes(db *gorm.DB, productID int64, attrs []ProductAttribute) error {
-	return db.Transaction(func(tx *gorm.DB) error {
+// func UpdateProductAttributes(db *gorm.DB, productID int64, attrs []ProductAttribute) error {
+// 	return db.Transaction(func(tx *gorm.DB) error {
 
-		// 1. 删除旧属性（级联删除 value）
-		if err := tx.Where("product_id = ?", productID).
-			Delete(&ProductAttribute{}).Error; err != nil {
-			return err
-		}
+// 		// 1. 删除旧属性（级联删除 value）
+// 		if err := tx.Where("product_id = ?", productID).
+// 			Delete(&ProductAttribute{}).Error; err != nil {
+// 			return err
+// 		}
 
-		// 2. 重新写入
-		for i := range attrs {
-			attrs[i].ProductID = productID
-		}
+// 		// 2. 重新写入
+// 		for i := range attrs {
+// 			attrs[i].ProductID = productID
+// 		}
 
-		if len(attrs) > 0 {
-			if err := tx.Create(&attrs).Error; err != nil {
-				return err
-			}
-		}
+// 		if len(attrs) > 0 {
+// 			if err := tx.Create(&attrs).Error; err != nil {
+// 				return err
+// 			}
+// 		}
 
-		// 3. 同步索引（关键）
-		if err := SyncProductAttrIndex(tx, productID); err != nil {
-			return err
-		}
+// 		// 3. 同步索引（关键）
+// 		if err := SyncProductAttrIndex(tx, productID); err != nil {
+// 			return err
+// 		}
 
-		return nil
-	})
-}
+// 		return nil
+// 	})
+// }
 
 // 同步属性到ProductAttrIndex，提高搜索性能
-func SyncProductAttrIndex(tx *gorm.DB, productID int64) error {
-	// 1. 删除旧索引
-	if err := tx.Where("product_id = ?", productID).
-		Delete(&ProductAttrIndex{}).Error; err != nil {
-		return err
-	}
+// func SyncProductAttrIndex(tx *gorm.DB, productID int64) error {
+// 	// 1. 删除旧索引
+// 	if err := tx.Where("product_id = ?", productID).
+// 		Delete(&ProductAttrIndex{}).Error; err != nil {
+// 		return err
+// 	}
 
-	// 2. 查当前属性
-	var attrs []ProductAttribute
-	if err := tx.
-		Preload("Values").
-		Where("product_id = ?", productID).
-		Find(&attrs).Error; err != nil {
-		return err
-	}
+// 	// 2. 查当前属性
+// 	var attrs []ProductAttribute
+// 	if err := tx.
+// 		Preload("Values").
+// 		Where("product_id = ?", productID).
+// 		Find(&attrs).Error; err != nil {
+// 		return err
+// 	}
 
-	// 3. 构建索引数据
-	var indexList []ProductAttrIndex
+// 	// 3. 构建索引数据
+// 	var indexList []ProductAttrIndex
 
-	for _, attr := range attrs {
-		for _, val := range attr.Values {
+// 	for _, attr := range attrs {
+// 		for _, val := range attr.Values {
 
-			// 忽略自定义值（不能筛选）
-			if val.AttributeValueID == 0 {
-				continue
-			}
+// 			// 忽略自定义值（不能筛选）
+// 			if val.AttributeValueID == 0 {
+// 				continue
+// 			}
 
-			indexList = append(indexList, ProductAttrIndex{
-				ProductID:   productID,
-				AttributeID: attr.AttributeID,
-				ValueID:     val.AttributeValueID,
-			})
-		}
-	}
+// 			indexList = append(indexList, ProductAttrIndex{
+// 				ProductID:   productID,
+// 				AttributeID: attr.AttributeID,
+// 				ValueID:     val.AttributeValueID,
+// 			})
+// 		}
+// 	}
 
-	// 4. 批量插入（防重复）
-	if len(indexList) > 0 {
-		if err := tx.Clauses(clause.OnConflict{
-			DoNothing: true,
-		}).Create(&indexList).Error; err != nil {
-			return err
-		}
-	}
+// 	// 4. 批量插入（防重复）
+// 	if len(indexList) > 0 {
+// 		if err := tx.Clauses(clause.OnConflict{
+// 			DoNothing: true,
+// 		}).Create(&indexList).Error; err != nil {
+// 			return err
+// 		}
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 func getLangName(langs []AttributeLang, lang string) string {
 	var fallback string
@@ -322,13 +324,15 @@ type MultiLangAttr struct {
 }
 
 func UpsertAttributes(inputs []MultiLangAttr) error {
-	// if err := validateAttrs(inputs); err != nil {
-	// 	return err
-	// }
 	return DB.DB().Transaction(func(tx *gorm.DB) error {
 
 		for _, item := range inputs {
-			if len(item.Langs) == 0 {
+			for l, v := range item.Langs {
+				if v == "" {
+					return fmt.Errorf("%s 属性名称为空", l)
+				}
+			}
+			if len(item.Langs) == 0 || len(item.Values) < 1 {
 				continue
 			}
 			// =========================
@@ -375,7 +379,7 @@ func UpsertAttributes(inputs []MultiLangAttr) error {
 			// =========================
 			for lang, name := range item.Langs {
 				if name == "" {
-					continue
+					return fmt.Errorf("%s 属性值为空", lang)
 				}
 
 				var langRow AttributeLang
@@ -401,6 +405,11 @@ func UpsertAttributes(inputs []MultiLangAttr) error {
 			// 3️⃣ 处理 Attribute Values
 			// =========================
 			for _, v := range item.Values {
+				for l, zc := range item.Langs {
+					if zc == "" {
+						return fmt.Errorf("%s 属性名称为空", l)
+					}
+				}
 				if len(v.Langs) < 1 {
 					continue
 				}

@@ -1,34 +1,44 @@
 package products
 
 import (
+	"strconv"
+	"strings"
 	"tools/runtimes/db"
+
+	"gorm.io/gorm"
 )
 
 // 商品基础表
 type Product struct {
 	ID            int64                    `json:"id" gorm:"primaryKey;autoIncrement"`
-	Spu           string                   `json:"spu" gorm:"uniqueIndex;not null;"`                                   // 产品型号(唯一)
-	Code          string                   `json:"code" gorm:"index;default:null"`                                     // 商家编码
-	Meta          []ProductInfo            `json:"meta" gorm:"foreignKey:ProductID"`                                   // 产品信息
-	Images        []ProductImage           `json:"images" gorm:"default:null;foreignKey:ProductID"`                    // 图集
-	Videos        []ProductVideo           `json:"videos" gorm:"default:null;foreignKey:ProductID"`                    // 视频集
-	Weight        int64                    `json:"weight" gorm:"default:0"`                                            // 重量,单位克
-	Width         int64                    `json:"width" gorm:"default:0"`                                             // 宽(cm)
-	Height        int64                    `json:"height" gorm:"default:0"`                                            // 高(cm)
-	Length        int64                    `json:"length" gorm:"default:0"`                                            // 长
-	Brand         int64                    `json:"brand" gorm:"index;default:0"`                                       // 品牌
-	PublishAt     int64                    `json:"publish_at" gorm:"default:0;index"`                                  // 定时上架
-	ProductType   int                      `json:"product_type" gorm:"type:tinyint(1);default:0"`                      // 商品类型,0实物, 1定制，2虚拟
-	OriginPrice   int64                    `json:"origin_price" gorm:"default:0"`                                      // 原价,单位分
-	SalePrice     int64                    `json:"sale_price" gorm:"default:0"`                                        // 售价,单位分
-	PurchasePrice int64                    `json:"purchase_price" gorm:"default:0"`                                    // 进货价,成本价,单位分
-	Stock         int64                    `json:"stock" gorm:"default:0;index"`                                       // 库存,0为不限
-	Customer      []ProductCustomAttribute `json:"customer" gorm:"foreignKey:ProductID"`                               // 定制配置
-	Tags          []Tag                    `json:"tags" gorm:"many2many:product_tag_relations;"`                       // 标签列表
-	Attributes    []ProductAttribute       `json:"attributes" gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE"` // 产品属性
-	Skus          []ProductSKU             `json:"skus" gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE"`       // SKU列表
-	SKUAttrs      []ProductSKUAttribute    `json:"sku_attrs" gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE"`  // SKU维度（销售属性）
-	Status        int8                     `json:"status" gorm:"default:1;index"`                                      // 1启用 0禁用
+	Spu           string                   `json:"spu" gorm:"uniqueIndex;not null;"`                // 产品型号(唯一)
+	Code          string                   `json:"code" gorm:"index;default:null"`                  // 商家编码
+	Meta          []ProductInfo            `json:"meta" gorm:"foreignKey:ProductID"`                // 产品信息
+	Images        []ProductImage           `json:"images" gorm:"default:null;foreignKey:ProductID"` // 图集
+	Videos        []ProductVideo           `json:"videos" gorm:"default:null;foreignKey:ProductID"` // 视频集
+	Weight        int64                    `json:"weight" gorm:"default:0"`                         // 重量,单位克
+	Width         int64                    `json:"width" gorm:"default:0"`                          // 宽(cm)
+	Height        int64                    `json:"height" gorm:"default:0"`                         // 高(cm)
+	Length        int64                    `json:"length" gorm:"default:0"`                         // 长
+	Brand         int64                    `json:"brand" gorm:"index;default:0"`                    // 品牌
+	PublishAt     int64                    `json:"publish_at" gorm:"default:0;index"`               // 定时上架
+	ProductType   int                      `json:"product_type" gorm:"type:tinyint(1);default:0"`   // 商品类型,0实物, 1定制，2虚拟
+	OriginPrice   int64                    `json:"origin_price" gorm:"default:0"`                   // 原价,单位分
+	SalePrice     int64                    `json:"sale_price" gorm:"default:0"`                     // 售价,单位分
+	PurchasePrice int64                    `json:"purchase_price" gorm:"default:0"`                 // 进货价,成本价,单位分
+	Stock         int64                    `json:"stock" gorm:"default:0;index"`                    // 库存,0为不限
+	Customer      []ProductCustomAttribute `json:"customer" gorm:"foreignKey:ProductID"`            // 定制配置
+	Tags          []Tag                    `json:"tags" gorm:"many2many:product_tag_relations;"`    // 标签列表// 关系
+	Attributes    []ProductAttribute       `json:"attributes" gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE"`
+	Skus          []ProductSKU             `json:"skus" gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE"`
+	// SKUAttrs      []SKUAttributeValue      `json:"sku_attrs" gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE"`  // SKU维度（销售属性）
+	Status int8 `json:"status" gorm:"default:1;index"`  // 1启用 0禁用
+	HasSKU int8 `json:"has_sku" gorm:"default:0;index"` // 是否多规格
+	// 🔥 价格（冗余）
+	MinPrice int64 `json:"min_price" gorm:"index"` // 最低SKU价
+	MaxPrice int64 `json:"max_price"`
+	// 🔥 库存（冗余）
+	TotalStock int64 `json:"total_stock"`
 }
 
 type ProductImage struct {
@@ -59,6 +69,21 @@ type ProductInfo struct {
 	Keyword        string `json:"keyword" gorm:"index;default:null"`                            // 关键词
 }
 
+type ProductFilterIndex struct {
+	ID int64 `json:"id" gorm:"primaryKey"`
+
+	ProductID int64 `json:"product_id" gorm:"not null;index:idx_filter,priority:1"`
+
+	AttributeID int64 `json:"attribute_id" gorm:"not null;index"`
+	AttrValueID int64 `json:"attr_value_id" gorm:"not null;index:idx_filter,priority:2"`
+
+	// 冗余字段（用于排序/筛选）
+	MinPrice int64 `json:"min_price" gorm:"index"`
+
+	// 👉 防止重复
+	_ struct{} `gorm:"uniqueIndex:uk_product_attrvalue,priority:1"`
+}
+
 var DB = db.PRODUCTDB
 
 const (
@@ -80,13 +105,15 @@ func init() {
 		&ProductAttribute{},
 		&ProductAttributeValue{},
 		&ProductAttrIndex{},
-		&ProductSKUAttribute{},
-		&ProductSKUAttrValue{},
+		// &ProductSKUAttribute{},
+		// &ProductSKUAttrValue{},
 		&ProductSKU{},
-		&ProductSKUOption{},
+		// &SKUAttributeValue{},
+		// &ProductSKUOption{},
 		&ProductCustomAttribute{},
 		&ProductCustomAttrValue{},
 		&ProductCustomConfig{},
+		&ProductFilterIndex{},
 	)
 }
 
@@ -163,4 +190,73 @@ func GetProductList(req db.ListFinder) ([]Product, int64, error) {
 		Find(&ps).Error
 
 	return ps, total, err
+}
+
+// 同步商品冗余数据（必须做）
+// 👉 每次 SKU 变化必须调用
+func SyncProductData(db *gorm.DB, productID int64) error {
+	var result struct {
+		MinPrice int64
+		MaxPrice int64
+		Stock    int64
+	}
+
+	err := db.Model(&ProductSKU{}).
+		Select("MIN(price) as min_price, MAX(price) as max_price, SUM(stock) as stock").
+		Where("product_id=? AND status=1", productID).
+		Scan(&result).Error
+
+	if err != nil {
+		return err
+	}
+
+	return db.Model(&Product{}).
+		Where("id=?", productID).
+		Updates(map[string]interface{}{
+			"min_price":   result.MinPrice,
+			"max_price":   result.MaxPrice,
+			"total_stock": result.Stock,
+		}).Error
+}
+
+// 同步筛选索引（核心）
+// 这是列表筛选不卡的关键
+func SyncProductFilterIndex(db *gorm.DB, productID int64) error {
+	// 先删旧数据
+	if err := db.Where("product_id=?", productID).
+		Delete(&ProductFilterIndex{}).Error; err != nil {
+		return err
+	}
+
+	// 查SKU
+	var skus []ProductSKU
+	if err := db.Where("product_id=? AND status=1", productID).
+		Find(&skus).Error; err != nil {
+		return err
+	}
+
+	// 去重 attr_value_id
+	attrSet := map[int64]struct{}{}
+
+	for _, sku := range skus {
+		ids := strings.Split(sku.AttrValueIDs, ",")
+		for _, idStr := range ids {
+			id, _ := strconv.ParseInt(idStr, 10, 64)
+			attrSet[id] = struct{}{}
+		}
+	}
+
+	var product Product
+	db.First(&product, productID)
+
+	var list []ProductFilterIndex
+	for attrID := range attrSet {
+		list = append(list, ProductFilterIndex{
+			ProductID:   productID,
+			AttrValueID: attrID,
+			MinPrice:    product.MinPrice,
+		})
+	}
+
+	return db.Create(&list).Error
 }

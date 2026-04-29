@@ -221,5 +221,8 @@ func router() {
 		// productGroup.POST("attrs/remove", product.GetProductAttrs)
 		productGroup.POST("upsert-attrs", product.UpsertAttributes)
 		productGroup.POST("/tags", product.Tag)
+		productGroup.POST("/langs", product.GetLangs)
+		productGroup.POST("/lang/add", product.AddLang)
+		productGroup.POST("/lang/delete", product.DeleteLangs)
 	}
 }
