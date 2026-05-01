@@ -52,20 +52,19 @@ import (
 
 type ProductSKU struct {
 	ID        int64 `json:"id" gorm:"primaryKey"`
-	ProductID int64 `json:"product_id" gorm:"not null;index"`
+	ProductID int64 `json:"product_id" gorm:"uniqueIndex:uk_product_sku_code"`
 
-	SkuCode string `json:"sku_code" gorm:"size:100;uniqueIndex"`
+	SkuCode string `json:"sku_code" gorm:"index"`
 
 	// 🔥 SKU唯一组合
-	AttrHash string `json:"attr_hash" gorm:"size:255;not null"`
-
+	AttrHash string `json:"attr_hash" gorm:"size:255;not null;uniqueIndex:uk_product_sku_code"`
 	// 🔥 冗余（加速查询）
 	AttrValueIDs string `json:"attr_value_ids" gorm:"size:255;index"`
 
 	// 💰 价格
-	Price       int64 `json:"price" gorm:"not null;index"`
-	OriginPrice int64 `json:"origin_price"`
-	CostPrice   int64 `json:"cost_price"`
+	Price       float64 `json:"price" gorm:"not null;index"`
+	OriginPrice float64 `json:"origin_price"`
+	CostPrice   float64 `json:"cost_price"`
 
 	// 📦 库存
 	Stock int64 `json:"stock" gorm:"index"`
@@ -76,7 +75,7 @@ type ProductSKU struct {
 
 	Weight int64 `json:"weight"`
 
-	Status int8 `json:"status" gorm:"default:1;index"`
+	Status int `json:"status" gorm:"default:1;index"`
 
 	// 🔥 组合唯一（防重复SKU）
 	_ struct{} `gorm:"uniqueIndex:uk_product_attrhash,priority:1"`

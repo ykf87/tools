@@ -13,7 +13,7 @@ type Attribute struct {
 	ID     int64 `gorm:"primaryKey"`
 	Sort   int   `gorm:"default:0;index"`
 	Status int8  `gorm:"default:1;index"` // 1启用 0禁用
-	Type   int8  `gorm:"default:0"`       // 1 = 展示属性,2 = SKU属性,3 = 定制属性
+	Type   int8  `gorm:"default:1"`       // 1 = 展示属性,2 = SKU属性,3 = 定制属性
 
 	// 多语言
 	Langs []AttributeLang `gorm:"foreignKey:AttributeID;constraint:OnDelete:CASCADE"`
@@ -45,8 +45,6 @@ type AttributeValueLang struct {
 
 // 产品属性表
 type ProductAttribute struct {
-	ID int64 `json:"id" gorm:"primaryKey"`
-
 	ProductID   int64 `json:"product_id" gorm:"not null;index:idx_product_attr,priority:1"`
 	AttributeID int64 `json:"attribute_id" gorm:"not null;index:idx_product_attr,priority:2"`
 
@@ -57,9 +55,12 @@ type ProductAttribute struct {
 }
 
 type ProductAttributeValue struct {
-	ID                 int64 `gorm:"primaryKey"`
-	ProductAttributeID int64 `gorm:"uniqueIndex:idx_pa_value"`
-	AttributeValueID   int64 `gorm:"uniqueIndex:idx_pa_value"`
+	ProductID        int64  `json:"product_id" gorm:"uniqueIndex:idx_pa_value"`
+	AttributeID      int64  `gorm:"uniqueIndex:idx_pa_value"`
+	AttributeValueID int64  `gorm:"uniqueIndex:idx_pa_value"`
+	IsMedia          int    `json:"is_media" gorm:"default:0;index"`
+	Images           string `json:"images"`
+	Videos           string `json:"videos"`
 	// 方便 preload
 	Value AttributeValue `gorm:"foreignKey:AttributeValueID"`
 }

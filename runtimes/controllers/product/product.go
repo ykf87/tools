@@ -1,7 +1,9 @@
 package product
 
 import (
+	"fmt"
 	"net/http"
+	"strconv"
 	"tools/runtimes/db"
 	"tools/runtimes/db/products"
 	"tools/runtimes/response"
@@ -50,4 +52,35 @@ func GetProductAttrs(c *gin.Context) {
 	}
 
 	response.Success(c, data, "")
+}
+
+func SaveProduct(c *gin.Context) {
+	var req products.SaveProductStruct
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadGateway, err.Error(), nil)
+		return
+	}
+
+	if err := products.SaveProduct(req); err != nil {
+		response.Error(c, http.StatusBadGateway, err.Error(), nil)
+		return
+	}
+
+	response.Success(c, nil, "")
+}
+
+func GetProductRow(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		fmt.Println("-----")
+		response.Error(c, http.StatusBadGateway, err.Error(), nil)
+		return
+	}
+
+	pi, err := products.GetProductDetail(int64(id))
+	if err != nil {
+		response.Error(c, http.StatusBadGateway, err.Error(), nil)
+		return
+	}
+	response.Success(c, pi, "")
 }
