@@ -115,13 +115,17 @@ func getProductAttrAndSkuAttrs(productID int64) ([]SaveProductAttrs, []SaveProdu
 	}
 
 	// 2️⃣ 查属性定义（判断 is_sku）
-	var attrs []ProductAttribute
+	var attrs []*ProductAttribute
 	err = DB.DB().
 		Where("product_id = ?", productID).
 		Find(&attrs).Error
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// for _, v := range attrs{
+
+	// }
 
 	// 👉 attr_id → is_sku
 	attrTypeMap := map[int64]int8{}
@@ -148,6 +152,7 @@ func getProductAttrAndSkuAttrs(productID int64) ([]SaveProductAttrs, []SaveProdu
 		if isSKU == 1 {
 
 			var vlist []SaveProductAttrValue
+			var isMedia bool
 
 			for _, v := range values {
 
@@ -167,6 +172,7 @@ func getProductAttrAndSkuAttrs(productID int64) ([]SaveProductAttrs, []SaveProdu
 					if v.Videos != "" {
 						item.Videos = strings.Split(v.Videos, ",")
 					}
+					isMedia = true
 				}
 
 				vlist = append(vlist, item)
@@ -175,8 +181,9 @@ func getProductAttrAndSkuAttrs(productID int64) ([]SaveProductAttrs, []SaveProdu
 			aid := attrID
 
 			skuAttrs = append(skuAttrs, SaveProductSkuAttr{
-				AttrID: aid,
-				Values: vlist,
+				AttrID:  aid,
+				Values:  vlist,
+				Isimage: isMedia,
 			})
 
 		} else {

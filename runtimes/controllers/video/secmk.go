@@ -96,16 +96,17 @@ type minmax struct {
 	Max int `json:"max"`
 }
 type videos struct {
-	IncludeChildPath bool    `json:"include_child_path"`
-	Path             int64   `json:"path"`
-	SearchMediaTitle string  `json:"search_media_title"`
-	Size             *minmax `json:"size"`
-	UserFans         *minmax `json:"user_fans"`
-	UserIDs          []int64 `json:"user_ids"`
-	UserTags         []int64 `json:"user_tags"`
-	UserWorks        *minmax `json:"user_works"`
-	Page             int     `json:"page"`
-	Limit            int     `json:"limit"`
+	IncludeChildPath bool     `json:"include_child_path"`
+	Path             int64    `json:"path"`
+	SearchMediaTitle string   `json:"search_media_title"`
+	Size             *minmax  `json:"size"`
+	UserFans         *minmax  `json:"user_fans"`
+	UserIDs          []int64  `json:"user_ids"`
+	UserTags         []int64  `json:"user_tags"`
+	UserWorks        *minmax  `json:"user_works"`
+	Page             int      `json:"page"`
+	MediaIDs         []string `json:"media_ids"`
+	Limit            int      `json:"limit"`
 }
 type mkvideoData struct {
 	Factory *factory `json:"factory"`
@@ -142,7 +143,9 @@ func (v *videos) getVideos() (mds []*medias.Media, total int64, err error) {
 	if v.SearchMediaTitle != "" {
 		model = model.Where("title like ?", fmt.Sprintf("%%%s%%", v.SearchMediaTitle))
 	}
+	model.Count(&total)
 
+	model = model.Preload("User")
 	if v.Limit > 0 {
 		if v.Page < 1 {
 			v.Page = 1
@@ -154,7 +157,6 @@ func (v *videos) getVideos() (mds []*medias.Media, total int64, err error) {
 		}
 	}
 
-	model.Count(&total)
 	model.Find(&mds)
 
 	return
@@ -183,13 +185,22 @@ func MakerVideos(c *gin.Context) {
 		return
 	}
 
-	req.Videos.Limit = 0
-	mds, total, err := req.Videos.getVideos()
-	if err != nil {
-		response.Error(c, http.StatusBadRequest, err.Error(), nil)
+	// req.Videos.Limit = 0
+	// mds, total, err := req.Videos.getVideos()
+	// if err != nil {
+	// 	response.Error(c, http.StatusBadRequest, err.Error(), nil)
+	// 	return
+	// }
+	if len(req.Videos.MediaIDs) < 1 {
+		response.Error(c, http.StatusBadRequest, "未选择视频", nil)
 		return
 	}
 
+	var mds []*medias.Media
+	medias.GetDb().DB().Model(&medias.Media{}).Preload("Files").
+		Where("removed = 0").Where("id in ?", req.Videos.MediaIDs).Find(&mds)
+
+	total := len(mds)
 	if total < 1 {
 		response.Error(c, http.StatusBadRequest, i18n.T("未设置视频"), nil)
 		return

@@ -262,10 +262,15 @@ func saveProductAttributes(tx *gorm.DB, productID int64, attrs []SaveProductAttr
 
 	// SKU属性
 	for _, s := range skuAttrs {
+		var ismd int8
+		if s.Isimage == true {
+			ismd = 1
+		}
 		tx.Create(&ProductAttribute{
 			ProductID:   productID,
 			AttributeID: int64(s.AttrID),
 			IsSKU:       1,
+			IsMedia:     ismd,
 		})
 	}
 

@@ -139,7 +139,7 @@ func List(c *gin.Context) {
 	if dirlen < limit {
 		var mds []medias.Media
 		mlimit := limit - dirlen
-		model := medias.GetDb().DB().Debug().Model(&medias.Media{}).
+		model := medias.GetDb().DB().Model(&medias.Media{}).
 			Where("removed = 0")
 		if len(ddt.IDs) > 0 {
 			model = model.Where("id in ?", ddt.IDs)
@@ -161,7 +161,7 @@ func List(c *gin.Context) {
 			model = model.Preload("Files")
 		}
 		// 加载 user 关联
-		model = model.Preload("user")
+		model = model.Preload("User")
 
 		// 先获取总数
 		model.Count(&flen)

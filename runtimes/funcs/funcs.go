@@ -134,13 +134,6 @@ func (c *Command) Run() error {
 }
 
 func RunCommand(wait bool, cmdName string, args ...string) (string, *exec.Cmd, error) {
-	// cmd := exec.Command(cmdName, args...)
-
-	// cmd.Env = append(os.Environ(),
-	// 	"MINIO_ROOT_USER=admin",
-	// 	"MINIO_ROOT_PASSWORD=StrongPassword123!",
-	// )
-
 	return RunCommandWithENV(wait, cmdName, nil, args...)
 }
 
