@@ -40,7 +40,7 @@ func GetVersions() *VersionResp {
 	VersionResps = new(VersionResp)
 	if r, err := requests.New(&requests.Config{Timeout: time.Second * 30}); err == nil {
 		hd := funcs.ServerHeader(config.VERSION, config.VERSIONCODE)
-		if str, err := r.Get(fmt.Sprint(config.SERVERDOMAIN, "versions"), hd); err == nil {
+		if str, _, err := r.Get(fmt.Sprint(config.SERVERDOMAIN, "versions"), hd); err == nil {
 			rsp := new(VersionResp)
 			if err := json.Unmarshal([]byte(str), rsp); err == nil {
 				VersionResps = rsp
@@ -92,7 +92,7 @@ func GerProxySub(suburl string) ([]*SubResp, error) {
 	var rsp []*SubResp
 	if r, err := requests.New(&requests.Config{Timeout: time.Second * 30}); err == nil {
 		hd := funcs.ServerHeader(config.VERSION, config.VERSIONCODE)
-		if bt, err := r.Get(suburl, hd); err == nil {
+		if bt, _, err := r.Get(suburl, hd); err == nil {
 			respStr, err := parseResp(bt)
 			if err != nil {
 				return nil, err

@@ -24,7 +24,7 @@ func init() {
 func GetVersions() {
 	if r, err := requests.New(&requests.Config{Timeout: time.Second * 10}); err == nil {
 		hd := funcs.ServerHeader(config.VERSION, config.VERSIONCODE)
-		if respbt, err := r.Get(fmt.Sprint(config.SERVERDOMAIN, "start"), hd); err == nil {
+		if respbt, _, err := r.Get(fmt.Sprint(config.SERVERDOMAIN, "start"), hd); err == nil {
 			gs := gjson.ParseBytes(respbt)
 			if gs.Get("code").Int() != 200 {
 				config.MainStatus = 0

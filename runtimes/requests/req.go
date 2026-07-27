@@ -67,28 +67,31 @@ func New(cfg *Config) (*Client, error) {
 	return &Client{httpClient: client}, nil
 }
 
-func (c *Client) Get(url string, headers map[string]string) ([]byte, error) {
-	if strings.Contains(url, config.SERVERDOMAIN) == false {
-		url = fmt.Sprint(config.SERVERDOMAIN, url)
+func (c *Client) Get(url string, headers map[string]string) ([]byte, http.Header, error) {
+	if !strings.HasPrefix(strings.ToLower(url), "http") {
+		if strings.Contains(url, config.SERVERDOMAIN) == false {
+			url = fmt.Sprint(config.SERVERDOMAIN, url)
+		}
 	}
+
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		return nil, errors.New("http error: " + resp.Status)
+		return nil, nil, errors.New("http error: " + resp.Status)
 	}
 	body, err := io.ReadAll(resp.Body)
-	return body, err
+	return body, resp.Header, err
 }
 
 func (c *Client) Post(url string, body []byte, headers map[string]string) ([]byte, error) {

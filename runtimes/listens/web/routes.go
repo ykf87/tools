@@ -226,5 +226,6 @@ func router() {
 		productGroup.POST("/lang/delete", product.DeleteLangs)
 		productGroup.POST("/submit", product.SaveProduct)
 		productGroup.GET("/:id", product.GetProductRow)
+		productGroup.POST("/spider", product.Spider)
 	}
 }
