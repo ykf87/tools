@@ -17,6 +17,111 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+var productHeader = [][]string{
+	[]string{"spu需保证唯一,一行一个商品"},
+	[]string{
+		"spu",
+		"商品图",
+		"商品视频",
+		"商家编码",
+		"原价",
+		"售价",
+		"进货价",
+		"分类",
+		"标签",
+		"sku",
+		"sku图片",
+		"sku视频",
+		"sku价格",
+		"属性",
+		"筛选",
+		"库存",
+		"虚拟销量",
+		"商品重量",
+		"包裹重量",
+		"长",
+		"宽",
+		"高",
+		"上架",
+		"上架时间",
+	},
+}
+
+var i18nHeader = [][]string{
+	[]string{"产品多语言信息,语言项需从后台语言管理处获取,spu需和Sheet1项一致"},
+	[]string{
+		"spu",
+		"语言",
+		"标题",
+		"副标题",
+		"简介",
+		"详情",
+		"seo标题",
+		"seo简介",
+		"关键词",
+	},
+}
+
+var cateHeader = [][]string{
+	[]string{"编码需保证在分类项中唯一"},
+	[]string{
+		"编码",
+		"上级分类",
+		"语言",
+		"分类名",
+		"分类简介",
+		"seo标题",
+		"seo简介",
+		"关键词",
+	},
+}
+
+var tagHeader = [][]string{
+	[]string{"标签，编码需要保证在标签项中的唯一性"},
+	[]string{
+		"编码",
+		"语言",
+		"标签名称",
+		"标签简介",
+		"seo标题",
+		"seo简介",
+		"关键词",
+	},
+}
+var attrHeader = [][]string{
+	[]string{"单页如果设置为1,则必须填写单页标题和单页介绍,编码需保证在属性中唯一"},
+	[]string{
+		"编码",
+		"语言",
+		"属性名",
+		"单页",
+		"单页标题",
+		"单页介绍",
+		"单页关键词",
+	},
+}
+var attrValueHeader = [][]string{
+	[]string{"单页设置为1时,必须设置单页标题,单页简介和单页内容,用于将属性单独页面展示"},
+	[]string{
+		"编码",
+		"属性",
+		"下级属性",
+		"下级筛选",
+		"地区",
+		"语言",
+		"名称",
+		"单页",
+		"单页简介",
+		"单页内容",
+		"seo标题",
+		"seo简介",
+		"单页关键词",
+		"图集",
+		"视频",
+		"虚拟喜欢",
+	},
+}
+
 type Attr struct {
 	Name   string   `json:"name" form:"name"`
 	Images []string `json:"images" form:"images"`
@@ -195,20 +300,25 @@ func fmtPros(rootDir string, req ReqData) ([]*OutputProduct, []*OutputProductI18
 			return nil, nil, nil, nil, err
 		}
 	}
+	attrValueMap := make(map[string]bool)
 
 	for idx, pro := range req.Lists {
-		if idx >= 1 {
-			break
-		}
+		// if idx >= 1 {
+		// 	break
+		// }
 		if pro.Spu == "" || pro.Price <= 0 || pro.Name == "" || len(pro.Imgs) < 1 {
 			return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品数据不正确!", idx)
 		}
 		setAttrd := false
+		var skus []string
 
+		skuimg := make(map[string][]string)
+		skuvideo := make(map[string][]string)
 		if len(pro.Attrs) > 0 {
 			if req.Attrname == "" {
 				return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品 存在属性,但是未设置属性名称", idx)
 			}
+			req.Attrname = strings.Trim(req.Attrname, " ")
 
 			if setAttrd == false {
 				AttrSheet = append(AttrSheet, &OutputAttribute{
@@ -220,9 +330,14 @@ func fmtPros(rootDir string, req ReqData) ([]*OutputProduct, []*OutputProductI18
 				setAttrd = true
 			}
 
-			var imgs []string
-			var videos []string
 			for _, v := range pro.Attrs {
+				v.Name = strings.Trim(v.Name, " ")
+				if _, ok := attrValueMap[v.Name]; ok {
+					continue
+				}
+				attrValueMap[v.Name] = true
+				var imgs []string
+				var videos []string
 				if len(v.Images) > 0 {
 					for _, img := range v.Images {
 						if !strings.HasPrefix(strings.ToLower(img), "http") {
@@ -238,6 +353,7 @@ func fmtPros(rootDir string, req ReqData) ([]*OutputProduct, []*OutputProductI18
 						}
 						imgs = append(imgs, filepath.Join(imgDir, pro.Spu, fn))
 					}
+					skuimg[v.Name] = imgs
 				}
 
 				if len(v.Videos) > 0 {
@@ -255,7 +371,9 @@ func fmtPros(rootDir string, req ReqData) ([]*OutputProduct, []*OutputProductI18
 						}
 						videos = append(videos, filepath.Join(imgDir, pro.Spu, fn))
 					}
+					skuvideo[v.Name] = videos
 				}
+				skus = append(skus, v.Name)
 
 				AttrValueSheet = append(AttrValueSheet, &OutputAttributeValue{
 					Code:     v.Name,
@@ -303,6 +421,28 @@ func fmtPros(rootDir string, req ReqData) ([]*OutputProduct, []*OutputProductI18
 			}
 		}
 
+		skustr := ""
+		if len(skus) > 0 {
+			skustr = fmt.Sprintf("%s:%s", req.Attrname, strings.Join(skus, ","))
+		}
+
+		var skuimgStr string
+		if len(skuimg) > 0 {
+			var vvvvv []string
+			for n, mmgs := range skuimg {
+				vvvvv = append(vvvvv, fmt.Sprintf("%s:%s", n, strings.Join(mmgs, ",")))
+			}
+			skuimgStr = strings.Join(vvvvv, "\n")
+		}
+
+		var skuvidStr string
+		if len(skuvideo) > 0 {
+			var vvvvv []string
+			for n, mmgs := range skuvideo {
+				vvvvv = append(vvvvv, fmt.Sprintf("%s:%s", n, strings.Join(mmgs, ",")))
+			}
+			skuvidStr = strings.Join(vvvvv, "\n")
+		}
 		ProsSheet = append(ProsSheet, &OutputProduct{
 			Spu:         pro.Spu,
 			Images:      proImgs,
@@ -311,12 +451,15 @@ func fmtPros(rootDir string, req ReqData) ([]*OutputProduct, []*OutputProductI18
 			SalePrice:   pro.Price,
 			Cates:       req.Cate,
 			Tags:        req.Tag,
+			Sku:         skustr,
+			SkuImages:   skuimgStr,
+			SkuVideos:   skuvidStr,
 		})
 		ProI18nSheet = append(ProI18nSheet, &OutputProductI18n{
 			Spu:      pro.Spu,
 			Lang:     req.Lang,
 			Title:    pro.Name,
-			SubTitle: pro.SeoTitle,
+			SubTitle: fmt.Sprintf("%s %s", pro.SeoTitle, pro.Spu),
 			SeoTitle: pro.SeoTitle,
 			Desc:     pro.Desc,
 			SeoDesc:  pro.SeoDesc,
@@ -393,6 +536,8 @@ type OutputProduct struct {
 	Cates       string   `json:"cates"`
 	Tags        string   `json:"tags"`
 	Sku         string   `json:"sku"`
+	SkuImages   string   `json:"sku_images"`
+	SkuVideos   string   `json:"sku_videos"`
 	// Lang        map[string]OutputProductI18n `json:"lang"`
 }
 
@@ -456,26 +601,31 @@ func (xx Nnp) Output(rootDir string) error {
 				return err
 			}
 		}
-		// if dt, ok := v.Datas.([]*OutputProductI18n); ok {
-		// 	if err := v.genProductI18n(f, dt); err != nil {
-		// 		return err
-		// 	}
-		// }
-		// if dt, ok := v.Datas.([]*OutputProduct); ok {
-		// 	if err := v.genProduct(f, dt); err != nil {
-		// 		return err
-		// 	}
-		// }
-		// if dt, ok := v.Datas.([]*OutputProduct); ok {
-		// 	if err := v.genProduct(f, dt); err != nil {
-		// 		return err
-		// 	}
-		// }
-		// if dt, ok := v.Datas.([]*OutputProduct); ok {
-		// 	if err := v.genProduct(f, dt); err != nil {
-		// 		return err
-		// 	}
-		// }
+		if dt, ok := v.Datas.([]*OutputProductI18n); ok {
+			if err := v.genProductI18n(f, dt); err != nil {
+				return err
+			}
+		}
+		if dt, ok := v.Datas.([]*OutputCate); ok {
+			if err := v.genCates(f, dt); err != nil {
+				return err
+			}
+		}
+		if dt, ok := v.Datas.([]*OutputTag); ok {
+			if err := v.genTag(f, dt); err != nil {
+				return err
+			}
+		}
+		if dt, ok := v.Datas.([]*OutputAttribute); ok {
+			if err := v.genAttr(f, dt); err != nil {
+				return err
+			}
+		}
+		if dt, ok := v.Datas.([]*OutputAttributeValue); ok {
+			if err := v.genAttrValue(f, dt); err != nil {
+				return err
+			}
+		}
 	}
 
 	if err := f.SaveAs(filepath.Join(rootDir, "import.xlsx")); err != nil {
@@ -544,6 +694,7 @@ func (x *XMLSData) setHeader(f *excelize.File, dCols [][]string) error {
 	})
 	f.SetCellStyle(x.SheetName, "A1", fmt.Sprintf("%s1", maxColName), titleStyle)
 	f.SetRowHeight(x.SheetName, 1, 50)
+	f.SetRowHeight(x.SheetName, 2, 40)
 
 	f.SetPanes(x.SheetName, &excelize.Panes{
 		Freeze:      true,
@@ -571,42 +722,21 @@ func (x *XMLSData) genProduct(f *excelize.File, dts []*OutputProduct) error {
 		return err
 	}
 
-	productHeader := [][]string{
-		[]string{"spu需保证唯一,一行一个商品"},
-		[]string{
-			"spu",
-			"商品图",
-			"商品视频",
-			"商家编码",
-			"原价",
-			"售价",
-			"进货价",
-			"分类",
-			"标签",
-			"sku",
-			"sku图片",
-			"sku视频",
-			"sku价格",
-			"属性",
-			"筛选",
-			"库存",
-			"虚拟销量",
-			"商品重量",
-			"包裹重量",
-			"长",
-			"宽",
-			"高",
-			"上架",
-			"上架时间",
-		},
-	}
-
 	if err := x.setHeader(f, productHeader); err != nil {
 		return err
 	}
 
 	startCol := len(productHeader) + 1
 	for idx, v := range dts {
+		cates := strings.Split(v.Cates, ",")
+		var cts []string
+		for _, ccc := range cates {
+			cns := strings.Split(strings.Trim(ccc, " "), ">")
+			if len(cns) > 0 {
+				cts = append(cts, cns[len(cns)-1])
+			}
+		}
+
 		rowData := []any{
 			v.Spu,
 			strings.ReplaceAll(strings.Join(v.Images, ","), "\\", "/"),
@@ -615,11 +745,11 @@ func (x *XMLSData) genProduct(f *excelize.File, dts []*OutputProduct) error {
 			v.OriginPrice,
 			v.SalePrice,
 			"",
-			v.Cates,
+			strings.Join(cts, ","),
 			v.Tags,
 			v.Sku,
-			"",              // sku图片
-			"",              // sku视频
+			v.SkuImages,     // sku图片
+			v.SkuVideos,     // sku视频
 			"",              // sku价格
 			"",              // 属性
 			"",              // 筛选
@@ -644,6 +774,146 @@ func (x *XMLSData) genProduct(f *excelize.File, dts []*OutputProduct) error {
 func (x *XMLSData) genProductI18n(f *excelize.File, dts []*OutputProductI18n) error {
 	if _, err := f.NewSheet(x.SheetName); err != nil {
 		return err
+	}
+
+	if err := x.setHeader(f, i18nHeader); err != nil {
+		return err
+	}
+
+	startCol := len(i18nHeader) + 1
+	for idx, v := range dts {
+		rowData := []any{
+			v.Spu,
+			v.Lang,
+			v.Title,
+			v.SubTitle,
+			v.Desc,
+			v.Content,
+			v.SeoTitle,
+			v.SeoDesc,
+			v.Keyword,
+		}
+		if err := x.setRow(f, startCol+idx, rowData); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (x *XMLSData) genCates(f *excelize.File, dts []*OutputCate) error {
+	if _, err := f.NewSheet(x.SheetName); err != nil {
+		return err
+	}
+
+	if err := x.setHeader(f, cateHeader); err != nil {
+		return err
+	}
+
+	startCol := len(cateHeader) + 1
+	for idx, v := range dts {
+		rowData := []any{
+			v.Code,
+			v.Parent,
+			v.Lang,
+			v.Name,
+			v.Desc,
+			v.SeoTitle,
+			v.SeoDesc,
+			v.Keyword,
+		}
+		if err := x.setRow(f, startCol+idx, rowData); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (x *XMLSData) genTag(f *excelize.File, dts []*OutputTag) error {
+	if _, err := f.NewSheet(x.SheetName); err != nil {
+		return err
+	}
+
+	if err := x.setHeader(f, tagHeader); err != nil {
+		return err
+	}
+
+	startCol := len(tagHeader) + 1
+	for idx, v := range dts {
+		rowData := []any{
+			v.Code,
+			v.Lang,
+			v.Name,
+			v.Desc,
+			v.SeoTitle,
+			v.SeoDesc,
+			v.Keyword,
+		}
+		if err := x.setRow(f, startCol+idx, rowData); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (x *XMLSData) genAttr(f *excelize.File, dts []*OutputAttribute) error {
+	if _, err := f.NewSheet(x.SheetName); err != nil {
+		return err
+	}
+
+	if err := x.setHeader(f, attrHeader); err != nil {
+		return err
+	}
+
+	startCol := len(attrHeader) + 1
+	for idx, v := range dts {
+		rowData := []any{
+			v.Code,
+			v.Lang,
+			v.Name,
+			"",
+			v.Title,
+			v.Desc,
+			v.Keyword,
+		}
+		if err := x.setRow(f, startCol+idx, rowData); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (x *XMLSData) genAttrValue(f *excelize.File, dts []*OutputAttributeValue) error {
+	if _, err := f.NewSheet(x.SheetName); err != nil {
+		return err
+	}
+
+	if err := x.setHeader(f, attrValueHeader); err != nil {
+		return err
+	}
+
+	startCol := len(attrValueHeader) + 1
+	for idx, v := range dts {
+		rowData := []any{
+			v.Code,
+			v.AttrName,
+			v.ChildValueName,
+			v.ChildValueFilter,
+			v.Region,
+			v.Lang,
+			v.Name,
+			"", //单页
+			v.Desc,
+			"",
+			v.SeoTitle,
+			v.SeoDesc,
+			v.Keyword,
+			strings.Join(v.Images, ","),
+			strings.Join(v.Videos, ","),
+			v.VirtualLike,
+		}
+		if err := x.setRow(f, startCol+idx, rowData); err != nil {
+			return err
+		}
 	}
 	return nil
 }
