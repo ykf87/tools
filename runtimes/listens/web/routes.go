@@ -227,5 +227,7 @@ func router() {
 		productGroup.POST("/submit", product.SaveProduct)
 		productGroup.GET("/:id", product.GetProductRow)
 		productGroup.POST("/spider", product.Spider)
+		productGroup.GET("/spiderjs", product.GetSpiderJses)
+		productGroup.POST("/spider/save", product.SaveSpider)
 	}
 }

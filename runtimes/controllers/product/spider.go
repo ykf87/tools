@@ -9,6 +9,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
+	"tools/runtimes/db"
+	"tools/runtimes/db/spider"
 	"tools/runtimes/funcs"
 	"tools/runtimes/requests"
 	"tools/runtimes/response"
@@ -147,10 +150,34 @@ type ReqData struct {
 	Cate     string      `json:"cate" form:"cate"`
 	Tag      string      `json:"tag" form:"tag"`
 	Brand    string      `json:"brand" form:"brand"`
-	Currency string      `json:"currency" form:"currency"`
 	Lang     string      `json:"lang" form:"lang"`
 	Attrname string      `json:"attrname" form:"attrname"`
 	Lists    []*ListData `json:"lists" form:"lists"`
+}
+
+func GetSpiderJses(c *gin.Context) {
+	response.Success(c, spider.GetSpiderJses(), "")
+}
+
+func SaveSpider(c *gin.Context) {
+	var req spider.SpiderJs
+	if err := c.ShouldBind(&req); err != nil {
+		response.Error(c, 500, err.Error(), nil)
+		return
+	}
+
+	if req.ID < 1 {
+		req.CreatedAt = time.Now()
+	} else {
+		req.CreatedAt = time.Now()
+	}
+
+	if err := req.Save(&req, db.DB.DB()); err != nil {
+		response.Error(c, 500, err.Error(), nil)
+		return
+	}
+
+	response.Success(c, spider.GetSpiderJses(), "")
 }
 
 func Spider(c *gin.Context) {
@@ -160,7 +187,7 @@ func Spider(c *gin.Context) {
 		return
 	}
 
-	if req.Currency == "" || req.Lang == "" || req.Cate == "" {
+	if req.Lang == "" || req.Cate == "" {
 		response.Error(c, 500, "请将右侧设置填写完整", nil)
 		return
 	}
