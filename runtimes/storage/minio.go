@@ -103,7 +103,7 @@ func (m *minioStorage) Put(r io.Reader, fm *FileMeta) (string, error) {
 	return objectKey, err
 }
 
-func (m *minioStorage) PutStr(str string) (string, error) {
+func (m *minioStorage) PutStr(str string, remove bool) (string, error) {
 
 	str = strings.ReplaceAll(str, "\\", "/")
 	if _, err := os.Stat(str); err != nil {
@@ -126,7 +126,11 @@ func (m *minioStorage) PutStr(str string) (string, error) {
 		return "", err
 	}
 	f.Close()
-	return name, os.Remove(str)
+
+	if remove == true {
+		os.Remove(str)
+	}
+	return name, nil
 }
 
 func (m *minioStorage) Get(path string) (io.ReadCloser, error) {
@@ -247,7 +251,7 @@ func (m *minioStorage) Download(ctx context.Context, url string, opt *downloader
 
 	mime, err := funcs.FileMimeType(fullname)
 
-	rname, err := m.PutStr(fullname)
+	rname, err := m.PutStr(fullname, true)
 	if err != nil {
 		return "", 0, 0, "", err
 	}

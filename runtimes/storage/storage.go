@@ -44,7 +44,7 @@ type Storage interface {
 	Put(reader io.Reader, fm *FileMeta) (string, error)
 
 	// 上传
-	PutStr(str string) (string, error)
+	PutStr(str string, remove bool) (string, error)
 
 	// 下载
 	Get(path string) (io.ReadCloser, error)

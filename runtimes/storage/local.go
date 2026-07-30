@@ -74,7 +74,7 @@ func (l *localStorage) Put(r io.Reader, meta *FileMeta) (string, error) {
 	return objectKey, nil
 }
 
-func (l *localStorage) PutStr(str string) (string, error) {
+func (l *localStorage) PutStr(str string, remove bool) (string, error) {
 	if _, err := os.Stat(str); err != nil {
 		return "", nil
 	}
@@ -95,7 +95,11 @@ func (l *localStorage) PutStr(str string) (string, error) {
 		return "", err
 	}
 	f.Close()
-	return name, os.Remove(str)
+
+	if remove == true {
+		os.Remove(str)
+	}
+	return name, nil
 }
 
 func (l *localStorage) Get(path string) (io.ReadCloser, error) {
@@ -191,7 +195,7 @@ func (l *localStorage) Download(ctx context.Context, url string, opt *downloader
 
 	mime, _ := funcs.FileMimeType(fullname)
 
-	rname, err := l.PutStr(fullname)
+	rname, err := l.PutStr(fullname, true)
 	if err != nil {
 		return "", 0, 0, "", err
 	}

@@ -3,6 +3,7 @@ package product
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"mime"
 	"net/http"
@@ -47,6 +48,7 @@ var productHeader = [][]string{
 		"高",
 		"上架",
 		"上架时间",
+		"品牌",
 	},
 }
 
@@ -145,6 +147,12 @@ type ListData struct {
 	Attrs    []*Attr  `json:"attrs" form:"attrs"`
 }
 
+type Price struct {
+	Min      float64 `json:"min" form:"min"`
+	Max      float64 `json:"max" form:"max"`
+	Discount float64 `json:"discount" form:"discount"`
+}
+
 type ReqData struct {
 	Domain   string      `json:"domain" form:"domain"`
 	Cate     string      `json:"cate" form:"cate"`
@@ -152,11 +160,23 @@ type ReqData struct {
 	Brand    string      `json:"brand" form:"brand"`
 	Lang     string      `json:"lang" form:"lang"`
 	Attrname string      `json:"attrname" form:"attrname"`
+	Prices   []*Price    `json:"prices" form:"prices"`
 	Lists    []*ListData `json:"lists" form:"lists"`
 }
 
 func GetSpiderJses(c *gin.Context) {
 	response.Success(c, spider.GetSpiderJses(), "")
+}
+
+func mkDownUrlRight(src, domain string) string {
+	tmpsrc := strings.ToLower(src)
+	if strings.HasPrefix(tmpsrc, "//") {
+		return "https:" + src
+	}
+	if strings.HasPrefix(tmpsrc, "http") {
+		return src
+	}
+	return fmt.Sprintf("%s/%s", strings.TrimRight(domain, "/"), strings.TrimLeft(src, "/"))
 }
 
 func SaveSpider(c *gin.Context) {
@@ -224,6 +244,7 @@ func Spider(c *gin.Context) {
 
 	ps, pls, as, avs, err := fmtPros(rootDir, req)
 	if err != nil {
+		fmt.Println(err, "格式化产品失败")
 		response.Error(c, 500, err.Error(), nil)
 		return
 	}
@@ -248,6 +269,7 @@ func Spider(c *gin.Context) {
 	}
 
 	if err := xml.Output(rootDir); err != nil {
+		fmt.Println(err, "导出xmsl失败")
 		response.Error(c, 500, err.Error(), nil)
 		return
 	}
@@ -255,15 +277,32 @@ func Spider(c *gin.Context) {
 }
 
 // 下载文件
-func downloadMedia(src, savePath, filename string) (string, error) {
+func downloadMedia(src, savePath, filename, domain string) (string, error) {
+	src = mkDownUrlRight(src, domain)
+	if _, err := os.Stat(savePath); err != nil {
+		if err := os.MkdirAll(savePath, os.ModePerm); err != nil {
+			return "", err
+		}
+	}
 
+	bt, fn, err := spider.GetSpiderMedia(src)
+	if err == nil {
+		return fn, os.WriteFile(filepath.Join(savePath, fn), bt, 0644)
+	}
+	// fmt.Println("下载网络图片----------")
 	cli, err := requests.New(nil)
 	if err != nil {
 		return "", err
 	}
 
-	body, hd, err := cli.Get(src, nil)
+	body, hd, err := cli.Get(src, map[string]string{
+		"User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+		"Accept":          "mage/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+		"Accept-Encoding": "gzip, deflate, br, zstd",
+		"Accept-Language": "en-US;q=0.8,en;q=0.7",
+	})
 	if err != nil {
+		fmt.Println("下载结果: ", err, src)
 		return "", err
 	}
 
@@ -289,8 +328,6 @@ func downloadMedia(src, savePath, filename string) (string, error) {
 			if contentType == "" {
 				fmt.Println("在返回头中无法确定文件格式")
 				contentType = http.DetectContentType(body)
-			} else {
-				fmt.Println("返回头格式:", contentType)
 			}
 
 			exts, err := mime.ExtensionsByType(contentType)
@@ -304,14 +341,15 @@ func downloadMedia(src, savePath, filename string) (string, error) {
 		}
 	}
 
-	if _, err := os.Stat(savePath); err != nil {
-		if err := os.MkdirAll(savePath, os.ModePerm); err != nil {
-			return "", err
-		}
+	saveTO := filepath.Join(savePath, filename)
+	// fmt.Println("文件写入:", saveTO)
+	err = os.WriteFile(saveTO, body, 0644)
+	// fmt.Println("写入结果:", err)
+	if err == nil {
+		spider.SaveSpiderMedia(src, saveTO)
 	}
 
-	return filename, os.WriteFile(filepath.Join(savePath, filename), body, 0644)
-
+	return filename, err
 }
 
 // 生成产品
@@ -367,32 +405,36 @@ func fmtPros(rootDir string, req ReqData) ([]*OutputProduct, []*OutputProductI18
 				var videos []string
 				if len(v.Images) > 0 {
 					for _, img := range v.Images {
-						if !strings.HasPrefix(strings.ToLower(img), "http") {
-							if req.Domain == "" {
-								return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品属性图片地址不含完整域名,请设置域名!", idx)
-							}
-							img = fmt.Sprintf("%s/%s", strings.TrimRight(req.Domain, "/"), strings.TrimLeft(img, "/"))
-						}
+						// if !strings.HasPrefix(strings.ToLower(img), "http") {
+						// 	if req.Domain == "" {
+						// 		return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品属性图片地址不含完整域名,请设置域名!", idx)
+						// 	}
+						// 	img = fmt.Sprintf("%s/%s", strings.TrimRight(req.Domain, "/"), strings.TrimLeft(img, "/"))
+						// }
 
-						fn, err := downloadMedia(img, filepath.Join(imgRoot, pro.Spu), "")
-						if err != nil {
-							return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品图片下载错误: %s", idx, err.Error())
+						fn, err := downloadMedia(img, filepath.Join(imgRoot, pro.Spu), "", req.Domain)
+						if err == nil {
+							imgs = append(imgs, filepath.Join(imgDir, pro.Spu, fn))
+							// return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品图片下载错误: %s", idx, err.Error())
 						}
-						imgs = append(imgs, filepath.Join(imgDir, pro.Spu, fn))
+						// imgs = append(imgs, filepath.Join(imgDir, pro.Spu, fn))
+					}
+					if len(imgs) < 1 {
+						return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品图片下载错误,找不到任何图片", idx)
 					}
 					skuimg[v.Name] = imgs
 				}
 
 				if len(v.Videos) > 0 {
 					for _, video := range v.Videos {
-						if !strings.HasPrefix(strings.ToLower(video), "http") {
-							if req.Domain == "" {
-								return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品属性图片地址不含完整域名,请设置域名!", idx)
-							}
-							video = fmt.Sprintf("%s/%s", strings.TrimRight(req.Domain, "/"), strings.TrimLeft(video, "/"))
-						}
+						// if !strings.HasPrefix(strings.ToLower(video), "http") {
+						// 	if req.Domain == "" {
+						// 		return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品属性图片地址不含完整域名,请设置域名!", idx)
+						// 	}
+						// 	video = fmt.Sprintf("%s/%s", strings.TrimRight(req.Domain, "/"), strings.TrimLeft(video, "/"))
+						// }
 
-						fn, err := downloadMedia(video, filepath.Join(imgRoot, pro.Spu), "")
+						fn, err := downloadMedia(video, filepath.Join(imgRoot, pro.Spu), "", req.Domain)
 						if err != nil {
 							return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品视频下载错误: %s", idx, err.Error())
 						}
@@ -417,29 +459,32 @@ func fmtPros(rootDir string, req ReqData) ([]*OutputProduct, []*OutputProductI18
 		var proImgs []string
 		var proVids []string
 		for _, img := range pro.Imgs {
-			if !strings.HasPrefix(strings.ToLower(img), "http") {
-				if req.Domain == "" {
-					return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品图片地址不含完整域名,请设置域名!", idx)
-				}
-				img = fmt.Sprintf("%s/%s", strings.TrimRight(req.Domain, "/"), strings.TrimLeft(img, "/"))
+			// if !strings.HasPrefix(strings.ToLower(img), "http") {
+			// 	if req.Domain == "" {
+			// 		return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品图片地址不含完整域名,请设置域名!", idx)
+			// 	}
+			// 	img = fmt.Sprintf("%s/%s", strings.TrimRight(req.Domain, "/"), strings.TrimLeft(img, "/"))
+			// }
+			fn, err := downloadMedia(img, filepath.Join(imgRoot, pro.Spu), "", req.Domain)
+			if err == nil {
+				proImgs = append(proImgs, filepath.Join(imgDir, pro.Spu, fn))
+				// return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品图片下载错误: %s", idx, err.Error())
 			}
-			fn, err := downloadMedia(img, filepath.Join(imgRoot, pro.Spu), "")
-			if err != nil {
-				return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品图片下载错误: %s", idx, err.Error())
-			}
-
-			proImgs = append(proImgs, filepath.Join(imgDir, pro.Spu, fn))
+			// proImgs = append(proImgs, filepath.Join(imgDir, pro.Spu, fn))
+		}
+		if len(proImgs) < 1 {
+			return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品图片下载错误,图片完全不存在:%s", idx, pro.Spu)
 		}
 		if len(pro.Videos) > 0 {
 			for _, video := range pro.Videos {
-				if !strings.HasPrefix(strings.ToLower(video), "http") {
-					if req.Domain == "" {
-						return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品视频地址不含完整域名,请设置域名!", idx)
-					}
-					video = fmt.Sprintf("%s/%s", strings.TrimRight(req.Domain, "/"), strings.TrimLeft(video, "/"))
-				}
+				// if !strings.HasPrefix(strings.ToLower(video), "http") {
+				// 	if req.Domain == "" {
+				// 		return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品视频地址不含完整域名,请设置域名!", idx)
+				// 	}
+				// 	video = fmt.Sprintf("%s/%s", strings.TrimRight(req.Domain, "/"), strings.TrimLeft(video, "/"))
+				// }
 
-				fn, err := downloadMedia(video, filepath.Join(imgRoot, pro.Spu), "")
+				fn, err := downloadMedia(video, filepath.Join(imgRoot, pro.Spu), "", req.Domain)
 				if err != nil {
 					return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品图片下载错误: %s", idx, err.Error())
 				}
@@ -470,17 +515,19 @@ func fmtPros(rootDir string, req ReqData) ([]*OutputProduct, []*OutputProductI18
 			}
 			skuvidStr = strings.Join(vvvvv, "\n")
 		}
+
 		ProsSheet = append(ProsSheet, &OutputProduct{
 			Spu:         pro.Spu,
 			Images:      proImgs,
 			Videos:      proVids,
 			OriginPrice: pro.Price,
-			SalePrice:   pro.Price,
+			SalePrice:   fmtSalePrice(req.Prices, pro.Price),
 			Cates:       req.Cate,
 			Tags:        req.Tag,
 			Sku:         skustr,
 			SkuImages:   skuimgStr,
 			SkuVideos:   skuvidStr,
+			Brand:       req.Brand,
 		})
 		ProI18nSheet = append(ProI18nSheet, &OutputProductI18n{
 			Spu:      pro.Spu,
@@ -493,6 +540,40 @@ func fmtPros(rootDir string, req ReqData) ([]*OutputProduct, []*OutputProductI18
 		})
 	}
 	return ProsSheet, ProI18nSheet, AttrSheet, AttrValueSheet, nil
+}
+
+// 格式化售价
+func fmtSalePrice(rules []*Price, amount float64) float64 {
+	if len(rules) == 0 {
+		return amount
+	}
+
+	for _, rule := range rules {
+		if rule == nil {
+			continue
+		}
+
+		// 最小值限制
+		if rule.Min > 0 && amount < rule.Min {
+			continue
+		}
+
+		// 最大值限制
+		if rule.Max > 0 && amount > rule.Max {
+			continue
+		}
+
+		// 匹配成功
+		if rule.Discount > 0 {
+			amount = amount * rule.Discount
+		}
+	}
+
+	// 没有匹配规则，返回原价
+	return Format99Price(amount)
+}
+func Format99Price(amount float64) float64 {
+	return math.Ceil(amount) - 0.01
 }
 
 // 生成标签表单
@@ -533,6 +614,7 @@ func fmtCate(cate, langstr string) []*OutputCate {
 				Name:     v,
 				SeoTitle: v,
 			})
+			parent = v
 		}
 	}
 	return cateArr
@@ -565,6 +647,7 @@ type OutputProduct struct {
 	Sku         string   `json:"sku"`
 	SkuImages   string   `json:"sku_images"`
 	SkuVideos   string   `json:"sku_videos"`
+	Brand       string   `json:"brand"`
 	// Lang        map[string]OutputProductI18n `json:"lang"`
 }
 
@@ -789,6 +872,7 @@ func (x *XMLSData) genProduct(f *excelize.File, dts []*OutputProduct) error {
 			"",              // 高
 			"1",             // 上架
 			"",              // 上架时间
+			v.Brand,         // 品牌
 		}
 		if err := x.setRow(f, startCol+idx, rowData); err != nil {
 			return err

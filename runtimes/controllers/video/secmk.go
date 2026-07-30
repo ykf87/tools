@@ -269,7 +269,7 @@ func MakerVideos(c *gin.Context) {
 					fmt.Println("\n生成失败:", err)
 					mk.Errs = append(mk.Errs, err.Error())
 				}
-				fn, err := storage.Load("").PutStr(outfile)
+				fn, err := storage.Load("").PutStr(outfile, true)
 				if err != nil {
 					mk.Errs = append(mk.Errs, err.Error())
 				}

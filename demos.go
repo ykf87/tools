@@ -254,7 +254,7 @@ func runffmpeg() {
 	rr, err := ffmpeg.GetAudioInfo("./data/2.mp4")
 	fmt.Println(*rr, err)
 
-	r, err := storage.Load("minio").PutStr("./data/f.mp3")
+	r, err := storage.Load("minio").PutStr("./data/f.mp3", true)
 	fmt.Println(r, err)
 
 	// u := storage.Load("minio").URL("9e/7a/9e7aa05f1ed0ecbdc386fe4c549ac3d37e2e443891123facddfb2b08a453d650.mp3")

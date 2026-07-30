@@ -112,13 +112,13 @@ func AddAudio(src, title string) (*Audio, error) {
 				return nil, err
 			}
 		}
-		s, err := storage.Load("").PutStr(audioSrc)
+		s, err := storage.Load("").PutStr(audioSrc, true)
 		if err != nil {
 			return nil, err
 		}
 		src = storage.Load("").URL(s)
 	} else {
-		s, err := storage.Load("").PutStr(src)
+		s, err := storage.Load("").PutStr(src, true)
 		if err != nil {
 			return nil, err
 		}
