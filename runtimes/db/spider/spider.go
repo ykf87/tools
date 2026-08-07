@@ -42,15 +42,22 @@ func GetSpiderMedia(url string) (string, int64, error) {
 
 func SaveSpiderMedia(url, fileName string, dt *bytes.Reader) (int64, string, error) {
 	// uri, err := storage.Load("minio").PutStr(file, false)
+	urlmd5 := funcs.Md5String(url)
+	var dbrow SpiderMedia
+	DB.DB().Where("md5 = ?", urlmd5).First(&dbrow)
+	if dbrow.ID > 0 {
+		return dbrow.ID, dbrow.Uri, nil
+	}
+
 	uri, err := storage.Load("minio").Put(dt, nil)
 	if err == nil {
-		row := &SpiderMedia{
+		row := SpiderMedia{
 			Md5:      funcs.Md5String(url),
 			Url:      url,
 			Uri:      uri,
 			FileName: filepath.Base(fileName),
 		}
-		if err := DB.DB().Model(&SpiderMedia{}).Create(row).Error; err != nil {
+		if err := DB.DB().Model(&SpiderMedia{}).Create(&row).Error; err != nil {
 			return 0, "", err
 		}
 		return row.ID, uri, nil

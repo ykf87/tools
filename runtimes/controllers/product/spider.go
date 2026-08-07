@@ -246,7 +246,8 @@ func downloadMedia(src, savePath, filename, domain string) (string, error) {
 	saveTO := filepath.Join(savePath, filename)
 	err = os.WriteFile(saveTO, body, 0644)
 	if err == nil {
-		spider.SaveSpiderMedia(src, saveTO, bytes.NewReader(body))
+		fid, uri, err := spider.SaveSpiderMedia(src, saveTO, bytes.NewReader(body))
+		fmt.Println(fid, uri, err)
 	}
 
 	return filename, err
