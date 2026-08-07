@@ -3,6 +3,7 @@ package spider
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"tools/runtimes/db"
 	"tools/runtimes/funcs"
@@ -45,17 +46,19 @@ func SaveSpiderMedia(url, fileName string, dt *bytes.Reader) (int64, string, err
 	urlmd5 := funcs.Md5String(url)
 	var dbrow SpiderMedia
 	DB.DB().Where("md5 = ?", urlmd5).First(&dbrow)
+	fmt.Println(dbrow.ID, dbrow.FileName)
 	if dbrow.ID > 0 {
 		return dbrow.ID, dbrow.Uri, nil
 	}
 
+	fn := filepath.Base(fileName)
 	uri, err := storage.Load("minio").Put(dt, nil)
 	if err == nil {
 		row := SpiderMedia{
 			Md5:      funcs.Md5String(url),
 			Url:      url,
 			Uri:      uri,
-			FileName: filepath.Base(fileName),
+			FileName: fn,
 		}
 		if err := DB.DB().Model(&SpiderMedia{}).Create(&row).Error; err != nil {
 			return 0, "", err

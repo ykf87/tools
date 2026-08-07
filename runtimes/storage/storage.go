@@ -139,6 +139,11 @@ func detectMedia(head []byte) (ext string, contentType string) {
 		return ".mp3", mimeType
 	}
 
+	exts, err := mime.ExtensionsByType(mimeType)
+	if err == nil {
+		return exts[0], mimeType
+	}
+
 	return "", "application/octet-stream"
 }
 

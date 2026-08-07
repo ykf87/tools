@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 	"tools/runtimes/db"
+	"tools/runtimes/db/products"
+	"tools/runtimes/db/proxys"
 	"tools/runtimes/db/spider"
 	"tools/runtimes/funcs"
 	"tools/runtimes/requests"
@@ -59,6 +61,8 @@ type ReqData struct {
 	Attrname string      `json:"attrname" form:"attrname"`
 	Prices   []*Price    `json:"prices" form:"prices"`
 	Lists    []*ListData `json:"lists" form:"lists"`
+	CateObj  any         `json:"-"`
+	TagObj   any         `json:"-"`
 }
 
 func GetSpiderJses(c *gin.Context) {
@@ -186,13 +190,26 @@ func downloadMedia(src, savePath, filename, domain string) (string, error) {
 	if err == nil {
 		if o, err := storage.Load("minio").Get(fn); err == nil {
 			if bt, err := io.ReadAll(o); err == nil {
-				return fn, os.WriteFile(filepath.Join(savePath, fn), bt, 0644)
+				return fn, os.WriteFile(filepath.Join(savePath, filepath.Base(fn)), bt, 0644)
 			}
 		}
 		// return fn, os.WriteFile(filepath.Join(savePath, fn), bt, 0644)
 	}
+
+	pc, err := proxys.GetProxyConfigByID(465)
+	var cfg *requests.Config
+	if err == nil {
+		go pc.Run(false)
+		defer func() {
+			pc.Close(false)
+		}()
+		cfg = &requests.Config{
+			Proxy: pc.Listened(),
+		}
+	}
+
 	// fmt.Println("下载网络图片----------")
-	cli, err := requests.New(nil)
+	cli, err := requests.New(cfg)
 	if err != nil {
 		return "", err
 	}
@@ -246,8 +263,9 @@ func downloadMedia(src, savePath, filename, domain string) (string, error) {
 	saveTO := filepath.Join(savePath, filename)
 	err = os.WriteFile(saveTO, body, 0644)
 	if err == nil {
-		fid, uri, err := spider.SaveSpiderMedia(src, saveTO, bytes.NewReader(body))
-		fmt.Println(fid, uri, err)
+		spider.SaveSpiderMedia(src, saveTO, bytes.NewReader(body))
+		// fid, uri, err := spider.SaveSpiderMedia(src, saveTO, bytes.NewReader(body))
+		// fmt.Println(fid, uri, err)
 	}
 
 	return filename, err
@@ -364,6 +382,7 @@ func fmtPros(rootDir string, req ReqData) ([]*OutputProduct, []*OutputProductI18
 			// 	img = fmt.Sprintf("%s/%s", strings.TrimRight(req.Domain, "/"), strings.TrimLeft(img, "/"))
 			// }
 			fn, err := downloadMedia(img, filepath.Join(imgRoot, pro.Spu), "", req.Domain)
+			// fmt.Println(err, "===========下载图片结果")
 			if err == nil {
 				proImgs = append(proImgs, filepath.Join(imgDir, pro.Spu, fn))
 				// return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品图片下载错误: %s", idx, err.Error())
@@ -412,6 +431,49 @@ func fmtPros(rootDir string, req ReqData) ([]*OutputProduct, []*OutputProductI18
 				vvvvv = append(vvvvv, fmt.Sprintf("%s:%s", n, strings.Join(mmgs, ",")))
 			}
 			skuvidStr = strings.Join(vvvvv, "\n")
+		}
+
+		var dbpro products.Product
+		products.DB.DB().Model(&products.Product{}).Where("spu = ?", pro.Spu).First(&dbpro)
+		if dbpro.ID < 1 {
+			issku := 0
+			if skustr != "" {
+				issku = 1
+			}
+
+			prourl := pro.Url
+			if !strings.HasPrefix(prourl, "//") && !strings.HasPrefix(strings.ToLower(prourl), "http") {
+				prourl = strings.TrimRight(req.Domain, "/") + "/" + strings.TrimLeft(prourl, "/")
+			}
+
+			basedir := filepath.Join(imgDir, pro.Spu) + "\\"
+			dbpro = products.Product{
+				Spu:       pro.Spu,
+				Images:    strings.ReplaceAll(strings.ReplaceAll(strings.Join(proImgs, ","), basedir, ""), "\\", "/"),
+				Videos:    strings.ReplaceAll(strings.ReplaceAll(strings.Join(proVids, ","), basedir, ""), "\\", "/"),
+				Brand:     req.Brand,
+				Cates:     req.Cate,
+				Tags:      req.Tag,
+				Url:       prourl,
+				UrlMd5:    funcs.Md5String(prourl),
+				CreatedAt: time.Now(),
+				HasSKU:    issku,
+				SkuStr:    skustr,
+				SkuImg:    strings.ReplaceAll(strings.ReplaceAll(skuimgStr, basedir, ""), "\\", "/"),
+				SkuVideo:  strings.ReplaceAll(strings.ReplaceAll(skuvidStr, basedir, ""), "\\", "/"),
+			}
+
+			if err := products.DB.DB().Model(&products.Product{}).Create(&dbpro).Error; err == nil {
+				pl := products.ProductInfo{
+					ProductID:      dbpro.ID,
+					Lang:           req.Lang,
+					Title:          pro.Name,
+					SubTitle:       pro.SubName,
+					SeoTitle:       pro.SeoTitle,
+					SeoDescription: pro.SeoDesc,
+				}
+				products.DB.DB().Model(&products.ProductInfo{}).Create(&pl)
+			}
 		}
 
 		ProsSheet = append(ProsSheet, &OutputProduct{

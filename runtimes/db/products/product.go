@@ -3,7 +3,9 @@ package products
 import (
 	"strconv"
 	"strings"
+	"time"
 	"tools/runtimes/db"
+	"tools/runtimes/storage"
 
 	"gorm.io/gorm"
 )
@@ -29,11 +31,13 @@ type Product struct {
 	PurchasePrice float64                  `json:"purchase_price" gorm:"default:0"`                 // 进货价,成本价,单位分
 	Stock         int64                    `json:"stock" gorm:"default:0;index"`                    // 库存,0为不限
 	Customer      []ProductCustomAttribute `json:"customer" gorm:"foreignKey:ProductID"`            // 定制配置
-	Tags          []Tag                    `json:"tags" gorm:"many2many:product_tag_relations;"`    // 标签列表// 关系
-	Attributes    []ProductAttribute       `json:"attributes" gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE"`
-	Skus          []ProductSKU             `json:"skus" gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE"`
-	Url           string                   `json:"url"`
-	UrlMd5        string                   `json:"url_md5" gorm:"index"`
+	Cates         string                   `json:"cates" gorm:"index"`                              // 分类
+	Tags          string                   `json:"tags" gorm:"tags"`                                // 标签
+	// Tags          []Tag                    `json:"tags" gorm:"many2many:product_tag_relations;"`    // 标签列表// 关系
+	Attributes []ProductAttribute `json:"attributes" gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE"`
+	Skus       []ProductSKU       `json:"skus" gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE"`
+	Url        string             `json:"url"`
+	UrlMd5     string             `json:"url_md5" gorm:"index"`
 	// SKUAttrs      []SKUAttributeValue      `json:"sku_attrs" gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE"`  // SKU维度（销售属性）
 	Status int `json:"status" gorm:"default:1;index"`  // 1启用 0禁用
 	HasSKU int `json:"has_sku" gorm:"default:0;index"` // 是否多规格
@@ -42,6 +46,11 @@ type Product struct {
 	MaxPrice int64 `json:"max_price"`
 	// 🔥 库存（冗余）
 	TotalStock int64 `json:"total_stock"`
+	CreatedAt  time.Time
+	SkuStr     string `json:"sku_str"`
+	SkuImg     string `json:"sku_img"`
+	SkuVideo   string `json:"sku_video"`
+	Spidered   int    `json:"spidered" gorm:"index;default:0"`
 }
 
 type ProductImage struct {
@@ -115,12 +124,14 @@ func init() {
 		&ProductCustomAttrValue{},
 		&ProductCustomConfig{},
 		&ProductFilterIndex{},
+		&Cate{},
+		&CateLang{},
 	)
 }
 
 // 获取产品列表
-func GetProductList(req db.ListFinder) ([]Product, int64, error) {
-	var ps []Product
+func GetProductList(req db.ListFinder) ([]*Product, int64, error) {
+	var ps []*Product
 	var total int64
 
 	query := DB.DB().Model(&Product{}).
@@ -181,14 +192,30 @@ func GetProductList(req db.ListFinder) ([]Product, int64, error) {
 	offset := (req.Page - 1) * req.Limit
 
 	err := query.
-		Preload("Images").
-		Preload("Videos").
+		// Preload("Images").
+		// Preload("Videos").
 		Preload("Meta").
-		Preload("Skus").
+		// Preload("Skus").
 		Order("products.id DESC").
 		Limit(req.Limit).
 		Offset(offset).
 		Find(&ps).Error
+
+	for _, v := range ps {
+		vvs := strings.Split(v.Images, ",")
+		var igs []string
+		for _, zz := range vvs {
+			igs = append(igs, storage.Load("minio").URL(zz))
+		}
+		v.Images = strings.Join(igs, ",")
+
+		vvs = strings.Split(v.Videos, ",")
+		igs = nil
+		for _, zz := range vvs {
+			igs = append(igs, storage.Load("minio").URL(zz))
+		}
+		v.Videos = strings.Join(igs, ",")
+	}
 
 	return ps, total, err
 }
