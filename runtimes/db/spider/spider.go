@@ -1,22 +1,13 @@
 package spider
 
 import (
+	"bytes"
 	"errors"
-	"io"
 	"path/filepath"
-	"time"
 	"tools/runtimes/db"
 	"tools/runtimes/funcs"
 	"tools/runtimes/storage"
 )
-
-type SpiderJs struct { // 如果有修改字段,需要更新Save方法
-	ID        int64     `json:"id" gorm:"primaryKey;autoIncrement" form:"id"`
-	Name      string    `json:"name" gorm:"index;not null" form:"id"`
-	CreatedAt time.Time `gorm:"index" json:"created_at"`
-	Content   string    `json:"content"`
-	db.BaseModel
-}
 
 type SpiderMedia struct {
 	ID       int64  `json:"id" gorm:"primaryKey;autoIncrement"`
@@ -26,44 +17,43 @@ type SpiderMedia struct {
 	FileName string `json:"file_name"`
 }
 
+var DB = db.PRODUCTDB
+
 func init() {
-	db.DB.DB().AutoMigrate(&SpiderJs{}, &SpiderMedia{})
+	DB.DB().AutoMigrate(&SpiderJs{}, &SpiderMedia{})
 }
 
 func GetSpiderJses() []*SpiderJs {
 	var jses []*SpiderJs
-	db.DB.DB().Order("created_at desc").Find(&jses)
+	DB.DB().Order("created_at desc").Find(&jses)
 	return jses
 }
 
-func GetSpiderMedia(url string) ([]byte, string, error) {
+func GetSpiderMedia(url string) (string, int64, error) {
 	md5 := funcs.Md5String(url)
 	var row SpiderMedia
-	db.DB.DB().Where("md5 = ?", md5).First(&row)
+	DB.DB().Where("md5 = ?", md5).First(&row)
 
 	if row.ID > 0 {
-		if o, err := storage.Load("minio").Get(row.Uri); err == nil {
-			if dt, err := io.ReadAll(o); err == nil {
-				return dt, row.FileName, nil
-			}
-		}
+		return row.Uri, row.ID, nil
 	}
-	return nil, "", errors.New("not found")
+	return "", 0, errors.New("not found")
 }
 
-func SaveSpiderMedia(url, file string) error {
-	uri, err := storage.Load("minio").PutStr(file, false)
+func SaveSpiderMedia(url, fileName string, dt *bytes.Reader) (int64, string, error) {
+	// uri, err := storage.Load("minio").PutStr(file, false)
+	uri, err := storage.Load("minio").Put(dt, nil)
 	if err == nil {
 		row := &SpiderMedia{
 			Md5:      funcs.Md5String(url),
 			Url:      url,
 			Uri:      uri,
-			FileName: filepath.Base(file),
+			FileName: filepath.Base(fileName),
 		}
-		if err := db.DB.DB().Model(&SpiderMedia{}).Create(row).Error; err != nil {
-			return err
+		if err := DB.DB().Model(&SpiderMedia{}).Create(row).Error; err != nil {
+			return 0, "", err
 		}
-		return nil
+		return row.ID, uri, nil
 	}
-	return err
+	return 0, "", err
 }

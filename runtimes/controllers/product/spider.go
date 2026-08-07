@@ -1,8 +1,10 @@
 package product
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"math/rand"
 	"mime"
@@ -16,116 +18,11 @@ import (
 	"tools/runtimes/funcs"
 	"tools/runtimes/requests"
 	"tools/runtimes/response"
+	"tools/runtimes/storage"
 
 	"github.com/gin-gonic/gin"
 	"github.com/xuri/excelize/v2"
 )
-
-var productHeader = [][]string{
-	[]string{"spu需保证唯一,一行一个商品"},
-	[]string{
-		"spu",
-		"商品图",
-		"商品视频",
-		"商家编码",
-		"原价",
-		"售价",
-		"进货价",
-		"分类",
-		"标签",
-		"sku",
-		"sku图片",
-		"sku视频",
-		"sku价格",
-		"属性",
-		"筛选",
-		"库存",
-		"虚拟销量",
-		"商品重量",
-		"包裹重量",
-		"长",
-		"宽",
-		"高",
-		"上架",
-		"上架时间",
-		"品牌",
-	},
-}
-
-var i18nHeader = [][]string{
-	[]string{"产品多语言信息,语言项需从后台语言管理处获取,spu需和Sheet1项一致"},
-	[]string{
-		"spu",
-		"语言",
-		"标题",
-		"副标题",
-		"简介",
-		"详情",
-		"seo标题",
-		"seo简介",
-		"关键词",
-	},
-}
-
-var cateHeader = [][]string{
-	[]string{"编码需保证在分类项中唯一"},
-	[]string{
-		"编码",
-		"上级分类",
-		"语言",
-		"分类名",
-		"分类简介",
-		"seo标题",
-		"seo简介",
-		"关键词",
-	},
-}
-
-var tagHeader = [][]string{
-	[]string{"标签，编码需要保证在标签项中的唯一性"},
-	[]string{
-		"编码",
-		"语言",
-		"标签名称",
-		"标签简介",
-		"seo标题",
-		"seo简介",
-		"关键词",
-	},
-}
-var attrHeader = [][]string{
-	[]string{"单页如果设置为1,则必须填写单页标题和单页介绍,编码需保证在属性中唯一"},
-	[]string{
-		"编码",
-		"语言",
-		"属性名",
-		"单页",
-		"单页标题",
-		"单页介绍",
-		"单页关键词",
-	},
-}
-var attrValueHeader = [][]string{
-	[]string{"单页设置为1时,必须设置单页标题,单页简介和单页内容,用于将属性单独页面展示"},
-	[]string{
-		"编码",
-		"属性",
-		"下级属性",
-		"下级筛选",
-		"地区",
-		"语言",
-		"名称",
-		"单页",
-		"单页简介",
-		"单页内容",
-		"seo标题",
-		"seo简介",
-		"单页关键词",
-		"图集",
-		"视频",
-		"虚拟喜欢",
-	},
-}
 
 type Attr struct {
 	Name   string   `json:"name" form:"name"`
@@ -285,9 +182,14 @@ func downloadMedia(src, savePath, filename, domain string) (string, error) {
 		}
 	}
 
-	bt, fn, err := spider.GetSpiderMedia(src)
+	fn, _, err := spider.GetSpiderMedia(src)
 	if err == nil {
-		return fn, os.WriteFile(filepath.Join(savePath, fn), bt, 0644)
+		if o, err := storage.Load("minio").Get(fn); err == nil {
+			if bt, err := io.ReadAll(o); err == nil {
+				return fn, os.WriteFile(filepath.Join(savePath, fn), bt, 0644)
+			}
+		}
+		// return fn, os.WriteFile(filepath.Join(savePath, fn), bt, 0644)
 	}
 	// fmt.Println("下载网络图片----------")
 	cli, err := requests.New(nil)
@@ -342,11 +244,9 @@ func downloadMedia(src, savePath, filename, domain string) (string, error) {
 	}
 
 	saveTO := filepath.Join(savePath, filename)
-	// fmt.Println("文件写入:", saveTO)
 	err = os.WriteFile(saveTO, body, 0644)
-	// fmt.Println("写入结果:", err)
 	if err == nil {
-		spider.SaveSpiderMedia(src, saveTO)
+		spider.SaveSpiderMedia(src, saveTO, bytes.NewReader(body))
 	}
 
 	return filename, err
@@ -368,9 +268,6 @@ func fmtPros(rootDir string, req ReqData) ([]*OutputProduct, []*OutputProductI18
 	attrValueMap := make(map[string]bool)
 
 	for idx, pro := range req.Lists {
-		// if idx >= 1 {
-		// 	break
-		// }
 		if pro.Spu == "" || pro.Price <= 0 || pro.Name == "" || len(pro.Imgs) < 1 {
 			return nil, nil, nil, nil, fmt.Errorf("第 %d 个产品数据不正确!", idx)
 		}

@@ -14,14 +14,14 @@ type Product struct {
 	Spu           string                   `json:"spu" gorm:"uniqueIndex;not null;"`                // 产品型号(唯一)
 	Code          string                   `json:"code" gorm:"index;default:null"`                  // 商家编码
 	Meta          []ProductInfo            `json:"meta" gorm:"foreignKey:ProductID"`                // 产品信息
-	Images        []ProductImage           `json:"images" gorm:"default:null;foreignKey:ProductID"` // 图集
-	Videos        []ProductVideo           `json:"videos" gorm:"default:null;foreignKey:ProductID"` // 视频集
+	Images        string                   `json:"images" gorm:"default:null;foreignKey:ProductID"` // 图集
+	Videos        string                   `json:"videos" gorm:"default:null;foreignKey:ProductID"` // 视频集
 	BaseWeight    int64                    `json:"base_weight" gorm:"default:0"`                    // 物品重量,单位克
 	Weight        int64                    `json:"weight" gorm:"default:0"`                         // 加上包裹的总重量,单位克
 	Width         int64                    `json:"width" gorm:"default:0"`                          // 宽(cm)
 	Height        int64                    `json:"height" gorm:"default:0"`                         // 高(cm)
 	Length        int64                    `json:"length" gorm:"default:0"`                         // 长
-	Brand         int64                    `json:"brand" gorm:"index;default:0"`                    // 品牌
+	Brand         string                   `json:"brand" gorm:"index;default:null"`                 // 品牌
 	PublishAt     int64                    `json:"publish_at" gorm:"default:0;index"`               // 定时上架
 	ProductType   int                      `json:"product_type" gorm:"type:tinyint(1);default:0"`   // 商品类型,0实物, 1定制，2虚拟
 	OriginPrice   float64                  `json:"origin_price" gorm:"default:0"`                   // 原价,单位分
@@ -32,6 +32,8 @@ type Product struct {
 	Tags          []Tag                    `json:"tags" gorm:"many2many:product_tag_relations;"`    // 标签列表// 关系
 	Attributes    []ProductAttribute       `json:"attributes" gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE"`
 	Skus          []ProductSKU             `json:"skus" gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE"`
+	Url           string                   `json:"url"`
+	UrlMd5        string                   `json:"url_md5" gorm:"index"`
 	// SKUAttrs      []SKUAttributeValue      `json:"sku_attrs" gorm:"foreignKey:ProductID;constraint:OnDelete:CASCADE"`  // SKU维度（销售属性）
 	Status int `json:"status" gorm:"default:1;index"`  // 1启用 0禁用
 	HasSKU int `json:"has_sku" gorm:"default:0;index"` // 是否多规格
@@ -49,7 +51,6 @@ type ProductImage struct {
 }
 
 type ProductVideo struct {
-	ID        int64  `json:"id" gorm:"primaryKey;autoIncrement"`
 	ProductID int64  `json:"product_id" gorm:"index;not null;"`
 	Src       string `json:"src" gorm:"not null"`
 	Cover     string `json:"cover" gorm:"default:null"`    // 视频封面
@@ -260,3 +261,8 @@ func SyncProductFilterIndex(db *gorm.DB, productID int64) error {
 
 	return db.Create(&list).Error
 }
+
+// 添加商品,使用spu作为唯一标识
+// func AddProduct(product *Product, attrs []*ProductAttribute) {
+
+// }

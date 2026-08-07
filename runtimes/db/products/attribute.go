@@ -48,8 +48,10 @@ type ProductAttribute struct {
 	ProductID   int64 `json:"product_id" gorm:"not null;index:idx_product_attr,priority:1"`
 	AttributeID int64 `json:"attribute_id" gorm:"not null;index:idx_product_attr,priority:2"`
 
-	IsSKU   int8 `json:"is_sku" gorm:"default:0;index"`
-	IsMedia int8 `json:"is_media" gorm:"default:0;index"`
+	IsSKU       int8   `json:"is_sku" gorm:"default:0;index"`
+	IsMedia     int8   `json:"is_media" gorm:"default:0;index"`
+	IsCustomer  bool   `json:"is_customer" gorm:"default:false;index"`
+	CustomerIDs string `json:"customer_ids" gorm:"defult:null"`
 
 	// 👉 防止重复绑定
 	_ struct{} `gorm:"uniqueIndex:uk_product_attr,priority:1"`
