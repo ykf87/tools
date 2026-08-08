@@ -2,6 +2,7 @@ package product
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -53,16 +54,21 @@ type Price struct {
 }
 
 type ReqData struct {
-	Domain   string      `json:"domain" form:"domain"`
-	Cate     string      `json:"cate" form:"cate"`
-	Tag      string      `json:"tag" form:"tag"`
-	Brand    string      `json:"brand" form:"brand"`
-	Lang     string      `json:"lang" form:"lang"`
-	Attrname string      `json:"attrname" form:"attrname"`
-	Prices   []*Price    `json:"prices" form:"prices"`
-	Lists    []*ListData `json:"lists" form:"lists"`
-	CateObj  any         `json:"-"`
-	TagObj   any         `json:"-"`
+	Domain       string      `json:"domain" form:"domain"`
+	Cate         string      `json:"cate" form:"cate"`
+	Tag          string      `json:"tag" form:"tag"`
+	Brand        string      `json:"brand" form:"brand"`
+	Lang         string      `json:"lang" form:"lang"`
+	Attrname     string      `json:"attrname" form:"attrname"`
+	Prices       []*Price    `json:"prices" form:"prices"`
+	Lists        []*ListData `json:"lists" form:"lists"`
+	CateObj      any         `json:"-"`
+	TagObj       any         `json:"-"`
+	SpiderHistoy int64       `json:"-"`
+	JsID         int64       `json:"js_id" form:"js_id"`
+	JsContent    string      `json:"js_content" form:"js_content"`
+	Url          string      `json:"url" form:"url"`
+	Html         string      `json:"html" form:"html"`
 }
 
 func GetSpiderJses(c *gin.Context) {
@@ -112,6 +118,34 @@ func Spider(c *gin.Context) {
 		response.Error(c, 500, "请将右侧设置填写完整", nil)
 		return
 	}
+
+	config := map[string]any{
+		"domain":   req.Domain,
+		"cate":     req.Cate,
+		"tag":      req.Cate,
+		"brand":    req.Brand,
+		"lang":     req.Lang,
+		"attrname": req.Attrname,
+		"prices":   req.Prices,
+	}
+	dt, err := json.Marshal(config)
+	if err != nil {
+		response.Error(c, 500, err.Error(), nil)
+		return
+	}
+	sh := spider.SpiderHistory{
+		JSID:      req.JsID,
+		JSStr:     req.JsContent,
+		Url:       req.Url,
+		Html:      req.Html,
+		Config:    string(dt),
+		CreatedAt: time.Now(),
+	}
+	if err := sh.Save(sh, spider.DB.DB()); err != nil {
+		response.Error(c, 500, err.Error(), nil)
+		return
+	}
+	req.SpiderHistoy = sh.ID
 
 	// 创建临时保存目录
 	rootDir := filepath.Join("./data/tmp", funcs.RoundmUuid())
@@ -448,19 +482,20 @@ func fmtPros(rootDir string, req ReqData) ([]*OutputProduct, []*OutputProductI18
 
 			basedir := filepath.Join(imgDir, pro.Spu) + "\\"
 			dbpro = products.Product{
-				Spu:       pro.Spu,
-				Images:    strings.ReplaceAll(strings.ReplaceAll(strings.Join(proImgs, ","), basedir, ""), "\\", "/"),
-				Videos:    strings.ReplaceAll(strings.ReplaceAll(strings.Join(proVids, ","), basedir, ""), "\\", "/"),
-				Brand:     req.Brand,
-				Cates:     req.Cate,
-				Tags:      req.Tag,
-				Url:       prourl,
-				UrlMd5:    funcs.Md5String(prourl),
-				CreatedAt: time.Now(),
-				HasSKU:    issku,
-				SkuStr:    skustr,
-				SkuImg:    strings.ReplaceAll(strings.ReplaceAll(skuimgStr, basedir, ""), "\\", "/"),
-				SkuVideo:  strings.ReplaceAll(strings.ReplaceAll(skuvidStr, basedir, ""), "\\", "/"),
+				Spu:         pro.Spu,
+				Images:      strings.ReplaceAll(strings.ReplaceAll(strings.Join(proImgs, ","), basedir, ""), "\\", "/"),
+				Videos:      strings.ReplaceAll(strings.ReplaceAll(strings.Join(proVids, ","), basedir, ""), "\\", "/"),
+				Brand:       req.Brand,
+				Cates:       req.Cate,
+				Tags:        req.Tag,
+				Url:         prourl,
+				UrlMd5:      funcs.Md5String(prourl),
+				CreatedAt:   time.Now(),
+				HasSKU:      issku,
+				SkuStr:      skustr,
+				SkuImg:      strings.ReplaceAll(strings.ReplaceAll(skuimgStr, basedir, ""), "\\", "/"),
+				SkuVideo:    strings.ReplaceAll(strings.ReplaceAll(skuvidStr, basedir, ""), "\\", "/"),
+				SpiderHisId: req.SpiderHistoy,
 			}
 
 			if err := products.DB.DB().Model(&products.Product{}).Create(&dbpro).Error; err == nil {

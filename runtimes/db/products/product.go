@@ -45,12 +45,13 @@ type Product struct {
 	MinPrice int64 `json:"min_price" gorm:"index"` // 最低SKU价
 	MaxPrice int64 `json:"max_price"`
 	// 🔥 库存（冗余）
-	TotalStock int64 `json:"total_stock"`
-	CreatedAt  time.Time
-	SkuStr     string `json:"sku_str"`
-	SkuImg     string `json:"sku_img"`
-	SkuVideo   string `json:"sku_video"`
-	Spidered   int    `json:"spidered" gorm:"index;default:0"`
+	TotalStock  int64 `json:"total_stock"`
+	CreatedAt   time.Time
+	SkuStr      string `json:"sku_str"`
+	SkuImg      string `json:"sku_img"`
+	SkuVideo    string `json:"sku_video"`
+	SpiderHisId int64  `json:"spider_his_id" gorm:"index;default:0"`
+	Spidered    int    `json:"spidered" gorm:"index;default:0"`
 }
 
 type ProductImage struct {

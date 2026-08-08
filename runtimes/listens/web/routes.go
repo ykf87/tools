@@ -12,6 +12,7 @@ import (
 	"tools/runtimes/controllers/product"
 	"tools/runtimes/controllers/proxys"
 	"tools/runtimes/controllers/public"
+	"tools/runtimes/controllers/spider"
 	"tools/runtimes/controllers/suggs"
 	"tools/runtimes/controllers/tags"
 	"tools/runtimes/controllers/task"
@@ -229,5 +230,6 @@ func router() {
 		productGroup.POST("/spider", product.Spider)
 		productGroup.GET("/spiderjs", product.GetSpiderJses)
 		productGroup.POST("/spider/save", product.SaveSpider)
+		productGroup.POST("/spider/content", spider.AutoContent)
 	}
 }
